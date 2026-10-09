@@ -21,10 +21,10 @@ All files below are copied from the exact Adoption Commit recorded above.
 
 ## Active Profiles
 
-| Profile ID | Version | Scope | Activation |
-|---|---:|---|---|
-| `composer-package` | `4.0.0` | `/` | [Composer Package Profile](standards/profiles/COMPOSER_PACKAGE_PROFILE.md) |
-| `repository-governance` | `3.0.0` | `/` | [Repository Governance Profile](standards/profiles/REPOSITORY_GOVERNANCE_PROFILE.md) |
+| Profile ID | Version | Scope | Resolution Status | Exception State | Activation |
+|---|---:|---|---|---|---|
+| `composer-package` | `4.0.0` | `/` | `VALID` | `NONE` | [Composer Package Profile](standards/profiles/COMPOSER_PACKAGE_PROFILE.md) |
+| `repository-governance` | `3.0.0` | `/` | `VALID` | `NONE` | [Repository Governance Profile](standards/profiles/REPOSITORY_GOVERNANCE_PROFILE.md) |
 
 ## Resolved Applicable Standards Set
 
@@ -46,6 +46,8 @@ These are the final Stage 2 applicable standards for the two activations at `/`.
 
 Stage 1 resolved the two active Profiles. Neither extends another Profile. The Composer Package Profile contributes nine direct candidate references; the Repository Governance Profile contributes four. `std-documentation-lifecycle` is shared, producing 12 unique candidate references. All Profile files and all 12 candidate Standard definitions exist at the pinned upstream commit.
 
+Per §16.1, the independent diagnostics are `composer-package @ /` — `Resolution Status: VALID`, `Exception State: NONE`; and `repository-governance @ /` — `Resolution Status: VALID`, `Exception State: NONE`. The first activation resolves its package standards and shared Documentation Lifecycle applicability. The second resolves AI Collaboration Workflow, GitHub Phase Stack Workflow, Decision Governance, and the shared Documentation Lifecycle applicability. No deviation or unresolved adoption decision applies to either activation.
+
 Stage 2 includes the nine standards listed above. It excludes:
 
 - `std-external-provider-verification`: the repository does not own a provider-specific contract.
@@ -54,3 +56,5 @@ Stage 2 includes the nine standards listed above. It excludes:
 - Persistence, SQL, PDO, schema, migration, and database-test requirements: these are conditional on package-owned persistence/database behavior; none exists in this repository.
 
 The excluded references remain visible in the pinned Composer Package Profile and were checked structurally against the Adoption Commit. No profile inheritance cycle, missing candidate reference, or broken link between pinned control files and the final standards set was found. Profile versions `4.0.0` and `3.0.0` are initial consumer baselines for this repository; its history contains no earlier Adoption Manifest or frozen profile snapshot.
+
+The overall `Resolution Status` is calculated under §16.2: any `INVALID` activation makes the result `INVALID`; otherwise any activation or unresolved adoption decision requiring an Owner decision makes it `OWNER DECISION REQUIRED`; otherwise the result is `VALID`. Both activation diagnostics are `VALID`, with no unresolved decision, so the recorded overall result is `VALID`.
