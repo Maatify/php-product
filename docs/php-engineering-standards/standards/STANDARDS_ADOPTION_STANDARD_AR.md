@@ -3,7 +3,7 @@
 ## بيانات المعيار
 
 - **Standard ID:** `std-standards-adoption`
-- **Standard Version:** `4.1.0`
+- **Standard Version:** `5.0.0`
 - **Standard Version Format:** `MAJOR.MINOR.PATCH`
 - **اللغة المعتمدة:** العربية.
 - **النطاق:** آلية اختيار المعايير وتثبيتها وتوزيعها وتفعيلها داخل المشاريع التابعة لمنظومة Maatify.
@@ -438,6 +438,24 @@ Pinned Operational Assets Set إن كانت Operational Assets معتمدة:
 
 عند اعتماد Operational Assets، يجب أن يظهر inventory canonical بعنوان exact هو `Pinned Operational Assets Set`، وأن يسجل لكل ملف الحقول الأربعة فقط اللازمة لإثبات الهوية: `Kind` و`Upstream Path` و`Local Path` و`SHA-256`. لا تضاف حقول جديدة إلى inventory (مثل Source Commit أو Asset Commit أو Provider أو Registry ID أو Asset ID)؛ وعند وجود استثناء مصرح به لـ mixed pinning، تُستمد exact alternate source identity من سجل الاستثناء المعتمد والموثق المسجل تحت `Explicit Exceptions/Overrides`، بينما يظل inventory محصورًا في الحقول الأربعة. لا تضع الـManifest workflow rules أو Skill bodies أو Decision rationale؛ تظل inventory/resolver record فقط. إذا لم يعتمد المشروع أي Operational Assets، لا يكون هذا الـheading إلزاميًا وتظل Manifest المتوافقة تاريخيًا صالحة دون migration شكلية.
 
+### 9.1 سجل استثناء Operational Asset Mixed-Pinning
+
+الاستثناء من same-commit pinning لا يستخدم إلا للسماح صراحةً بقراءة Operational Asset محدد من Commit مركزي بديل. لا تمنح صيغة هذا السجل صلاحية عامة لأي مستهلك. يجب أن يعتمد المستهلك قرارًا دائمًا خاصًا به يوافق هذا الاستثناء تحديدًا؛ أما `DEC-032` فيعرّف صيغة السجل والتحقق الميكانيكي فقط ولا يوافق على أي انحراف لمستهلك.
+
+يسجل الاستثناء كسطر واحد داخل `Explicit Exceptions/Overrides` وبالصيغة والترتيب الحرفيين التاليين، بما في ذلك أسماء الحقول وحالة الأحرف وعلامة الفصل `; `:
+
+```text
+- Type=OPERATIONAL_ASSET_MIXED_PINNING; State=APPROVED_AND_DOCUMENTED; Decision-ID=DEC-NNN; Authority=Project Owner; Upstream-Path=<exact upstream path>; Local-Path=<exact local path>; Source-Commit=<40 lowercase hexadecimal characters>; Approved-On=YYYY-MM-DD; Reason=<non-empty single-line rationale>
+```
+
+`Decision-ID` هو قرار المستهلك الدائم. يجب أن يكون مفهرسًا مرة واحدة بالضبط كـ`ACTIVE` في `docs/decisions/DECISIONS_INDEX.md` لدى المستهلك، وأن يشير إلى سجل موجود يثبت `Decision ID` و`Status: ACTIVE` و`Decision Authority: Project Owner` والحقول الدقيقة `Upstream Path` و`Local Path` و`Source Commit` و`Approved-On` و`Reason` المطابقة للسطر. تُكتب هذه البيانات كسطور metadata ذات اسم حقل bold وقيمة inline code، وتطابق الأسماء والقيم حرفيًا؛ ويكون `Reason` قيمة السجل نفسها. يصف السجل الدائم سلطة الموافقة ونطاق الملف والسبب، ويعتمد المالك الاستثناء بتاريخ `Approved-On`. يجب ألا يستخدم قرار مركزي يعرّف هذه القواعد بدل قرار المستهلك الذي يجيز الحالة الفعلية.
+
+القيم مقيدة كما يلي: `State` و`Authority` و`Type` تطابق القيم أعلاه حرفيًا؛ `Decision-ID` يطابق `DEC-` متبوعًا بثلاثة أرقام؛ المساران نسبيان exact بمقاطع ASCII من الحروف والأرقام و`.` و`_` و`-` مفصولة بعلامة `/` واحدة، ومن دون مسافات أو محارف تحكم أو مقاطع `.` و`..` أو مقطع فارغ؛ `Source-Commit` طولها 40 خانة hex صغيرة؛ والتاريخ تاريخ تقويمي صالح بصيغة `YYYY-MM-DD`. لا يجوز أن يحتوي `Reason` على `;` أو backtick أو محارف تحكم أو newline أو أن يكون فارغًا أو محاطًا بمسافات. لا تقبل مسافات إضافية أو حقولًا مكررة أو إضافية أو مفقودة أو تبديل ترتيب الحقول أو اختلاف الترقيم/الفواصل.
+
+أي سطر يبدأ بحقل `Type=OPERATIONAL_ASSET_` ويعلن نوع هذا الاستثناء لكنه لا يطابق الصيغة كلها، أو تتكرر سجلات الاستثناء للزوج نفسه، أو تتعارض، ينتج `INVALID`. لا تتحول استثناءات معتمدة لأنواع أخرى إلى mixed-pinning لمجرد وجود SHA أو كلمات مشابهة؛ تظل خاضعة لعقودها ولا تغير مصدر أي Operational Asset. السجل الصحيح الذي لا يطابق معًا `Upstream-Path` و`Local-Path` للأصل الجاري فحصه لا يغير مصدره. عند غياب سجل صالح منطبق، يبقى `Adoption Commit` المصدر الافتراضي. لا يغير الاستثناء علاقة الملف ببيانات Adoption الأخرى ولا يسمح بتجاوزها.
+
+يظل التحقق من وجود Commit البديل ونوع Git object `blob` وقراءة المحتوى الخام ومطابقة `SHA-256` إلزاميًا لكل ملف. لا يملك السجل أو القرار تجاوز فشل القراءة أو عدم تطابق المحتوى.
+
 ## 10. تكامل `AGENTS.md` في المشروع التابع
 
 يكفي أن يشير `AGENTS.md` في المشروع التابع إلى `STANDARDS_MANIFEST.md` وإلى هذا Adoption Standard، بدل سرد كل Standard يدويًا. عند بدء مهمة، يلتزم الوكيل بمسار resolution المناسب لنوع المهمة.
@@ -716,3 +734,8 @@ APPROVED_AND_DOCUMENTED
 - تثبيت same exact Adoption Commit افتراضيًا وإتاحة التحقق الميكانيكي من exact alternate source identity المصرح بها صراحةً في استثناء معتمد وموثق (`APPROVED_AND_DOCUMENTED`)، مع إبقاء التحقق من raw-content SHA-256 إلزاميًا وfail-closed عند أي mismatch فعلي، دون إدخال Operational Assets في Stage 1/Stage 2 أو Profiles أو normative ownership ودون حقول إضافية في الـinventory.
 - الحفاظ على `STANDARDS_MANIFEST.md` كـLocal Resolver / Inventory Record فقط، وعلى صلاحية المستهلكين الحاليين الذين لا يعتمدون Operational Assets.
 - التصنيف `NORMATIVE / BACKWARD_COMPATIBLE_CONTRACT_CHANGE / Minor` من Frozen Version Baseline `4.0.0` (blob `d84856f7cd50112b32d6843989700a819e6bad98`) إلى Mutable Candidate `4.1.0`.
+
+### `5.0.0`
+
+- اعتماد `DEC-032` وتحديد سجل حتمي قابل للتحقق آليًا لاستثناء Operational Asset mixed-pinning، مع ربط كل سجل بقرار مستهلك نشط ومحدد للزوج الدقيق والمسار والمصدر.
+- التصنيف `NORMATIVE / BREAKING_CONTRACT_CHANGE / Major` من Frozen Version Baseline `4.0.0` (blob `d84856f7cd50112b32d6843989700a819e6bad98`) إلى Mutable Candidate `5.0.0`. السجلات الحرة التي لم تحقق العقد السابق بوضوح تحتاج إلى ترحيل قبل أن تقبل كاستثناء آلي؛ لا يفترض هذا التصنيف جردًا شاملًا للمستهلكين الخارجيين.

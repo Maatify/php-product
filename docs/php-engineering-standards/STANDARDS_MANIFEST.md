@@ -5,7 +5,7 @@
 - **Resolution Status:** `VALID`
 - **Adoption Model:** Selective pinned adoption
 - **Upstream Repository:** `Maatify/php-engineering-standards` (`https://github.com/Maatify/php-engineering-standards`)
-- **Adoption Commit:** `9fbd25f59697fd169400587d6735d39a9256a554`
+- **Adoption Commit:** `5281d942ad2e67f70386b7f628d8f393a932548a`
 - **Adoption Date:** `2026-10-09`
 - **Additional Standards:** None
 - **Explicit Exceptions/Overrides:** None
@@ -15,7 +15,7 @@
 
 All files below are copied from the exact Adoption Commit recorded above.
 
-- [Standards Adoption Standard](standards/STANDARDS_ADOPTION_STANDARD_AR.md) — `std-standards-adoption` `4.1.0`
+- [Standards Adoption Standard](standards/STANDARDS_ADOPTION_STANDARD_AR.md) — `std-standards-adoption` `5.0.0`
 - [Composer Package Profile](standards/profiles/COMPOSER_PACKAGE_PROFILE.md) — `composer-package` `4.0.0`
 - [Repository Governance Profile](standards/profiles/REPOSITORY_GOVERNANCE_PROFILE.md) — `repository-governance` `3.0.0`
 
@@ -44,17 +44,31 @@ These are the final Stage 2 applicable standards for the two activations at `/`.
 
 ## Resolution Summary
 
-Stage 1 resolved the two active Profiles. Neither extends another Profile. The Composer Package Profile contributes nine direct candidate references; the Repository Governance Profile contributes four. `std-documentation-lifecycle` is shared, producing 12 unique candidate references. All Profile files and all 12 candidate Standard definitions exist at the pinned upstream commit.
+Stage 1 resolved the two active Profiles at the pinned Adoption Commit. Neither extends another Profile. `composer-package @ /` contributes nine direct candidates and `repository-governance @ /` contributes four; `std-documentation-lifecycle` is shared, yielding 12 unique candidates:
 
-Per §16.1, the independent diagnostics are `composer-package @ /` — `Resolution Status: VALID`, `Exception State: NONE`; and `repository-governance @ /` — `Resolution Status: VALID`, `Exception State: NONE`. The first activation resolves its package standards and shared Documentation Lifecycle applicability. The second resolves AI Collaboration Workflow, GitHub Phase Stack Workflow, Decision Governance, and the shared Documentation Lifecycle applicability. No deviation or unresolved adoption decision applies to either activation.
+| Candidate Standard | Activation(s) | Stage 2 result |
+|---|---|---|
+| `std-package-building` | `composer-package @ /` | Applicable; package-building standard applies to this package repository. |
+| `std-composer-package` | `composer-package @ /` | Applicable; the repository is a standalone Composer package. |
+| `std-ci-workflow` | `composer-package @ /` | Applicable; package CI scope. |
+| `std-library-presentation` | `composer-package @ /` | Applicable; standalone reusable package presentation scope. |
+| `std-testing` | `composer-package @ /` | Applicable; package testing scope. |
+| `std-external-provider-verification` | `composer-package @ /` | Excluded; this repository owns no provider-specific contract. |
+| `std-documentation-lifecycle` | both activations | Applicable; the repository owns durable documentation and governance records. |
+| `std-php-source-documentation` | `composer-package @ /` | Excluded; the repository contains no manually maintained PHP source. |
+| `std-php-coding-style` | `composer-package @ /` | Excluded; the repository contains no manually maintained PHP code. |
+| `std-ai-collaboration-workflow` | `repository-governance @ /` | Applicable; direct governance requirement. |
+| `std-github-phase-stack-workflow` | `repository-governance @ /` | Applicable; direct governance requirement. |
+| `std-decision-governance` | `repository-governance @ /` | Applicable; direct governance requirement. |
 
-Stage 2 includes the nine standards listed above. It excludes:
+The conditional persistence, SQL, PDO, schema, migration, and database-test requirements owned by Package Building are not activated: the repository has no package-owned persistence/database behavior. These conditional requirements are not additional candidate Standards. All 12 candidate references exist at the exact pinned upstream commit.
 
-- `std-external-provider-verification`: the repository does not own a provider-specific contract.
-- `std-php-source-documentation`: the repository contains no manually maintained PHP source.
-- `std-php-coding-style`: the repository contains no manually maintained PHP code.
-- Persistence, SQL, PDO, schema, migration, and database-test requirements: these are conditional on package-owned persistence/database behavior; none exists in this repository.
+Per §16.1, the independent diagnostics are `composer-package @ /` — `Resolution Status: VALID`, `Exception State: NONE`; and `repository-governance @ /` — `Resolution Status: VALID`, `Exception State: NONE`. Their pinned inputs are the Control Set recorded above and the package-root repository facts used by Stage 2. The first activation resolves six applicable candidates and deterministically excludes three. The second resolves its four applicable candidates, including the shared Documentation Lifecycle Standard. Neither activation has a deviation or unresolved adoption decision.
 
-The excluded references remain visible in the pinned Composer Package Profile and were checked structurally against the Adoption Commit. No profile inheritance cycle, missing candidate reference, or broken link between pinned control files and the final standards set was found. Profile versions `4.0.0` and `3.0.0` are initial consumer baselines for this repository; its history contains no earlier Adoption Manifest or frozen profile snapshot.
+The final set is the nine applicable Standards listed above; the three excluded candidates remain out of `Resolved Applicable Standards Set`. The exact pinned commit contains the active Profile manifests and all candidate definitions. No inheritance cycle, missing candidate reference, or broken relative link in the final local reference closure was found.
 
-The overall `Resolution Status` is calculated under §16.2: any `INVALID` activation makes the result `INVALID`; otherwise any activation or unresolved adoption decision requiring an Owner decision makes it `OWNER DECISION REQUIRED`; otherwise the result is `VALID`. Both activation diagnostics are `VALID`, with no unresolved decision, so the recorded overall result is `VALID`.
+The frozen Profile Version Baseline is established independently under §5.1.1 from the `Maatify/php-rate-limiter` consumer repository. Its completed valid Adoption at consumer commit `5e40583a00fd4bb8bf54fee06319afe19a0c13d3` pins `composer-package` `3.0.0` and `repository-governance` `3.0.0` to upstream commit `f9048d9d75395244fa4af26b55e6b85ff0a898c6`; its manifest records `Overall Resolution Status: VALID` and independent `VALID` / `NONE` diagnostics for both activations. The completed valid Upgrade at consumer commit `2891a070be22e14f35feef43390f6eb04a7db5f6` pins `composer-package` `4.0.0` and `repository-governance` `3.0.0` to upstream commit `35276355e35a61c2320305800a4551496e883c18`, again with independent `VALID` / `NONE` diagnostics. This Upgrade record remains present on `php-rate-limiter` `main` at `9d76f2dbc538362e01d70f8bb76e1675097514ef`. At upstream commit `35276355e35a61c2320305800a4551496e883c18`, the Profile blobs are `9c7bf1952372c59d50bb62daa03ce45729d1ebc4` (`composer-package`) and `ef7e13313e804cb6f02785dbff667b58119176b1` (`repository-governance`); those exact blobs are unchanged at this Adoption Commit `5281d942ad2e67f70386b7f628d8f393a932548a`. Thus the current `4.0.0` and `3.0.0` Profile versions are frozen and content-matched; no Profile version bump is required. The earlier `php-product` Manifest at `38d492a` declared only an aggregate `VALID` without the independent Activation/Scope diagnostics required by its pinned §16.1, so it is not treated as a completed valid Adoption or as the baseline evidence.
+
+No Operational Assets are adopted; the optional `Pinned Operational Assets Set` is therefore absent. There is no mixed-pinning exception, no `DEC-032` adoption as an additional Standard, and no added central decision record.
+
+The overall `Resolution Status` follows §16.2: `INVALID` takes precedence over `OWNER DECISION REQUIRED`, which takes precedence over `VALID`. Both independent Activation/Scope results are `VALID`; there is no unresolved adoption decision, structural failure, or exception. Therefore the aggregate result is `VALID`.
