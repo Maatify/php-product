@@ -2,14 +2,13 @@
 
 ## Adoption Record
 
-- **Resolution Status:** `VALID`
+- **Overall Resolution Status:** `VALID`
 - **Adoption Model:** Selective pinned adoption
-- **Upstream Repository:** `Maatify/php-engineering-standards` (`https://github.com/Maatify/php-engineering-standards`)
-- **Adoption Commit:** `5281d942ad2e67f70386b7f628d8f393a932548a`
-- **Adoption Date:** `2026-10-09`
+- **Upstream Repository:** `https://github.com/Maatify/php-engineering-standards.git`
+- **Adoption Commit:** `334c9d5888fd46f9b4624c57e131440c37b840ce`
+- **Adoption Date:** `2026-10-10`
 - **Additional Standards:** None
 - **Explicit Exceptions/Overrides:** None
-- **Operational Assets:** None adopted
 
 ## Pinned Adoption Control Set
 
@@ -19,12 +18,31 @@ All files below are copied from the exact Adoption Commit recorded above.
 - [Composer Package Profile](standards/profiles/COMPOSER_PACKAGE_PROFILE.md) — `composer-package` `4.0.0`
 - [Repository Governance Profile](standards/profiles/REPOSITORY_GOVERNANCE_PROFILE.md) — `repository-governance` `3.0.0`
 
+## Pinned Operational Assets Set
+
+| Kind | Upstream Path | Local Path | SHA-256 |
+|---|---|---|---|
+| `skill` | `.agents/skills/maatify-standards-context-lifecycle/SKILL.md` | `.agents/skills/maatify-standards-context-lifecycle/SKILL.md` | `c2dc2e4274cda3d8618ad0d72867c2e21a5fc5e4199c88e476876c53ecb56735` |
+| `skill` | `.agents/skills/maatify-strict-release-acceptance/SKILL.md` | `.agents/skills/maatify-strict-release-acceptance/SKILL.md` | `0f84c8265bc8d261fa4a93c695bd6d813f9903b90ec7b0d2a9cf65446f6e23ed` |
+| `deterministic-helper` | `.agents/helpers/maatify-governance-context.php` | `.agents/helpers/maatify-governance-context.php` | `96ed5625416e8f58f24b5e9398adb95500ae78010d58130f17ddc17bdd0630b1` |
+
 ## Active Profiles
 
-| Profile ID | Version | Scope | Resolution Status | Exception State | Activation |
-|---|---:|---|---|---|---|
-| `composer-package` | `4.0.0` | `/` | `VALID` | `NONE` | [Composer Package Profile](standards/profiles/COMPOSER_PACKAGE_PROFILE.md) |
-| `repository-governance` | `3.0.0` | `/` | `VALID` | `NONE` | [Repository Governance Profile](standards/profiles/REPOSITORY_GOVERNANCE_PROFILE.md) |
+### Activation 1: `composer-package`
+
+- **Profile Version:** `4.0.0`
+- **Scope:** `/`
+- **Resolution Status:** `VALID`
+- **Exception State:** `NONE`
+- **Activation:** [Composer Package Profile](standards/profiles/COMPOSER_PACKAGE_PROFILE.md)
+
+### Activation 2: `repository-governance`
+
+- **Profile Version:** `3.0.0`
+- **Scope:** `/`
+- **Resolution Status:** `VALID`
+- **Exception State:** `NONE`
+- **Activation:** [Repository Governance Profile](standards/profiles/REPOSITORY_GOVERNANCE_PROFILE.md)
 
 ## Resolved Applicable Standards Set
 
@@ -67,8 +85,8 @@ Per §16.1, the independent diagnostics are `composer-package @ /` — `Resoluti
 
 The final set is the nine applicable Standards listed above; the three excluded candidates remain out of `Resolved Applicable Standards Set`. The exact pinned commit contains the active Profile manifests and all candidate definitions. No inheritance cycle, missing candidate reference, or broken relative link in the final local reference closure was found.
 
-The frozen Profile Version Baseline is established independently under §5.1.1 from the `Maatify/php-rate-limiter` consumer repository. Its completed valid Adoption at consumer commit `5e40583a00fd4bb8bf54fee06319afe19a0c13d3` pins `composer-package` `3.0.0` and `repository-governance` `3.0.0` to upstream commit `f9048d9d75395244fa4af26b55e6b85ff0a898c6`; its manifest records `Overall Resolution Status: VALID` and independent `VALID` / `NONE` diagnostics for both activations. The completed valid Upgrade at consumer commit `2891a070be22e14f35feef43390f6eb04a7db5f6` pins `composer-package` `4.0.0` and `repository-governance` `3.0.0` to upstream commit `35276355e35a61c2320305800a4551496e883c18`, again with independent `VALID` / `NONE` diagnostics. This Upgrade record remains present on `php-rate-limiter` `main` at `9d76f2dbc538362e01d70f8bb76e1675097514ef`. At upstream commit `35276355e35a61c2320305800a4551496e883c18`, the Profile blobs are `9c7bf1952372c59d50bb62daa03ce45729d1ebc4` (`composer-package`) and `ef7e13313e804cb6f02785dbff667b58119176b1` (`repository-governance`); those exact blobs are unchanged at this Adoption Commit `5281d942ad2e67f70386b7f628d8f393a932548a`. Thus the current `4.0.0` and `3.0.0` Profile versions are frozen and content-matched; no Profile version bump is required. The earlier `php-product` Manifest at `38d492a` declared only an aggregate `VALID` without the independent Activation/Scope diagnostics required by its pinned §16.1, so it is not treated as a completed valid Adoption or as the baseline evidence.
+The frozen Profile Version Baseline is established independently under §5.1.1 from the `Maatify/php-rate-limiter` consumer repository. Its completed valid Adoption at consumer commit `5e40583a00fd4bb8bf54fee06319afe19a0c13d3` pins `composer-package` `3.0.0` and `repository-governance` `3.0.0` to upstream commit `f9048d9d75395244fa4af26b55e6b85ff0a898c6`; its manifest records `Overall Resolution Status: VALID` and independent `VALID` / `NONE` diagnostics for both activations. The completed valid Upgrade at consumer commit `2891a070be22e14f35feef43390f6eb04a7db5f6` pins `composer-package` `4.0.0` and `repository-governance` `3.0.0` to upstream commit `35276355e35a61c2320305800a4551496e883c18`, again with independent `VALID` / `NONE` diagnostics. This Upgrade record remains present on `php-rate-limiter` `main` at `9d76f2dbc538362e01d70f8bb76e1675097514ef`. At upstream commit `35276355e35a61c2320305800a4551496e883c18`, the Profile blobs are `9c7bf1952372c59d50bb62daa03ce45729d1ebc4` (`composer-package`) and `ef7e13313e804cb6f02785dbff667b58119176b1` (`repository-governance`); those exact blobs are unchanged at this Adoption Commit `334c9d5888fd46f9b4624c57e131440c37b840ce`. Thus the current `4.0.0` and `3.0.0` Profile versions are frozen and content-matched; no Profile version bump is required. The earlier `php-product` Manifest at `38d492a` declared only an aggregate `VALID` without the independent Activation/Scope diagnostics required by its pinned §16.1, so it is not treated as a completed valid Adoption or as the baseline evidence.
 
-No Operational Assets are adopted; the optional `Pinned Operational Assets Set` is therefore absent. There is no mixed-pinning exception, no `DEC-032` adoption as an additional Standard, and no added central decision record.
+The three listed Operational Assets are pinned to the Adoption Commit and verified by raw-content SHA-256. There is no mixed-pinning exception and no `DEC-032` adoption as an additional Standard or added central decision record.
 
 The overall `Resolution Status` follows §16.2: `INVALID` takes precedence over `OWNER DECISION REQUIRED`, which takes precedence over `VALID`. Both independent Activation/Scope results are `VALID`; there is no unresolved adoption decision, structural failure, or exception. Therefore the aggregate result is `VALID`.
