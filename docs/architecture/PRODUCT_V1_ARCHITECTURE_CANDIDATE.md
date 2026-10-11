@@ -3,6 +3,7 @@
 **Status:** Reviewed architecture candidate — **not yet Owner-approved for implementation**  
 **Package:** `maatify/php-product`  
 **Repository:** `Maatify/php-product`  
+**Document path:** `docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`<br>
 **Architecture type:** Standalone, reusable, host-agnostic Composer package  
 **Scope:** Product identity, variants, variant-defining options and values, product content, and product-owned media assignments  
 **Review date:** 2026-10-11  
@@ -29,7 +30,7 @@ This is a deliberate redesign of parts of the historical Catalog V1 specificatio
 
 This document has been reviewed against the current Category package contract and the applicable Product repository standards references. The review tightened several previously under-specified areas: content identity and exact locale reads, composite foreign-key enforcement for Variant composition and media targets, mutation serialization, active Option Value coverage, status casing, and the standards-applicability change caused by adding SQL persistence.
 
-This is still a **candidate**, not proof of Owner approval, implementation, schema execution, or test success. The Executor MUST NOT treat this document as an execution authorization until the Owner approves the architecture and the approval-gate items in §21 are resolved. No Product SQL schema or PHP implementation has been executed or validated by this review.
+This is still a **candidate**, not proof of Owner approval, implementation, schema execution, or test success. The Executor MUST NOT treat this document as an execution authorization until the Owner approves the architecture and the approval-gate items in §20 are resolved. No Product SQL schema or PHP implementation has been executed or validated by this review.
 
 ## 2. Design Principles
 
@@ -115,8 +116,8 @@ A Product is structurally **configurable** when it has active variant-defining O
 - Every selected Option Value MUST belong to the selected Option.
 - An Option, its Values, a Variant, and the Product MUST belong to the same Product scope as applicable; cross-Product compositions are invalid.
 - Duplicate active or historical compositions MUST NOT result in duplicate Variant identities for the same Product.
-- A configurable Product has no implicit domain-level default Variant; `is_default` is not required in V1. The Host owns shopper-selection presentation.
-- Before adding a configurable item to a cart/order, the Host must resolve one concrete active `variant_id`. If only one Variant is eligible, a Host may preselect it under its own explicit storefront policy; `php-product` itself does not silently select a default.
+- A configurable Product has no implicit domain-level default Variant; `is_default` is not required in V1. The Host owns shopper-selection presentation, UI facets, and user choice gathering.
+- Before adding a configurable item to a cart/order, the Host resolves customer option selections to one concrete active `variant_id` by executing the Product-owned typed composition resolution query (§5.5). The Host manages presentation, facet navigation, and user input, while the Product package validates the composition against active configuration invariants and returns the matching Variant identity. If only one Variant is eligible, a Host may preselect it under its own explicit storefront policy; `php-product` itself does not silently select a default.
 - The simple/configurable classification is derived. Do not persist `product_type = simple|configurable` unless a future contract establishes a distinct lifecycle or invariant requiring it.
 
 ### 4.5 Simple/Configurable transitions
@@ -184,6 +185,21 @@ Provide an explicit atomic Product-local configuration/replacement operation tha
 When the Product already participates in Pricing, Inventory, or Supplier/fulfilment, the Host/Catalog coordinator is responsible for cross-domain orchestration. The Product package never calls those packages directly and MUST NOT pretend that its local transaction alone makes the whole Catalog mutation atomic.
 
 New Variants do not automatically inherit prices, inventory, supplier offers, or fulfilment mappings from old Variants. Such copying must be an explicit policy owned by the relevant external domain and orchestrated by the Host.
+
+### 5.5 Product-owned Variant composition resolution contract
+
+While the Host Application owns the storefront user interface, customer interaction flow, and presentation of selectable option facets, the responsibility for validating option choices and resolving them to an internal Variant identity belongs strictly to a **Product-owned typed read query contract**.
+
+The contract enforces these exact behaviors:
+
+1. **Typed domain contract:** The query accepts a target Product identity (`product_id`) and a choice composition represented by an explicit typed contract (for example, `VariantCompositionCriteria` or a typed collection of `OptionValueSelection` pairs: `option_id` and `option_value_id`). Public domain contracts MUST NOT expose or accept raw associative arrays (`array<string, mixed>`) as selection contracts.
+2. **Order-independent matching:** The physical sequence of Option/Value pairs within the request contract does not affect matching. The query canonicalizes pairs by sorting according to the canonical fingerprint rules (§5.3).
+3. **Strict structural validation:** The query rejects any request that duplicates an Option, references an Option or Option Value belonging to a different Product, pairs an Option Value with an incorrect Option, or references an inactive or soft-deleted Option or Option Value.
+4. **Exact active Option coverage for Configurable Products:** For a configurable Product, the requested selection MUST match the entire set of currently active variant-defining Options for that Product: exactly one active Option Value for each active Option, with no missing active Options and no extraneous Options.
+5. **No implicit creation or reactivation:** The resolution query is strictly read-only. It MUST NOT create a new Variant, MUST NOT automatically reactivate an inactive or historical Variant composition, and MUST NOT invent or assume an implicit default Variant.
+6. **Typed failure contract:** When no matching active, non-deleted Variant exists for the requested valid composition, the query fails closed by returning a documented typed result or throwing a documented typed domain exception conforming to the `maatify/exceptions` package hierarchy (e.g., `VariantNotFoundException`).
+7. **Simple Product resolution:** For a simple Product, an empty selection composition is the internal identity resolution mechanism, returning the single active empty-composition Variant, provided both the Product and its Variant are active, non-deleted, and viewable under consumer rules.
+8. **Clear boundary separation:** The Host Application decides how options are presented to the shopper, which values are selected or preselected in the UI, and when to invoke resolution; the Product package owns verifying whether the selected composition constitutes an existing, active, structurally valid Variant.
 
 ## 6. Lifecycle and Structural Invariants
 
@@ -323,7 +339,13 @@ Product owns a small `Product Media Role` registry because Product media roles q
 
 ### 9.3 Assignment target and scope
 
-An assignment targets exactly one of: the Product itself, or one Variant belonging to that Product. Its logical data includes assignment ID, `product_id`, nullable `variant_id`, `media_asset_id`, nullable `role_id`, nullable `language_code`, nullable `platform`, `is_primary`, `display_order`, timestamps, and `deleted_at`. A Product-level target has `variant_id = NULL`; a Variant-level target has a concrete `variant_id`, and the database must enforce that the Variant belongs to the same `product_id` using an internal composite relationship/constraint.
+An assignment targets exactly one of: the Product itself (`variant_id = NULL`), or one Variant belonging to that Product (concrete `variant_id`). Its logical data includes assignment ID, `product_id`, nullable `variant_id`, `media_asset_id`, nullable `role_id`, nullable `language_code`, nullable `platform`, `is_primary`, `display_order`, timestamps, and `deleted_at`.
+
+Internal relational integrity for `maa_product_media_assignments` is explicitly closed as follows:
+- `product_id` MUST have an independent foreign key referencing `maa_product_products(id)` with `ON DELETE RESTRICT` and `ON UPDATE RESTRICT`. This enforces that every media assignment row—whether Product-level or Variant-level—is strictly anchored to a valid, existing Product identity in the database. A Product-level assignment for a non-existent Product is rejected at the database level.
+- When `variant_id` is present (non-NULL), a composite foreign key on `(variant_id, product_id)` referencing `maa_product_variants(id, product_id)` with `ON DELETE RESTRICT` and `ON UPDATE RESTRICT` proves that the referenced Variant belongs to the exact same Product. A Variant belonging to a different Product cannot be used in an assignment.
+- `variant_id = NULL` is valid only to represent a Product-level target. Setting `variant_id = NULL` does not exempt the row from Product identity validation; the independent `product_id` foreign key always enforces that the Product exists.
+- Media Asset constraints (`BIGINT UNSIGNED > 0` with no external FK), Product Media Role references (internal FK to `maa_product_media_roles(id)` when `role_id` is non-NULL), exact role/language/platform scope dimensions, historical immutable identity, and at most one active primary per exact target scope continue unchanged without external foreign keys.
 
 `role_id`, `language_code`, and `platform` are exact scope dimensions. NULL means exact NULL, never “all roles”, “all languages”, or “all platforms”. Exact means no fallback; non-NULL string equality follows the shared `utf8mb4_unicode_ci` schema collation, like the corresponding Category fields. Empty non-NULL language/platform strings are invalid. `language_code` uses the same storage contract as Category (`VARCHAR(16)` maximum); `platform` uses `VARCHAR(255)` maximum, also matching Category. The Host validates semantic language/platform support and owns display/fallback policy. No platform enum is hardcoded.
 
@@ -364,21 +386,33 @@ The following is the schema contract that implementation must preserve. Physical
 |---|---|---|
 | `maa_product_products` | Product identity and lifecycle | `id BIGINT UNSIGNED` PK; `code VARCHAR(100)` unique/immutable across all history; exact `active|inactive`; positive `display_order`; application-managed timestamps; no slug |
 | `maa_product_product_contents` | Product name and descriptions | `id` PK; `product_id`; nullable `language_code VARCHAR(16)`; generated NULL-safe language identity; one row per Product/language including NULL and deleted history; `name VARCHAR(255)` non-empty; optional `short_description VARCHAR(500)` and `description TEXT` |
-| `maa_product_options` | Variant-defining Option identity | `id` PK; internal `product_id`; stable `code VARCHAR(100)` unique within Product across deleted history; exact status; positive order |
+| `maa_product_options` | Variant-defining Option identity | `id` PK; internal `product_id`; stable `code VARCHAR(100)` unique within Product across deleted history; exact status; positive order; unique `(id, product_id)` candidate key for composite FKs |
 | `maa_product_option_contents` | Option labels | `id` PK; `option_id`; nullable language and generated identity; one row per Option/language including NULL and deleted history; non-empty name/label |
-| `maa_product_option_values` | Option Value identity | `id` PK; internal `option_id`; stable `code VARCHAR(100)` unique within Option across deleted history; exact status; positive order |
+| `maa_product_option_values` | Option Value identity | `id` PK; internal `option_id`; stable `code VARCHAR(100)` unique within Option across deleted history; exact status; positive order; unique `(id, option_id)` candidate key for composite FKs |
 | `maa_product_option_value_contents` | Option Value labels | `id` PK; `option_value_id`; nullable language and generated identity; one row per Value/language including NULL and deleted history; non-empty name/label |
 | `maa_product_variants` | Sellable-unit identity | `id` PK; internal `product_id`; immutable `composition_fingerprint CHAR(64)` unique with Product across all history; nullable `sku` and `barcode` strings up to 128 characters, each unique while assigned; exact status; positive order; unique `(id, product_id)` candidate key for composite FKs |
-| `maa_product_variant_option_values` | Immutable composition pairs | `id` PK; `product_id`, `variant_id`, `option_id`, `option_value_id`; unique `(variant_id, option_id)`; composite FKs enforce Variant and Option share Product and Value belongs to that Option; composition rows have no independent update/delete lifecycle |
+| `maa_product_variant_option_values` | Immutable composition pairs | `id` PK; `product_id`, `variant_id`, `option_id`, `option_value_id`; unique `(variant_id, option_id)`; composite FK `(variant_id, product_id)` to `maa_product_variants(id, product_id)`; composite FK `(option_id, product_id)` to `maa_product_options(id, product_id)`; composite FK `(option_value_id, option_id)` to `maa_product_option_values(id, option_id)`; composition rows have no independent update/delete lifecycle |
 | `maa_product_media_roles` | Product-owned role registry | `id` PK; `role_key VARCHAR(100)` unique/immutable across deleted history under `utf8mb4_unicode_ci`; exact status; separate namespace from Category roles |
-| `maa_product_media_assignments` | Product/Variant media links | `id` PK; `product_id`; nullable `variant_id`; positive external `media_asset_id BIGINT UNSIGNED`; nullable exact role/language/platform scope; internal FK to Product Media Role when `role_id` is non-NULL; generated NULL-safe identity/ordering/primary keys; target/asset/scope identity unique across deleted history; at most one active primary per exact target scope |
+| `maa_product_media_assignments` | Product/Variant media links | `id` PK; `product_id` (independent FK to `maa_product_products(id)` RESTRICT); nullable `variant_id`; composite FK `(variant_id, product_id)` to `maa_product_variants(id, product_id)` RESTRICT when `variant_id` is non-NULL (`variant_id = NULL` represents Product-level target only); positive external `media_asset_id BIGINT UNSIGNED` (no external FK); nullable exact role/language/platform scope; internal FK to Product Media Role when `role_id` is non-NULL; generated NULL-safe identity/ordering/primary keys; target/asset/scope identity unique across deleted history; at most one active primary per exact target scope |
 
 ### 11.1 Required relational integrity
 
 - Every physical table has `PRIMARY KEY (id)`, suitable indexes and meaningful column `COMMENT`s as required by the Package Building Standard. SQL assets live under the package-root `schema/`; provide `schema/README.md`. Use table prefix `maa_product_`. Product/Option/Option Value codes and role keys must reject empty or whitespace-only values through application validation plus compatible DDL checks; optional SKU/barcode values must be `NULL` or non-empty strings.
 - Internal foreign keys use `ON DELETE RESTRICT` and `ON UPDATE RESTRICT`; no automatic cascade. No FK or JOIN crosses into Category, Pricing, Inventory, Supplier, Orders, Customer/Account Type, or Media Storage.
-- `maa_product_variant_option_values` MUST carry the Product identity needed for composite relations (even though it is derivable), or use an equivalently strong schema design. Composite FKs must prove: `(variant_id, product_id)` references the same Product's Variant; `(option_id, product_id)` references an Option of that Product; `(option_value_id, option_id)` references a Value belonging to that Option. Separate single-column FKs alone are insufficient because they allow cross-Product compositions.
-- `maa_product_media_assignments` MUST enforce `(variant_id, product_id)` when `variant_id` is non-NULL so an assignment cannot claim a Variant from a different Product. A Product-level assignment uses `variant_id = NULL`; a Variant-level assignment uses a concrete internal Variant ID.
+- Explicit candidate keys and composite relational integrity:
+  - `maa_product_variants` defines candidate key `UNIQUE (id, product_id)` to serve as the referenced target for Variant-to-Product composite relationships.
+  - `maa_product_options` defines candidate key `UNIQUE (id, product_id)` as the explicit composite candidate/reference key for an Option within a Product.
+  - `maa_product_option_values` defines candidate key `UNIQUE (id, option_id)` as the explicit composite candidate/reference key for an Option Value within an Option.
+  - `maa_product_variant_option_values` MUST carry `product_id` and enforce three explicit composite foreign keys with `ON DELETE RESTRICT` and `ON UPDATE RESTRICT`:
+    1. `(variant_id, product_id)` references `maa_product_variants(id, product_id)`, proving the Variant belongs to the Product.
+    2. `(option_id, product_id)` references `maa_product_options(id, product_id)`, proving the Option belongs to the same Product.
+    3. `(option_value_id, option_id)` references `maa_product_option_values(id, option_id)`, proving the Option Value belongs to the referenced Option.
+  - The existence of a `PRIMARY KEY (id)` on each table alone is structurally insufficient to enforce aggregate consistency across related child rows and does NOT replace the composite candidate and reference keys specified in this contract. Aggregate relational integrity MUST be enforced at the database schema level; the package MUST NOT rely solely on application-level PHP validation or prior read-before-write checks.
+- `maa_product_media_assignments` relational integrity:
+  - `product_id` MUST have an independent foreign key referencing `maa_product_products(id)` with `ON DELETE RESTRICT` and `ON UPDATE RESTRICT`. This guarantees that every assignment row—whether Product-level or Variant-level—is strictly bound to a valid, existing Product identity in the database. A Product-level assignment for a non-existent Product is rejected at the database level.
+  - When `variant_id` is non-NULL, a composite foreign key on `(variant_id, product_id)` referencing `maa_product_variants(id, product_id)` with `ON DELETE RESTRICT` and `ON UPDATE RESTRICT` proves that the referenced Variant belongs to the exact same Product. Assigning a Variant belonging to a different Product is rejected by the database.
+  - Setting `variant_id = NULL` is valid exclusively to represent a Product-level target; it never exempts the assignment row from valid Product identity, which remains guaranteed by the independent `product_id` foreign key.
+  - Media Asset constraints, Product Media Role reference, exact scope dimensions, historical immutable identity, and single active primary uniqueness continue unchanged.
 - Composition fingerprint is `SHA-256` of the canonical UTF-8 string defined in §5.3, stored as lowercase 64-character hexadecimal. Enforce `UNIQUE(product_id, composition_fingerprint)` across all Variant history; do not include `deleted_at` in this key. A digest match must be confirmed against actual canonical composition pairs before treating it as a duplicate.
 - Product code, Option code, Option Value code, media role key, and media assignment logical identity remain reserved across soft deletion. Do not add `deleted_at` into these unique identity keys. Add explicit required/non-empty checks and API validation to code/role identifiers; never treat whitespace-only identifiers as valid. Current SKU/barcode values remain reserved while assigned; each is `NULL` or a non-empty string, and clearing/replacing an identifier releases its previous value.
 
@@ -439,17 +473,31 @@ Media primary replacement locks the owning Product/Variant target scope and uses
 - Management reads can explicitly filter status and deleted state. Consumer reads cannot request deleted records or bypass inactive Product/Variant/Option visibility rules.
 - Every unpaginated consumer or management list is bounded to at most 100 records. Large management lists use the shared `maatify/persistence` pagination API (`PageRequest`/`PageResult`) when applicable; do not implement a package-local competing pagination engine.
 - All `display_order` positions are positive and managed through the shared `maatify/persistence` Ordering API where applicable. Ordering is scope-specific and deterministic, ending with a stable unique key (`display_order, id`).
-- Content reads are exact by `language_code`, including an explicitly requested NULL-language record; the package does not fallback from one language to NULL or another language. The Host owns locale preference and fallback policy.
-- Consumer Variant lists contain only structurally valid, active, non-deleted Variants of an active, non-deleted Product. Configurable selection must resolve to one concrete Variant ID; a selectable Option Value must be represented by at least one active valid Variant.
-- Simple Product add-to-cart integration resolves the single empty-composition `variant_id` internally; the Host need not expose a selection UI.
-- Configurable Products never expose a domain-level implicit default. The Host must resolve a concrete active `variant_id` before cart/order creation; automatic UI preselection when exactly one eligible Variant exists is a Host-owned presentation policy.
+- Content reads are exact and strictly differentiate between three distinct query intentions in the typed criteria contract:
+  1. **Exact-language query:** Explicitly requests content for a specific non-NULL `language_code` (e.g. `'ar'`). Returns only content records for that exact language. If none exists, returns no match; never automatically falls back to unlocalized (`NULL`) content or another language.
+  2. **Exact unlocalized query:** Explicitly requests unlocalized content (`language_code IS NULL`). Returns only the unlocalized content record. If none exists, never falls back to any localized record.
+  3. **Unfiltered management list query:** Management queries can list all content records for an entity across all languages (displaying both localized records and unlocalized records) without filtering by language.
+  - **No parameter conflation:** The absence of a language filter (requesting all languages in management listings) and passing `NULL` (requesting specifically unlocalized content) MUST NOT be conflated as conflicting meanings of the same parameter. The typed query contract must model these as distinct, mutually exclusive selectors (for example, explicit criteria methods `withExactLanguage(string $code)`, `withUnlocalizedOnly()`, and `withAllLanguages()` or omitting the language filter on management criteria).
+  - The Host Application manages semantic language validation, locale negotiation, and fallback policy. The Product package performs no implicit fallback across languages or to `NULL`.
+- Consumer Variant lists contain only structurally valid, active, non-deleted Variants of an active, non-deleted Product. Every selectable active Option Value must be represented by at least one active valid Variant.
+- **Variant composition resolution query contract:** Resolving shopper selections to a concrete Variant ID is owned by a Product-provided typed read query (§5.5):
+  - Accepts a Product identifier and a typed selection composition contract (e.g. `VariantCompositionCriteria`), never a raw associative array.
+  - Matching is order-independent: the sequence of Option/Value pairs within the request contract does not affect the resolution result.
+  - Rejects duplicate option references, cross-Product options/values, option-value mismatches, and inactive or soft-deleted options/values.
+  - For configurable Products, requires complete exact coverage of the active Option set: exactly one active Value for every active Option, with no missing or extra options.
+  - The query is strictly read-only: it never creates Variants, never auto-reactivates historical records, and never invents an implicit default.
+  - If no matching active, valid Variant exists, the query fails closed with a documented typed result or throws a documented typed domain exception conforming to `maatify/exceptions`.
+  - For simple Products, empty composition is the internal identity resolution mechanism, returning the single active empty-composition Variant when active and viewable.
+  - The Host Application owns storefront UI controls, facet navigation, user input collection, and presentation flow; the Product package owns verifying whether the selected composition constitutes an existing, active, structurally valid Variant.
 - Media consumer reads require exact target/role/language/platform scope and hide assignments whose Product, target Variant, or Role is inactive/deleted. Product queries do not claim “in stock” or “sellable” because they do not query Inventory or Pricing.
 
 ## 13. Public API and Package Topology
 
 Use the canonical Package Building topology rules: `Domain → Capability → Responsibility`, choosing only responsibilities that actually exist. `php-product` is one domain; Product, Variant, Option, Option Value, Media Role, and Media Assignment may be separate capabilities if the public contract and implementation justify the split. Do not create empty or ceremonial layers.
 
-The public API should expose typed commands, criteria, DTOs/results, enums/value objects, repository/service contracts, PDO adapters, and a thin factory/facade where it improves consumer discovery. Every interface, enum, DTO, and exception must follow the naming suffix conventions in the active Package Building Standard. Public APIs must not expose SQL rows or associative arrays as domain contracts.
+The public API should expose typed commands, criteria, DTOs/results, enums/value objects, repository/service contracts, PDO adapters, and a thin factory/facade where it improves consumer discovery. Every interface, enum, DTO, and exception must follow the naming suffix conventions in the active Package Building Standard. Public APIs must not expose SQL rows or associative arrays as domain contracts. Specifically:
+- Variant composition resolution is exposed via a typed query interface (e.g. `ResolveVariantByCompositionQueryInterface`) accepting typed criteria and returning a typed result or domain exception, never accepting raw arrays.
+- Content queries expose explicit criteria selectors separating exact language, unlocalized only, and unfiltered all-languages listing.
 
 Use ecosystem shared packages rather than package-local duplicates when required by the active standards, including:
 
@@ -457,7 +505,7 @@ Use ecosystem shared packages rather than package-local duplicates when required
 - `maatify/shared-common` for `ClockInterface` when the package requires a clock.
 - `maatify/persistence` for supported pagination/order-management/transaction capabilities where its public API is applicable.
 
-Exact public class/method inventory must be documented in the root `PRODUCT_PACKAGE_REFERENCE.md`; this architecture document under `docs/` supports that reference and must not become a competing Package Reference.
+Exact public class/method inventory must be documented in the root `PRODUCT_PACKAGE_REFERENCE.md`; this architecture document under `docs/architecture/` supports that reference and must not become a competing Package Reference.
 
 ## 14. Transaction and Replacement Boundaries
 
@@ -514,6 +562,12 @@ Implementation acceptance must include, at minimum:
 - Composition cannot be updated in place.
 - Option/Value lifecycle mutations that invalidate active variants are rejected unless done through an approved atomic reconfiguration.
 - No implicit domain default exists for configurable Products; Host-owned selection is resolved to a concrete Variant before order creation.
+- Configurable Variant composition resolution query matches active Variants using typed selection criteria regardless of option/value pair order in the request.
+- The resolution query strictly rejects requests containing duplicate options, options or values belonging to a different Product, option-value mismatches, or inactive/soft-deleted options or values.
+- The resolution query rejects requests with partial option coverage (missing active options) or extra options for configurable products.
+- The resolution query fails closed with documented typed errors or results when no matching active Variant exists; it never creates variants, auto-reactivates historical records, or invents defaults.
+- The resolution query resolves simple Products via an empty composition request to the single active empty-composition Variant when the Product and Variant are viewable under consumer rules.
+- Public domain contracts expose typed selection criteria and results, never raw associative arrays.
 - SKU/barcode can be explicitly corrected/replaced with uniqueness validation; Variant ID is unchanged and remains canonical.
 
 ### Boundaries
@@ -521,10 +575,23 @@ Implementation acceptance must include, at minimum:
 - No price, quantity, account-type, supplier credential, or physical storage field is placed in Product-owned tables.
 - Product remains valid when Pricing or Inventory data does not exist; Catalog sellability is tested separately in integration tests.
 - Product Media Roles and assignments match the role/lifecycle/exact-scope model described in §9; external `media_asset_id` uses the same positive integer contract as `maatify/php-category`, without a cross-package FK. Assignment uniqueness, atomic primary replacement, positive ordering, restore conflicts, and concurrency are verified against real MySQL.
-- Verify Product/Option/Option Value Content uniqueness for nullable language identities, including NULL-safe uniqueness across soft-deleted history, exact-language queries, explicitly requested NULL queries, rejection of empty language codes, and no implicit language fallback.
+- Verify Media Assignments relational integrity at the database layer:
+  - Database rejects Product-level media assignment (`variant_id = NULL`) referencing a non-existent `product_id` via the independent foreign key.
+  - Database rejects Variant-level media assignment referencing a `variant_id` belonging to a different Product via the composite foreign key `(variant_id, product_id)`.
+  - Database rejects Variant-level media assignment referencing a non-existent `variant_id`.
+- Verify Product/Option/Option Value Content query and lifecycle semantics:
+  - Exact-language queries return only records matching that specific non-NULL language code, with no fallback to `NULL` or another language.
+  - Exact unlocalized queries return only records where `language_code IS NULL`, with no fallback to localized records.
+  - Unfiltered management list queries return all records across all languages (both localized and unlocalized).
+  - Typed criteria contract cleanly separates omitted language filter (all languages) from explicit `NULL` (unlocalized only).
+  - Database rejects duplicate unlocalized (`NULL`) records for the same owner entity via generated NULL-safe identity column.
+  - Database and application reject re-creating a content identity (including `NULL`) that exists in soft-deleted history, requiring explicit restore instead.
+  - Rejection of empty or whitespace-only language codes; Host owns semantic language validation and fallback policy.
 - Verify Host `ClockInterface` timestamp behavior and shared `maatify/persistence` ordering/pagination behavior; no product-local duplicate Ordering/Pagination engine.
 - Verify Product and Category use the same Host Media Asset ID value when assigning the same asset, and never reuse each other's role IDs.
-- Verify composite FKs reject cross-Product Variant/Option/Option Value relationships at the database layer; separate single-column FKs are insufficient.
+- Verify composite FKs and candidate keys reject invalid relational graphs at the database layer:
+  - Candidate keys exist: `UNIQUE (id, product_id)` on `maa_product_variants`, `UNIQUE (id, product_id)` on `maa_product_options`, and `UNIQUE (id, option_id)` on `maa_product_option_values`.
+  - Composite FKs in `maa_product_variant_option_values` reject cross-Product Variant/Option combinations and mismatched Option Values; PK on `id` alone does not replace these composite FKs.
 - Use real concurrent MySQL transactions to prove Product aggregate locking prevents invalid state races, primary replacement remains single-primary, and duplicate historical identity/composition attempts fail deterministically.
 
 ### Package quality
@@ -578,6 +645,7 @@ The following are not merely implementation details. The Owner MUST explicitly a
 3. **Single namespace limitation:** V1 assumes one Product identity namespace per deployed set of Product tables and does not support multiple Catalogs reusing Product codes within shared tables. Recommendation: keep this explicit V1 limitation rather than speculatively adding tenant/store/Catalog columns. If multiple independently managed Catalogs must share one Product table set, stop and redesign before schema freeze.
 4. **Content scoping:** Product/Option/Option Value Content is scoped by language only; it has no platform/store/channel dimension. Product/Variant Media Assignments do have language/platform scopes. Recommendation: do not add platform-scoped Product text in V1 unless a concrete shared-library requirement proves it necessary. A Host requiring different titles/descriptions per Catalog/channel needs an explicit Host-owned overlay or an approved Product contract change.
 5. **Shared Media identity:** V1 adopts the Category package's positive integer `BIGINT UNSIGNED` Media Asset ID scalar contract, with no FK. Recommendation: approve this interoperability contract; UUID/string media identities require a coordinated design change to both packages or a Host mapping.
+6. **`Product.display_order` retention or exclusion in V1:** `Product.display_order` is defined in this candidate as a package-wide global ordering across the Product library within this single Product namespace, and NOT ordering within a Category, Store, or sales Channel. Contextual ordering within a presentation surface (such as within a Category or storefront channel) belongs strictly to the Host Application or Catalog coordinator mapping layer. Recommendation: do not consider `Product.display_order` a substitute for product ordering within a category or channel. If the Host/Catalog mapping layer already manages contextual product ordering and a package-wide product sequence is not required by consuming workflows, the Owner may decide to exclude `display_order` from `maa_product_products` in V1 persistence to keep the entity minimal. If retained, it remains strictly a global library listing sequence. The candidate schema retains the field under this gate pending the Owner's explicit decision.
 
 Until these gates are approved, the architecture remains `CANDIDATE`; the Executor must not silently convert recommendations into Owner decisions.
 
