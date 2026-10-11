@@ -52,9 +52,9 @@ The project Owner formally approved the following decision on 2026-10-12:
 
 ### Explicit Contract Details of the Approved Decision
 
-1. **External and Host-Owned Identity:** `media_asset_id` is an external identifier owned and issued exclusively by the Host application or external media service. Product does not generate, issue, or manage media asset identities.
+1. **External and Host-Owned Identity:** `media_asset_id` is an external, Host-owned identity. Product does not create or manage media asset identities.
 2. **Persistence Specification:** Persisted in relational storage as `BIGINT UNSIGNED NOT NULL`. A database check constraint enforces strict positivity: `CHECK (media_asset_id > 0)`.
-3. **Public PHP Representation:** Public PHP read DTOs, events, and API interfaces expose `media_asset_id` as a native integer (`int`).
+3. **Public PHP Representation:** In public PHP boundaries that expose `media_asset_id`, the identity is represented as an integer (`int`), conforming to the Category contract.
 4. **Input Normalization and Validation Boundary:** Input normalization strictly conforms to the existing Category `CategoryIdDTO` contract:
    - Command inputs accept `int|string` at the boundary where the contract permits.
    - For `int` inputs, values must be strictly positive (`$value >= 1`); zero and negative integers are rejected.
