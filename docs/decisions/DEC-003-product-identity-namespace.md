@@ -4,25 +4,27 @@
 - **Title:** Product Identity Namespace Boundary for Product V1
 - **Status:** `ACTIVE`
 - **Date:** `2026-10-11`
-- **Decision Authority / Deciders:** مالك المشروع (Owner)
-- **Scope / Concern:** حدود مساحة هوية المنتج، وتفرد كود المنتج، وعدم إنشاء كيان Catalog أو حقول tenant_id داخل مجموعة الجداول، واستقلالية تنظيم العرض والأقسام
+- **Decision Authority / Deciders:** Owner
+- **Scope / Concern:** Product identity namespace boundary; Product code uniqueness; exclusion of Catalog entity and tenant_id fields from table set; independence of presentation and category organization
 - **Canonical Contract / Current Owner:** [`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](../architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md) (§4.1, §20)
 - **Supersedes:** None
 - **Superseded By:** None
 
 ---
 
-## السياق (Context)
+## Context
 
-في مناقشات ومعمارية الكتالوج والمنتجات لـ Product V1، طُرحت مسألة نطاق ومساحة هوية المنتجات (Product Identity Namespace) وإمكانية تعدد الكتالوجات أو المستأجرين (Multi-tenancy / Multi-Catalog) داخل مجموعة الجداول نفسها، أو ربط المنتجات بأقسام متعددة وواجهات عرض مختلفة (مثل واجهات العملاء أو الموزعين أو الشركات).
+During catalog and product architecture discussions for `Product V1`, questions arose regarding the scope of the Product Identity Namespace, the possibility of multi-tenancy or multiple Catalogs sharing the same database tables, and mapping products across multiple categories and presentation storefronts (such as customer, distributor, or enterprise interfaces).
 
-طُرحت هذه المسألة ضمن بوابات اعتماد المالك (Owner Decision Gates) في وثيقة المعمارية المقترحة ([`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](../architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md) §20 البوابة رقم 3) لحسم ما إذا كانت مكتبة `Product V1` ستضيف تجريدات مثل `Catalog` أو حقول `catalog_id` / `tenant_id`، أو ستقتصر على مساحة هوية واحدة محددة بوضوح.
+This issue was raised as an Owner Decision Gate in the candidate architecture document ([`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](../architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md) §20 Gate 3) to determine whether `Product V1` should introduce abstractions such as `Catalog` or fields like `catalog_id` / `tenant_id`, or confine itself strictly to a single, well-defined identity namespace.
 
 ---
 
-## القرار المعتمد (Decision)
+## Decision
 
-اعتمد مالك المشروع القرار التالي رسميًا بتاريخ 2026-10-11:
+The project Owner formally approved the following decision on 2026-10-11:
+
+### Owner-Approved Source Text (Arabic Original)
 
 > تعتمد Product V1 مساحة هوية واحدة لكل مجموعة جداول Product منشورة. يكون `product_id` هوية المنتج الداخلية المرجعية، ويكون `Product.code` فريدًا داخل مساحة الهوية هذه.
 >
@@ -32,50 +34,60 @@
 >
 > إذا ظهر مستقبلًا احتياج إلى مساحات هوية مستقلة تشترك في مجموعة الجداول نفسها، فيلزم اتخاذ قرار معماري منسق قبل تغيير مخطط البيانات أو الادعاء بدعم هذا السيناريو.
 
-تفصيل أبعاد القرار المعتمد:
+### English Translation
 
-1. **مساحة هوية واحدة لكل مجموعة جداول منشورة:** تفترض وتعتمد مكتبة `php-product` مساحة هوية واحدة وموحدة لكل مجموعة جداول `maa_product_*` منشورة، حيث يمثل `product_id` الهوية المرجعية الداخلية، ويكون كود المنتج `code` فريدًا وغير متكرر عبر كامل مساحة الهوية هذه وتاريخها.
-2. **استبعاد كيان Catalog وحقول المستأجرين التخمينية:** لا تنشئ المكتبة كيانًا أو جدولًا باسم Catalog، ولا تضيف أعمدة مثل `catalog_id` أو `tenant_id` أو `store_id` إلى نموذج المنتج أو أي من جداوله التابعة لمجرد توقع أو احتمال احتياج مستقبلي.
-3. **عدم دعم مساحات هوية متعددة داخل مجموعة الجداول نفسها في V1:** لا تدعم V1 مشاركة نفس مجموعة الجداول بين كتالوجات أو مساحات هوية مستقلة تعيد استخدام أكواد المنتجات. وتتطلب حالات التعدد المعزول نشر مجموعات جداول مستقلة أو تنسيقًا على مستوى التطبيق المضيف خارج حزمة `php-product`.
-4. **استقلالية تنظيم العرض والأقسام والإتاحة:** تظل علاقة المنتج بالأقسام (Product-Category mapping)، وإتاحة المنتجات والأقسام حسب واجهات الاستخدام أو فئات الجمهور (Storefronts / Audiences)، وطرق تنظيم وتخصص العرض مسؤوليات تقع بالكامل خارج نطاق مكتبي الأساس `Product` و`Category`.
-5. **حرية التطبيق المستهلك دون أعباء مفروضة:** يمكن للتطبيقات المستهلكة أو طبقات التنسيق (Orchestration layers) إضافة قدرات الإتاحة وتعدد الواجهات وفق متطلباتها الخاصة، دون فرض أي تعقيدات أو حقول أو إعدادات غير ضرورية على التطبيقات التي تكتفي بالنموذج الأساسي البسيط.
-6. **اشتراط قرار معماري منسق لأي توسع مستقبلي:** إذا استجد احتياج فعلي لمساحات هوية مستقلة متعددة تتشارك مجموعة الجداول نفسها، فيجب إصدار واعتماد قرار معماري منسق ومستقل قبل إجراء أي تعديل على مخطط البيانات أو الادعاء بدعم ذلك السيناريو.
+> Product V1 adopts a single identity namespace per deployed set of Product tables. The `product_id` serves as the internal canonical product identity, and `Product.code` is unique within this identity namespace.
+>
+> Product V1 does not create an independent entity named Catalog, and does not add `catalog_id` or `tenant_id` to the product model merely for speculative future requirements. Nor does V1 support multiple independent product identity namespaces within the same set of tables.
+>
+> Product-to-category relationships, product and category availability by interface or audience, and presentation organization remain responsibilities outside the two core libraries Product and Category. Consuming applications may add these capabilities when needed, without imposing their configuration on applications that use the simple core model.
+>
+> If a future requirement emerges for independent identity namespaces sharing the same set of tables, a coordinated architectural decision must be made prior to modifying the schema or claiming support for that scenario.
 
----
+### Key Dimensions of the Approved Decision
 
-## المبررات (Rationale)
-
-1. **البساطة وتجنب التعقيد التخميني (YAGNI):** إضافة حقول الكتالوج والمستأجر مسبقًا دون متطلب تشغيلي حاسم يفرض تعقيدًا بنيويًا وفهارس مركبة وقيودًا إضافية على كافة الاستعلامات، مما يثقل الحزمة الأساسية ويصعّب صيانتها واستخدامها في التطبيقات البسيطة.
-2. **فصل الاهتمامات ونقاء النطاق الأساسي:** تختص مكتبة `php-product` بتعريف المنتج التجاري وهويته ومكوناته ومتغيراته؛ أما تنظيم وتصفية المنتجات حسب الواجهات أو التطبيقات أو القنوات فهو اهتمام ينتمي إلى طبقة التنسيق أو التطبيق المضيف.
-3. **حماية استقلالية ونقاء مكتبتي Product وCategory:** إبقاء قواعد الإتاحة والربط متعدد الواجهات خارج المكتبات الأساسية يضمن بقاء `php-product` و`php-category` حزمتين مستقلتين ونقيتين تركز كل منهما على نطاقها الجوهري دون تشابك أو تبعيات غير ضرورية.
-4. **مرونة التطبيقات المستهلكة:** يتيح هذا التصميم للتطبيقات المختلفة حرية تشكيل هياكل العرض والإتاحة والواجهات المناسبة لاحتياجاتها عبر طبقات التنسيق الخاصة بها، مع الحفاظ على تجربة استخدام مباشرة وخالية من الإعدادات الزائدة للمشاريع القياسية.
-
----
-
-## الآثار والنتائج (Consequences)
-
-### الآثار الإيجابية
-
-- بقاء نموذج ومخطط بيانات `php-product` بسيطًا ومركزًا وخاليًا من أعمدة `catalog_id` أو `tenant_id` أو `store_id`.
-- وضوح قيد تفرد كود المنتج `Product.code` على مستوى الجدول بالكامل دون الحاجة إلى مفاتيح مركبة مع مستأجرين أو كتالوجات.
-- تجنب فرض تعقيدات متعددة الواجهات أو إعدادات الإتاحة على المستهلكين الذين يعتمدون النموذج الأساسي.
-- استقرار حدود المكتبات الأساسية وتحديد مسؤوليات طبقة التنسيق والتطبيق المضيف بوضوح.
-
-### الالتزامات والمتطلبات اللاحقة (Follow-up Requirements)
-
-- تلتزم مواصفات وتطبيقات `php-product` V1 بعدم تضمين أي حقول أو آليات تتعلق بتعدد الكتالوجات أو المستأجرين داخل الجداول المشتركة.
-- يتولى التطبيق المستهلك أو طبقة تنسيق الكتالوج إدارة الربط بين المنتجات والأقسام، وكذلك سياسات إتاحة وتصفية العرض حسب الواجهات أو أنواع المستخدمين.
-- تبقى سياسات التسعير حسب أنواع الحسابات أو الواجهات خارج نطاق Product بالكامل وخاضعة لحلول نطاق التسعير وفق القرار المعتمد `DEC-001`.
-- تظل وثيقة المعمارية (`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`) بوصفها `Architecture Candidate` حتى يتم حسم بوابات قرارات المالك الثلاث المتبقية (البوابات 4 إلى 6).
+1. **Single Identity Namespace per Deployed Table Set:** The `php-product` library assumes and adopts a single unified identity namespace per deployed set of `maa_product_*` tables, where `product_id` is the internal canonical reference and `Product.code` is unique and non-duplicated across the entire namespace and its history.
+2. **Exclusion of Catalog Entity and Speculative Tenant Fields:** The library creates no entity or table named Catalog, and adds no columns such as `catalog_id`, `tenant_id`, or `store_id` to the product model or its related tables merely out of speculative future expectation.
+3. **No Multi-Namespace Support Within Shared Tables in V1:** V1 does not support sharing the same table set across independent catalogs or namespaces that reuse product codes. Multi-namespace scenarios require deploying isolated table sets or managing isolation at the host application layer outside `php-product`.
+4. **Independence of Presentation, Categories, and Availability:** Product-to-category mapping, product/category availability by storefront or audience, and display categorization remain strictly outside the core `Product` and `Category` libraries.
+5. **Consumer Application Flexibility Without Imposed Overhead:** Consuming applications or orchestration layers may introduce multi-interface availability and audience filtering according to their specific needs, without imposing unnecessary complexity, fields, or configuration on applications using the simple baseline model.
+6. **Coordinated Architectural Decision Required for Future Expansion:** Should an actual need emerge for independent namespaces sharing the same table set, an explicit coordinated architectural decision must be approved prior to altering the database schema or claiming support for that scenario.
 
 ---
 
-## الحدود وما هو خارج النطاق (Boundaries & Non-Goals)
+## Rationale
 
-يقتصر هذا القرار بدقة على مساحة هوية المنتجات واعتماد مساحة واحدة لكل مجموعة جداول منشورة واستبعاد أعمدة Catalog وTenant من Product V1. وتبقى الموضوعات التالية خارج نطاق هذا القرار:
+1. **Simplicity and Avoidance of Speculative Complexity (YAGNI):** Preemptively adding catalog and tenant fields without an operational requirement introduces schema complexity, composite keys, and indexing overhead across all queries, burdening simple use cases.
+2. **Separation of Concerns:** The `php-product` package is responsible for defining commercial products and their intrinsic attributes; organizing, filtering, and presenting products across interfaces or sales channels belongs to orchestration or host layers.
+3. **Preserving Library Independence and Purity:** Keeping multi-interface availability and presentation rules outside the core libraries ensures that `php-product` and `php-category` remain focused, decoupled packages without circular or unnecessary dependencies.
+4. **Consumer Application Flexibility:** Enables consuming applications to design presentation structures and audience filters suitable for their workflows, while preserving a straightforward, configuration-light experience for standard implementations.
 
-- تصميم أو جداول طبقة العرض أو الواجهات أو قنوات البيع (Storefront / Presentation layer).
-- تصميم آليات أو جداول ربط المنتجات بالأقسام (Product-Category assignment schema/API).
-- قواعد وسياسات إتاحة المنتجات والأقسام متعددة الواجهات أو الجماهير في التطبيقات المستهلكة.
-- سياسات وقواعد التسعير الخاصة بأنواع المستخدمين أو الحسابات (محكومة بالكامل بنطاق التسعير والقرار `DEC-001`).
-- حسم أي من بوابات قرارات المالك الثلاث المتبقية (البوابات 4 و5 و6).
+---
+
+## Consequences
+
+### Positive Consequences
+
+- The `php-product` data model remains clean, focused, and free from `catalog_id`, `tenant_id`, or `store_id` columns.
+- The uniqueness constraint on `Product.code` is globally enforced across the table without composite keys involving tenants or catalogs.
+- Avoids imposing multi-storefront or audience availability configuration on standard consumers.
+- Explicit demarcation between core library responsibilities and the host/orchestration layer.
+
+### Follow-up Requirements
+
+- Specifications and implementations of `php-product` V1 must not introduce multi-catalog or tenant fields within shared tables.
+- The consuming application or Catalog coordinator manages product-to-category mappings and interface-specific visibility policies.
+- Pricing policies by account type or sales surface remain entirely outside Product and are governed by Pricing per `DEC-001`.
+- The architecture candidate document (`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`) remains classified as `Architecture Candidate` until the remaining Owner decision gates are resolved.
+
+---
+
+## Boundaries & Non-Goals
+
+This decision is strictly confined to the product identity namespace, adopting a single namespace per deployed table set, and excluding Catalog and Tenant columns from Product V1. The following areas remain explicitly out of scope:
+
+- Storefront and presentation layer schemas or channel management.
+- Schema and APIs for product-to-category assignments.
+- Rules and policies for multi-interface or audience-based catalog availability in consuming applications.
+- Pricing rules and policies for user/account types (governed entirely by Pricing under `DEC-001`).
+- Resolution of the remaining Owner decision gates.

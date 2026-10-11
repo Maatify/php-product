@@ -4,74 +4,80 @@
 - **Title:** Variant-Addressed Pricing Boundary for Product V1
 - **Status:** `ACTIVE`
 - **Date:** `2026-10-11`
-- **Decision Authority / Deciders:** مالك المشروع (Owner)
-- **Scope / Concern:** حدود تسعير المنتجات، واعتماد الـVariant بوصفه وحدة التسعير المرجعية، وفصل مسؤولية مكتبة Product عن مكتبة Pricing المستقلة
+- **Decision Authority / Deciders:** Owner
+- **Scope / Concern:** Product pricing boundary; adoption of Variant as the pricing reference identity; separation of Product library from independent Pricing library
 - **Canonical Contract / Current Owner:** [`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](../architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md) (§7, §20)
 - **Supersedes:** None
 - **Superseded By:** None
 
 ---
 
-## السياق (Context)
+## Context
 
-في مواصفات Catalog V1 التاريخية القديمة، كان احتساب سعر البيع يعتمد على معادلة تتضمن سعر أساس للمنتج (Product Base Price) مضافًا إليه تعديلات أسعار منسوبة لقيم الخيارات (Option Value price adjustments).
+In the historical Catalog V1 specification, selling price calculation depended on a formula that included a Product Base Price plus price adjustments associated with Option Values.
 
-أثناء مراجعة وإعداد معمارية مكتبة المنتجات `Product V1` بوصفها حزمة Composer مستقلة وقابلة لإعادة الاستخدام وخالية من التبعية للمشاريع المضيفة، طُرحت مسألة ملكية التسعير وهيكليته ضمن بوابات اعتماد المالك (Owner Decision Gates) في وثيقة المعمارية المقترحة ([`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](../architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md) §20 البوابة رقم 1).
+During the architecture review and specification of `Product V1` as an independent, reusable Composer package decoupled from host projects, pricing ownership and structure were raised as an Owner Decision Gate in the candidate architecture document ([`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](../architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md) §20 Gate 1).
 
-تطلّب ذلك حسمًا صريحًا لحدود المسؤولية:
-1. هل تملك مكتبة Product أسعارًا أو عملات أو جداول أو معادلات لتعديل الأسعار؟
-2. ما هي الوحدة المرجعية المستقرة التي تخاطبها النطاقات الخارجية (وعلى رأسها التسعير) لتحديد سعر الوحدة المعروضة للبيع؟
-3. كيف يُعالج غياب السعر في سياق تسعير أو عملة محددة؟
+This required explicit resolution of domain boundaries:
+1. Does the Product library own prices, currencies, pricing tables, or price adjustment formulas?
+2. What stable reference unit do external domains (principally Pricing) address to determine the price of a sellable unit?
+3. How is the absence of a price in a given pricing context or currency handled?
 
 ---
 
-## القرار المعتمد (Decision)
+## Decision
 
-اعتمد مالك المشروع القرار التالي رسميًا بتاريخ 2026-10-11:
+The project Owner formally approved the following decision on 2026-10-11:
+
+### Owner-Approved Source Text (Arabic Original)
 
 > تعتمد Product V1 الـVariant بوصفه وحدة التسعير المرجعية لكل وحدة قابلة للبيع. لا تملك Product Library أسعارًا أو معادلات لتعديلات الأسعار. تتولى مكتبة Pricing المستقلة تعريف الأسعار وقوائمها وسياقاتها وسياسات حلّ السعر المناسب للـVariant. ولا يحدث fallback تلقائي إلى سعر Product عند غياب سعر الـVariant.
 
-تفصيل أبعاد القرار المعتمد:
+### English Translation
 
-1. **الـVariant مرجعًا وحيدًا للتسعير:** كل وحدة قابلة للبيع تمثل Variant ذا هوية مستقرة (`variant_id`). طلبات التسعير وسياقاتها تُوجّه حصريًا إلى هوية الـVariant.
-2. **تجريد Product Library من مسؤولية الأسعار:** لا تحتوي مكتبة `php-product` على أعمدة للأسعار، ولا تخزن عملات، ولا تملك معادلات لحساب تعديلات الأسعار أو خصوماتها، ولا تشارك في أي حساب مالي.
-3. **استقلالية مكتبة Pricing:** تتولى مكتبة Pricing المستقلة (`php-pricing`) تعريف الأسعار، وقوائم الأسعار (Price Lists)، وسياقات التسعير (Pricing Contexts)، والعملات، وسياسات حلّ وتحديد السعر المناسب للـVariant.
-4. **منع الرجوع التلقائي (No Fallback):** لا يحدث fallback تلقائي إلى سعر على مستوى Product عند عدم وجود سعر للـVariant في سياق تسعير أو عملة محددة؛ فغياب السعر يعني عدم قابلية الـVariant للبيع في ذلك السياق/العملة وفق قواعد تكامل البيع.
+> Product V1 adopts the Variant as the reference pricing unit for every sellable unit. The Product Library does not own prices or formulas for price adjustments. The independent Pricing library is responsible for defining prices, price lists, pricing contexts, and policies for resolving the applicable price for the Variant. No automatic fallback to a Product-level price occurs in the absence of a Variant price.
 
----
+### Key Dimensions of the Approved Decision
 
-## المبررات (Rationale)
-
-1. **استقرار هوية الوحدة القابلة للبيع:** يملك كل منتج في Product V1 هوية Variant واحدة على الأقل؛ فالمنتج البسيط (Simple Product) ينشئ تلقائيًا Variant وحيدًا بتركيبة فارغة (empty-composition Variant)، والمنتج القابل للتهيئة (Configurable Product) يملك Variants متعددة بتركيبات محددة من خيارات المنتج. توجيه التسعير إلى هوية الـVariant يوحّد نموذج التعامل التجاري والبيع لجميع أنواع المنتجات دون استثناءات.
-2. **فصل الاهتمامات وقابلية إعادة الاستخدام:** إبقاء مكتبة `php-product` خالية من جداول الأسعار وقواعد العملات وفئات حسابات العملاء وتعديلات الأسعار يجعل الحزمة نقية ومعماريتها مستقرة، وقابلة لإعادة الاستخدام في تطبيقات ومشاريع مختلفة دون ربطها بنموذج تسعير معين.
-3. **سلامة التسعير وتفادي المخاطر التجارية (Price Safety):** معادلات تعديلات الأسعار على مستوى خيارات المنتج والـfallback التلقائي لسعر أساس للمنتج تفتح بابًا لأخطاء تجارية فادحة ببيع خيارات مكلفة بسعر أساسي غير مقصود. اشتراط تسعير مباشر وصريح للـVariant في مكتبة Pricing يضمن الدقة والأمان التجاري.
-4. **مرونة نماذج التسعير المعقدة:** تتيح مكتبة Pricing المستقلة تطبيق سياسات تسعير مرنة وسياقية (مثل قوائم أسعار الجملة B2B، التجزئة B2C، فروق العملات، والحملات) استنادًا إلى هوية الـVariant دون الحاجة إلى تعديل بيانات المنتج أو تكرارها.
+1. **Variant as Sole Pricing Reference:** Every sellable unit represents a Variant with a stable identity (`variant_id`). Price lookups and pricing contexts are addressed exclusively to Variant identity.
+2. **Product Library Relieved of Pricing Responsibility:** The `php-product` library contains no price columns, stores no currencies, provides no formulas for price adjustments or discounts, and participates in no financial calculations.
+3. **Independent Pricing Domain:** The independent Pricing library (`php-pricing`) defines prices, Price Lists, Pricing Contexts, currencies, and resolution policies to determine the applicable Variant price.
+4. **No Automatic Fallback:** No automatic fallback to a Product-level price occurs when a Variant has no price in a specific pricing context or currency; absence of a price signifies that the Variant is not sellable in that context/currency under integration rules.
 
 ---
 
-## الآثار والنتائج (Consequences)
+## Rationale
 
-### الآثار الإيجابية
-
-- وضوح كامل في حدود المسؤولية المعمارية بين نطاق المنتجات ونطاق التسعير.
-- بساطة واستقرار مخطط بيانات `php-product` وخلوه من حقول الأسعار أو منطق تعديلاتها.
-- توحيد واجهة التكامل التجاري لجميع العمليات اللاحقة (المخزون، عروض الموردين، وبنود الطلبات) بالاعتماد على `variant_id`.
-- إغلاق الباب تمامًا أمام مخاطر الـfallback الضمني أو غير المقصود للأسعار.
-
-### الالتزامات والمتطلبات اللاحقة (Follow-up Requirements)
-
-- يتطلب هذا القرار مواءمة ومصالحة رسمية بين عقد مكتبة التسعير (`php-pricing`) ووثيقة معمارية الكتالوج الشاملة وقواعد الـUmbrella، قبل ادعاء اكتمال تكامل البيع (Catalog sellability).
-- تقع مسؤولية ربط تصنيفات العملاء بسياقات التسعير المناسبة وتنسيق استدعاء مكتبة Pricing على عاتق منسق الكتالوج (Catalog coordinator) أو التطبيق المضيف (Host Application).
-- تبقى وثيقة المعمارية (`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`) بوصفها `Architecture Candidate` حتى يتم حسم بوابات قرارات المالك الخمس المتبقية.
+1. **Stable Sellable Unit Identity:** Every product in Product V1 has at least one Variant identity: a Simple Product automatically creates a single empty-composition Variant, and a Configurable Product has multiple Variants with defined option compositions. Addressing prices to Variant identity unifies the commercial and transactional model across all product types without exceptions.
+2. **Separation of Concerns and Reusability:** Keeping `php-product` free from price tables, currency rules, account classifications, and price adjustments ensures package purity and architectural stability, enabling reuse across diverse applications without binding to a particular pricing model.
+3. **Price Safety and Commercial Risk Mitigation:** Option-level adjustment formulas and automatic fallbacks to a base product price introduce severe commercial risks (e.g., selling costly configurations at an unintended base price). Requiring explicit, direct pricing per Variant in the Pricing library guarantees commercial precision and safety.
+4. **Flexibility for Advanced Pricing Models:** An independent Pricing library enables flexible, contextual pricing policies (such as B2B wholesale price lists, B2C retail, currency differences, and promotional campaigns) resolved against Variant identity without mutating or duplicating product data.
 
 ---
 
-## الحدود وما هو خارج النطاق (Boundaries & Non-Goals)
+## Consequences
 
-يقتصر هذا القرار على اعتماد الـVariant كوحدة تسعير مرجعية وتحديد حدود مسؤولية Product مقابل مكتبة Pricing المستقلة. وتبقى الموضوعات التالية خارج نطاق هذا القرار ولم يعتمدها المالك بعد:
+### Positive Consequences
 
-- آلية مشاركة نفس السعر بين عدة Variants (Price sharing / price inheritance).
-- قواعد الخصومات وقسائم التخفيض والضرائب والرسوم (Discounts, promotions, taxes).
-- تصميم وتفاصيل جداول وقوائم الأسعار (Price Lists schema / API).
-- تفاصيل API العامة أو الداخلية لمكتبة `php-pricing`.
-- حسم أي من بوابات قرارات المالك الخمس الأخرى (المخزون، مساحة المعرفات، نطاق المحتوى، معرّف الوسائط، وترتيب المنتجات).
+- Absolute clarity in domain ownership and architectural boundaries between Product and Pricing.
+- Simple, stable `php-product` schema free from price columns or adjustment calculations.
+- Unified integration identity for downstream operations (inventory, supplier fulfillment, order lines) based on `variant_id`.
+- Complete elimination of unintended or implicit price fallback risks.
+
+### Follow-up Requirements
+
+- Requires formal reconciliation between the Pricing library contract (`php-pricing`), the Catalog architecture document, and umbrella rules before complete Catalog sellability can be claimed.
+- Customer account type mapping to pricing contexts and coordination of Pricing library calls remain the responsibility of the Catalog coordinator or Host Application.
+- The architecture candidate document (`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`) remains classified as `Architecture Candidate` until the remaining Owner decision gates are resolved.
+
+---
+
+## Boundaries & Non-Goals
+
+This decision is strictly confined to adopting the Variant as the reference pricing unit and defining the boundary between Product and the independent Pricing library. The following areas remain explicitly out of scope:
+
+- Mechanisms for price sharing or price inheritance across multiple Variants.
+- Discount rules, promotion vouchers, taxes, and shipping fees.
+- Schema and API design for Price Lists in `php-pricing`.
+- Public or internal API specifics of the `php-pricing` library.
+- Resolution of the remaining Owner decision gates.
