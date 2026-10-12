@@ -5,8 +5,8 @@
 - **Overall Resolution Status:** `VALID`
 - **Adoption Model:** Selective pinned adoption
 - **Upstream Repository:** `https://github.com/Maatify/php-engineering-standards.git`
-- **Adoption Commit:** `334c9d5888fd46f9b4624c57e131440c37b840ce`
-- **Adoption Date:** `2026-10-10`
+- **Adoption Commit:** `ebcf55b0591db61d18a1407bc3effef0197b388f`
+- **Adoption Date:** `2026-10-12`
 - **Additional Standards:** None
 - **Explicit Exceptions/Overrides:** None
 
@@ -57,7 +57,7 @@ These are the final Stage 2 applicable standards for the two activations at `/`.
 | `std-testing` | `2.0.0` | [TESTING_STANDARD.md](standards/testing/TESTING_STANDARD.md) | Direct requirement of `composer-package` at `/`; package testing scope |
 | `std-documentation-lifecycle` | `3.1.0` | [DOCUMENTATION_LIFECYCLE_STANDARD_AR.md](standards/governance/DOCUMENTATION_LIFECYCLE_STANDARD_AR.md) | Direct requirement of both active profiles; package owns durable documentation and repository governance records |
 | `std-decision-governance` | `1.0.0` | [DECISION_GOVERNANCE_STANDARD_AR.md](standards/governance/DECISION_GOVERNANCE_STANDARD_AR.md) | Direct requirement of `repository-governance` at `/`; Maatify repository governance applies |
-| `std-ai-collaboration-workflow` | `11.0.0` | [AI_COLLABORATION_WORKFLOW_AR.md](standards/ai/AI_COLLABORATION_WORKFLOW_AR.md) | Direct requirement of `repository-governance` at `/` |
+| `std-ai-collaboration-workflow` | `12.0.0` | [AI_COLLABORATION_WORKFLOW_AR.md](standards/ai/AI_COLLABORATION_WORKFLOW_AR.md) | Direct requirement of `repository-governance` at `/` |
 | `std-github-phase-stack-workflow` | `4.0.0` | [GITHUB_PHASE_STACK_WORKFLOW_AR.md](standards/GITHUB_PHASE_STACK_WORKFLOW_AR.md) | Direct requirement of `repository-governance` at `/` |
 
 ## Resolution Summary
@@ -85,7 +85,7 @@ Per §16.1, the independent diagnostics are `composer-package @ /` — `Resoluti
 
 The final set is the nine applicable Standards listed above; the three excluded candidates remain out of `Resolved Applicable Standards Set`. The exact pinned commit contains the active Profile manifests and all candidate definitions. No inheritance cycle, missing candidate reference, or broken relative link in the final local reference closure was found.
 
-The frozen Profile Version Baseline is established independently under §5.1.1 from the `Maatify/php-rate-limiter` consumer repository. Its completed valid Adoption at consumer commit `5e40583a00fd4bb8bf54fee06319afe19a0c13d3` pins `composer-package` `3.0.0` and `repository-governance` `3.0.0` to upstream commit `f9048d9d75395244fa4af26b55e6b85ff0a898c6`; its manifest records `Overall Resolution Status: VALID` and independent `VALID` / `NONE` diagnostics for both activations. The completed valid Upgrade at consumer commit `2891a070be22e14f35feef43390f6eb04a7db5f6` pins `composer-package` `4.0.0` and `repository-governance` `3.0.0` to upstream commit `35276355e35a61c2320305800a4551496e883c18`, again with independent `VALID` / `NONE` diagnostics. This Upgrade record remains present on `php-rate-limiter` `main` at `9d76f2dbc538362e01d70f8bb76e1675097514ef`. At upstream commit `35276355e35a61c2320305800a4551496e883c18`, the Profile blobs are `9c7bf1952372c59d50bb62daa03ce45729d1ebc4` (`composer-package`) and `ef7e13313e804cb6f02785dbff667b58119176b1` (`repository-governance`); those exact blobs are unchanged at this Adoption Commit `334c9d5888fd46f9b4624c57e131440c37b840ce`. Thus the current `4.0.0` and `3.0.0` Profile versions are frozen and content-matched; no Profile version bump is required. The earlier `php-product` Manifest at `38d492a` declared only an aggregate `VALID` without the independent Activation/Scope diagnostics required by its pinned §16.1, so it is not treated as a completed valid Adoption or as the baseline evidence.
+The frozen Profile Version Baseline is established independently under §5.1.1 from the `Maatify/php-rate-limiter` consumer repository. Its completed valid Adoption at consumer commit `5e40583a00fd4bb8bf54fee06319afe19a0c13d3` pins `composer-package` `3.0.0` and `repository-governance` `3.0.0` to upstream commit `f9048d9d75395244fa4af26b55e6b85ff0a898c6`; its manifest records `Overall Resolution Status: VALID` and independent `VALID` / `NONE` diagnostics for both activations. The completed valid Upgrade at consumer commit `2891a070be22e14f35feef43390f6eb04a7db5f6` pins `composer-package` `4.0.0` and `repository-governance` `3.0.0` to upstream commit `35276355e35a61c2320305800a4551496e883c18`, again with independent `VALID` / `NONE` diagnostics. This Upgrade record remains present on `php-rate-limiter` `main` at `9d76f2dbc538362e01d70f8bb76e1675097514ef`. At upstream commit `35276355e35a61c2320305800a4551496e883c18`, the Profile blobs are `9c7bf1952372c59d50bb62daa03ce45729d1ebc4` (`composer-package`) and `ef7e13313e804cb6f02785dbff667b58119176b1` (`repository-governance`); those exact blobs are unchanged at this Adoption Commit `ebcf55b0591db61d18a1407bc3effef0197b388f`. Thus the current `4.0.0` and `3.0.0` Profile versions are frozen and content-matched; no Profile version bump is required. The earlier `php-product` Manifest at `38d492a` declared only an aggregate `VALID` without the independent Activation/Scope diagnostics required by its pinned §16.1, so it is not treated as a completed valid Adoption or as the baseline evidence.
 
 The three listed Operational Assets are pinned to the Adoption Commit and verified by raw-content SHA-256. There is no mixed-pinning exception and no `DEC-032` adoption as an additional Standard or added central decision record.
 
