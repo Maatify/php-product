@@ -74,7 +74,7 @@ This is still a **candidate**, not proof of Owner approval, implementation, sche
 
 ### 4.1 Product
 
-A Product represents the shared commercial identity. It owns a required stable `code`, lifecycle state, display order, and content records that may be localized or unlocalized. Product content is called **Content**, not only “Translation”, because `language_code = NULL` represents unlocalized content. `name` is a label, not HTML; `short_description` and `description` are stored content values only. Product does not render or sanitize HTML, and the Host owns any markup/security policy. **URL-facing slugs are Host-owned and are out of scope for `php-product` V1** because URL identity may differ by language or channel.
+A Product represents the shared commercial identity. It owns a required stable `code`, lifecycle state, and content records that may be localized or unlocalized. Product content is called **Content**, not only “Translation”, because `language_code = NULL` represents unlocalized content. `name` is a label, not HTML; `short_description` and `description` are stored content values only. Product does not render or sanitize HTML, and the Host owns any markup/security policy. **URL-facing slugs are Host-owned and are out of scope for `php-product` V1** because URL identity may differ by language or channel.
 
 Product does not own a price, inventory count, stock state, supplier record, customer account-type mapping, Category relationship, or URL/SEO policy.
 

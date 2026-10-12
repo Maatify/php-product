@@ -82,7 +82,7 @@ No speculative assumptions or unverified guarantees beyond this existing contrac
 
 ## Rationale
 
-1. **Catalog Ecosystem Interoperability:** Products and Categories frequently share assets from a single Host-managed media library. Using the same scalar type (`int` in PHP, `BIGINT UNSIGNED` in SQL) ensures seamless integration across catalog packages and eliminates the need for Host adapter layers or translation mappings.
+1. **Catalog Ecosystem Interoperability:** When a Host application uses the same Media Asset identity across both packages, a compatible identity representation (`int` in PHP, `BIGINT UNSIGNED` in SQL, matching the Category contract) simplifies integration and reduces the need for conversion caused by type mismatch.
 2. **Defensive Input Validation and Overflow Prevention:** Replicating the Category `CategoryIdDTO` validation rules provides robust protection against malformed input, scientific notation, sign manipulation, and 64-bit integer overflow truncation before values reach domain logic or persistence.
 3. **Domain Decoupling:** Decoupling Product from media storage, binary assets, and URL generation allows `php-product` to remain a pure, focused commerce domain package, adaptable to any storage infrastructure (local filesystem, cloud buckets, or external digital asset management systems).
 4. **Namespace Integrity for Roles:** Product media roles serve product-specific classification needs (e.g., gallery, packaging, specifications) that are distinct from category taxonomy display roles. Separate namespaces prevent cross-domain coupling and protect role key governance.

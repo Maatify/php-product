@@ -44,7 +44,7 @@ The project Owner formally approved the following decision on 2026-10-11:
 
 ## Rationale
 
-1. **Simplicity and Avoidance of Speculative Complexity (KISS / YAGNI):** Restricting content scoping to language prevents schema bloating, composite index overhead, and unnecessary query complexity. Language-based scoping fulfills standard commercial catalog needs for product definitions.
+1. **Simplicity and Avoidance of Speculative Complexity (KISS / YAGNI):** Restricting content scoping to language prevents schema bloating, composite index overhead, and unnecessary query complexity. The purpose of this decision is to limit scope dimensions, complexity, and indexes; it does not claim that language-only scoping covers every market or catalog requirement.
 2. **Separation of Concerns:** The `php-product` package focuses strictly on defining commercial products and their intrinsic content. Presentational variation across channels or marketing surfaces belongs to presentation layers, content management extensions, or the Host Application.
 3. **Architectural Consistency with Ecosystem Standards:** This decision aligns directly with the established Maatify content identity pattern (such as the Category Translation pattern), which treats `language_code = NULL` as a first-class identity, rejects implicit fallback, and delegates localization policies to the Host.
 4. **Deterministic Behavior:** Eliminating implicit fallback guarantees predictable, testable, and transparent query results, ensuring that consuming applications explicitly control their own content presentation fallback logic.
