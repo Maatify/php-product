@@ -1,0 +1,70 @@
+{
+    "name": "maatify/php-product",
+    "description": "PHP library for Product, Variant, Option, and Product media identity, with a MySQL-backed schema.",
+    "keywords": [
+        "product",
+        "variant",
+        "php",
+        "maatify"
+    ],
+    "homepage": "https://github.com/Maatify/php-product",
+    "type": "library",
+    "license": "proprietary",
+    "authors": [
+        {
+            "name": "Maatify",
+            "email": "support@maatify.dev",
+            "homepage": "https://maatify.dev"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/Maatify/php-product/issues",
+        "source": "https://github.com/Maatify/php-product",
+        "security": "https://github.com/Maatify/php-product/blob/main/SECURITY.md"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Maatify\\Product\\Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "php": "^8.4"
+    },
+    "require-dev": {
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^11.5"
+    },
+    "scripts": {
+        "analyse": "phpstan analyse --level=max",
+        "test": "bash scripts/ci/run-integration.sh",
+        "test:integration": "bash scripts/ci/run-integration.sh",
+        "verify:consumer": "bash scripts/ci/run-consumer-verification.sh"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "platform": {
+            "php": "8.4.0"
+        },
+        "policy": {
+            "advisories": {
+                "block": true,
+                "audit": "fail"
+            },
+            "malware": {
+                "block": true,
+                "block-scope": "all",
+                "audit": "fail"
+            },
+            "abandoned": {
+                "block": false,
+                "audit": "fail"
+            }
+        },
+        "allow-plugins": false
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

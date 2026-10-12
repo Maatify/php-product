@@ -64,7 +64,8 @@
 --     language Content; NULL is an exact scope, never a fallback.
 --   - language_code_identity maps NULL to '' so the unique key
 --     (owner_id, language_code_identity) allows one NULL-language row per owner.
---     Empty and whitespace-only non-NULL codes are rejected by CHECK, so they
+--     Empty and whitespace-only non-NULL codes (spaces, tabs, newlines, and other
+--     characters matching [[:space:]]) are rejected by CHECK, so they
 --     cannot collide with that sentinel.
 --   - The (owner_id, language_code) identity is immutable by application
 --     contract and stays unique across soft-deleted history.
@@ -131,7 +132,7 @@ CREATE TABLE `maa_product_products`
     UNIQUE KEY `uq_maa_product_products_code` (`code`),
     KEY `idx_maa_product_products_status_deleted_id` (`status`, `deleted_at`, `id`),
     CONSTRAINT `chk_maa_product_products_code` CHECK (
-        CHAR_LENGTH(TRIM(`code`)) > 0 AND CHAR_LENGTH(`code`) <= 100
+        `code` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`code`) <= 100
     ),
     CONSTRAINT `chk_maa_product_products_status` CHECK (
         BINARY `status` IN (BINARY 'active', BINARY 'inactive')
@@ -159,9 +160,9 @@ CREATE TABLE `maa_product_product_contents`
     UNIQUE KEY `uq_maa_product_product_contents_identity` (`product_id`, `language_code_identity`),
     CONSTRAINT `chk_maa_product_product_contents_language_code` CHECK (
         `language_code` IS NULL
-        OR (CHAR_LENGTH(TRIM(`language_code`)) > 0 AND CHAR_LENGTH(`language_code`) <= 16)
+        OR (`language_code` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`language_code`) <= 16)
     ),
-    CONSTRAINT `chk_maa_product_product_contents_name` CHECK (CHAR_LENGTH(TRIM(`name`)) > 0),
+    CONSTRAINT `chk_maa_product_product_contents_name` CHECK (`name` REGEXP '[^[:space:]]'),
     CONSTRAINT `fk_maa_product_product_contents_product` FOREIGN KEY (`product_id`)
         REFERENCES `maa_product_products` (`id`)
         ON DELETE RESTRICT
@@ -188,7 +189,7 @@ CREATE TABLE `maa_product_options`
     UNIQUE KEY `uq_maa_product_options_id_product` (`id`, `product_id`),
     KEY `idx_maa_product_options_product_status_deleted_order` (`product_id`, `status`, `deleted_at`, `display_order`, `id`),
     CONSTRAINT `chk_maa_product_options_code` CHECK (
-        CHAR_LENGTH(TRIM(`code`)) > 0 AND CHAR_LENGTH(`code`) <= 100
+        `code` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`code`) <= 100
     ),
     CONSTRAINT `chk_maa_product_options_status` CHECK (
         BINARY `status` IN (BINARY 'active', BINARY 'inactive')
@@ -219,9 +220,9 @@ CREATE TABLE `maa_product_option_contents`
     UNIQUE KEY `uq_maa_product_option_contents_identity` (`option_id`, `language_code_identity`),
     CONSTRAINT `chk_maa_product_option_contents_language_code` CHECK (
         `language_code` IS NULL
-        OR (CHAR_LENGTH(TRIM(`language_code`)) > 0 AND CHAR_LENGTH(`language_code`) <= 16)
+        OR (`language_code` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`language_code`) <= 16)
     ),
-    CONSTRAINT `chk_maa_product_option_contents_name` CHECK (CHAR_LENGTH(TRIM(`name`)) > 0),
+    CONSTRAINT `chk_maa_product_option_contents_name` CHECK (`name` REGEXP '[^[:space:]]'),
     CONSTRAINT `fk_maa_product_option_contents_option` FOREIGN KEY (`option_id`)
         REFERENCES `maa_product_options` (`id`)
         ON DELETE RESTRICT
@@ -248,7 +249,7 @@ CREATE TABLE `maa_product_option_values`
     UNIQUE KEY `uq_maa_product_option_values_id_option` (`id`, `option_id`),
     KEY `idx_maa_product_option_values_option_status_deleted_order` (`option_id`, `status`, `deleted_at`, `display_order`, `id`),
     CONSTRAINT `chk_maa_product_option_values_code` CHECK (
-        CHAR_LENGTH(TRIM(`code`)) > 0 AND CHAR_LENGTH(`code`) <= 100
+        `code` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`code`) <= 100
     ),
     CONSTRAINT `chk_maa_product_option_values_status` CHECK (
         BINARY `status` IN (BINARY 'active', BINARY 'inactive')
@@ -279,9 +280,9 @@ CREATE TABLE `maa_product_option_value_contents`
     UNIQUE KEY `uq_maa_product_option_value_contents_identity` (`option_value_id`, `language_code_identity`),
     CONSTRAINT `chk_maa_product_option_value_contents_language_code` CHECK (
         `language_code` IS NULL
-        OR (CHAR_LENGTH(TRIM(`language_code`)) > 0 AND CHAR_LENGTH(`language_code`) <= 16)
+        OR (`language_code` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`language_code`) <= 16)
     ),
-    CONSTRAINT `chk_maa_product_option_value_contents_name` CHECK (CHAR_LENGTH(TRIM(`name`)) > 0),
+    CONSTRAINT `chk_maa_product_option_value_contents_name` CHECK (`name` REGEXP '[^[:space:]]'),
     CONSTRAINT `fk_maa_product_option_value_contents_option_value` FOREIGN KEY (`option_value_id`)
         REFERENCES `maa_product_option_values` (`id`)
         ON DELETE RESTRICT
@@ -314,11 +315,11 @@ CREATE TABLE `maa_product_variants`
     CONSTRAINT `chk_maa_product_variants_fingerprint` CHECK (`composition_fingerprint` REGEXP '^[0-9a-f]{64}$'),
     CONSTRAINT `chk_maa_product_variants_sku` CHECK (
         `sku` IS NULL
-        OR (CHAR_LENGTH(TRIM(`sku`)) > 0 AND CHAR_LENGTH(`sku`) <= 128)
+        OR (`sku` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`sku`) <= 128)
     ),
     CONSTRAINT `chk_maa_product_variants_barcode` CHECK (
         `barcode` IS NULL
-        OR (CHAR_LENGTH(TRIM(`barcode`)) > 0 AND CHAR_LENGTH(`barcode`) <= 128)
+        OR (`barcode` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`barcode`) <= 128)
     ),
     CONSTRAINT `chk_maa_product_variants_status` CHECK (
         BINARY `status` IN (BINARY 'active', BINARY 'inactive')
@@ -378,7 +379,7 @@ CREATE TABLE `maa_product_media_roles`
     UNIQUE KEY `uq_maa_product_media_roles_role_key` (`role_key`),
     KEY `idx_maa_product_media_roles_status_deleted_key` (`status`, `deleted_at`, `role_key`, `id`),
     CONSTRAINT `chk_maa_product_media_roles_role_key` CHECK (
-        CHAR_LENGTH(TRIM(`role_key`)) > 0 AND CHAR_LENGTH(`role_key`) <= 100
+        `role_key` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`role_key`) <= 100
     ),
     CONSTRAINT `chk_maa_product_media_roles_status` CHECK (
         BINARY `status` IN (BINARY 'active', BINARY 'inactive')
@@ -451,11 +452,11 @@ CREATE TABLE `maa_product_media_assignments`
     CONSTRAINT `chk_maa_product_media_assignments_role_id` CHECK (`role_id` IS NULL OR `role_id` > 0),
     CONSTRAINT `chk_maa_product_media_assignments_language_code` CHECK (
         `language_code` IS NULL
-        OR (CHAR_LENGTH(TRIM(`language_code`)) > 0 AND CHAR_LENGTH(`language_code`) <= 16)
+        OR (`language_code` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`language_code`) <= 16)
     ),
     CONSTRAINT `chk_maa_product_media_assignments_platform` CHECK (
         `platform` IS NULL
-        OR (CHAR_LENGTH(TRIM(`platform`)) > 0 AND CHAR_LENGTH(`platform`) <= 255)
+        OR (`platform` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`platform`) <= 255)
     ),
     CONSTRAINT `chk_maa_product_media_assignments_is_primary` CHECK (`is_primary` IN (0, 1)),
     CONSTRAINT `chk_maa_product_media_assignments_primary_not_deleted` CHECK (`deleted_at` IS NULL OR `is_primary` = 0),

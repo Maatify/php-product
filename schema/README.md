@@ -80,7 +80,9 @@ Creation order follows foreign-key dependency.
   foreign key. At most one active primary exists per exact target and
   role/language/platform scope; a soft-deleted row can never be primary.
 - **Text.** Codes, role keys, Content names, language codes, platforms, SKU, and
-  barcode reject empty and space-only values and enforce their length limits.
+  barcode reject empty and whitespace-only values (spaces, tabs, newlines, and other
+  characters matching `[[:space:]]`) through `REGEXP '[^[:space:]]'`, and enforce their
+  length limits.
   Comparison follows `utf8mb4_unicode_ci`, so it is case-insensitive.
 - **Ordering.** `display_order` exists only on Options, Option Values, Variants,
   and media assignments, is positive, has no database default, and is assigned by
@@ -105,3 +107,13 @@ logic. The application owns them, serialized on the Product aggregate lock:
 
 Pricing, Inventory, Supplier, Category mapping, and Media storage are outside the
 package and have no table here.
+
+## Verification
+
+The schema is verified against a real MySQL server by the repository-owned
+Integration suite (`tests/Integration/Schema/`, PHPUnit) and the Consumer
+Verification Harness (`consumer-verification/`). Both run through
+`composer test:integration` and `composer verify:consumer`, provision MySQL from
+the single [`docker-compose.yml`](../docker-compose.yml), and run in CI. Commands,
+prerequisites, the local-to-CI mapping, and the current limits are in
+[`docs/verification/CI_GATES.md`](../docs/verification/CI_GATES.md).
