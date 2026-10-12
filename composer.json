@@ -22,23 +22,42 @@
         "source": "https://github.com/Maatify/php-product",
         "security": "https://github.com/Maatify/php-product/blob/main/SECURITY.md"
     },
+    "autoload": {
+        "psr-4": {
+            "Maatify\\Product\\": "src/"
+        }
+    },
     "autoload-dev": {
         "psr-4": {
             "Maatify\\Product\\Tests\\": "tests/"
         }
     },
     "require": {
+        "ext-mbstring": "*",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "maatify/exceptions": "^1.0",
+        "maatify/persistence": "^1.3",
+        "maatify/shared-common": "^1.0",
         "php": "^8.4"
     },
     "require-dev": {
-        "ext-pdo": "*",
-        "ext-pdo_mysql": "*",
+        "php-cs-fixer/shim": "^3.95",
         "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^11.5"
     },
     "scripts": {
         "analyse": "phpstan analyse --level=max",
-        "test": "bash scripts/ci/run-integration.sh",
+        "format": "php-cs-fixer fix --config=.php-cs-fixer.dist.php",
+        "format:check": [
+            "php-cs-fixer check --config=.php-cs-fixer.dist.php",
+            "@php scripts/ci/check-per-cs-31-delta.php"
+        ],
+        "test": [
+            "@test:unit",
+            "@test:integration"
+        ],
+        "test:unit": "phpunit --testsuite Unit",
         "test:integration": "bash scripts/ci/run-integration.sh",
         "verify:consumer": "bash scripts/ci/run-consumer-verification.sh"
     },
