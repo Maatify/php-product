@@ -367,7 +367,7 @@ The immutable assignment identity is `(target kind, target identity, media_asset
 
 ## 10. Category, Catalog, and Host Boundaries
 
-`php-product` does not depend on `maatify/category` and does not own a Product-to-Category relation. The Catalog/Host integration layer owns the mapping between `category_id` and `product_id`, including any ordering of Products within a Category. Product `display_order`, if retained as proposed, is only the package-wide Product-list order in this single Product namespace; it MUST NOT be used as a substitute for order within a Category or another Host-owned context.
+`php-product` does not depend on `maatify/category` and does not own a Product-to-Category relation. The Catalog/Host integration layer owns the mapping between `category_id` and `product_id`. Per `DEC-006`, package-wide `Product.display_order` is excluded from Product V1. When category-product mapping is implemented, ordering is persisted on the mapping relationship scoped by `category_id`, using the stable `maatify/persistence` scoped-ordering API where applicable. Consuming applications may select different read/presentation sort orders without treating that as Product-owned persistent ordering. A new integration package is not introduced solely by assumption; consuming applications may own this integration directly until a demonstrated cross-project contract warrants a reusable package.
 
 The package contracts are deliberately aligned where the same concepts cross package boundaries:
 
@@ -390,7 +390,7 @@ Prior to commencing any PHP or SQL implementation, standards applicability must 
 
 | Table | Owns | Identity and required invariants |
 |---|---|---|
-| `maa_product_products` | Product identity and lifecycle | `id BIGINT UNSIGNED` PK; `code VARCHAR(100)` unique/immutable across all history; exact `active|inactive`; positive `display_order`; application-managed timestamps; no slug |
+| `maa_product_products` | Product identity and lifecycle | `id BIGINT UNSIGNED` PK; `code VARCHAR(100)` unique/immutable across all history; exact `active|inactive`; application-managed timestamps; no slug |
 | `maa_product_product_contents` | Product name and descriptions | `id` PK; `product_id`; nullable `language_code VARCHAR(16)`; generated NULL-safe language identity; one row per Product/language including NULL and deleted history; `name VARCHAR(255)` non-empty; optional `short_description VARCHAR(500)` and `description TEXT` |
 | `maa_product_options` | Variant-defining Option identity | `id` PK; internal `product_id`; stable `code VARCHAR(100)` unique within Product across deleted history; exact status; positive order; unique `(id, product_id)` candidate key for composite FKs |
 | `maa_product_option_contents` | Option labels | `id` PK; `option_id`; nullable language and generated identity; one row per Option/language including NULL and deleted history; non-empty name/label |
@@ -441,7 +441,7 @@ The Content tables use their domain fields (`name`, optional descriptions, or la
 - InnoDB, `utf8mb4`, and the approved package collation; `BIGINT UNSIGNED` package-owned IDs and Media Asset IDs; MySQL `8.0.16+` with PDO MySQL is the only claimed database runtime for V1 because enforced `CHECK` constraints are part of the contract.
 - All `status` constraints must reject uppercase or mixed-case variants in the database itself (e.g. `CHECK (BINARY status IN (BINARY 'active', BINARY 'inactive'))`); relying on a case-insensitive table collation is invalid. This is intentionally stricter than the current Category taxonomy status check; Category Image Role uses exact binary status enforcement.
 - `created_at`, `updated_at`, and `deleted_at` are assigned by the application from the Host-injected `ClockInterface`. Do not add `DEFAULT CURRENT_TIMESTAMP`, `ON UPDATE CURRENT_TIMESTAMP`, or package-owned timezone normalization. Document the public timestamp representation explicitly and preserve the injected Host Clock semantics; do not claim UTC normalization when none is performed.
-- `display_order` is positive and managed by the shared `maatify/persistence` Ordering API where its public API applies. Do not accept `display_order` in Create/Update Commands; use a separate typed ordering command. Lists end with deterministic `display_order, id`.
+- For entities and relationships with persistent ordering (`maa_product_options`, `maa_product_option_values`, `maa_product_variants`, and `maa_product_media_assignments`), `display_order` is positive and managed by the shared `maatify/persistence` Ordering API where its public API applies. Do not accept `display_order` in Create/Update Commands; use a separate typed ordering command. Lists end with deterministic `display_order, id`. Per `DEC-006`, package-wide `display_order` is excluded from `Product` itself.
 - Runtime hard delete is not used for normal lifecycle operations. Content, role, and assignment soft deletion and restore use application-managed timestamps. The immutable composition relation has no independent soft-delete/update API; its lifecycle follows the Variant.
 - Validate `media_asset_id` using the same canonical positive integer boundary as Category: integer or canonical decimal string where permitted by the Category-compatible contract, rejecting zero, negatives, signs, whitespace, leading-zero/non-canonical strings, malformed values, and values outside PHP's supported integer range before casting. Persist as `BIGINT UNSIGNED`; never create an external Media FK.
 - Use direct PDO, not an ORM or external query builder. Database/runtime behavior must follow the current pinned Package Building Standard and real MySQL integration tests.
@@ -458,7 +458,6 @@ A generated conditional `primary_scope_identity` participates in a UNIQUE key on
 
 Review actual queries and add, at minimum, indexes for:
 
-- Product consumer listing: `(status, deleted_at, display_order, id)`;
 - Content exact lookup and NULL-safe uniqueness for each owning ID and language identity;
 - Options per Product and Values per Option: owner/status/deleted/order/id;
 - Variants per Product: `product_id/status/deleted_at/display_order/id` and unique `(product_id, composition_fingerprint)`;
@@ -676,9 +675,14 @@ The following are not merely implementation details. The Owner MUST explicitly a
    > أي حاجة مستقبلية إلى UUID أو هوية نصية تتطلب قرارًا منسقًا يغيّر عقد الحزمتين، أو خريطة تحويل يملكها الـHost؛ ولا يجوز تغيير نوع الهوية في Product وحدها.
 
    This replaces the previous recommendation with the approved decision. `media_asset_id` is an external, Host-owned identity persisted as `BIGINT UNSIGNED > 0` with no foreign key or JOIN to Media Asset storage. Public PHP identity values are integers, and input normalization conforms to Category's `CategoryIdDTO` contract (accepting `int|string`, requiring positive values, and rejecting signs, whitespace, leading zeroes, decimal notation, scientific notation, malformed representations, and values exceeding `PHP_INT_MAX` before casting). Product owns neither media storage nor its upload, processing, URL resolution, or lifecycle. Product Media Role IDs remain in a separate namespace from Category Image Role IDs. Any future UUID/string identity requires a coordinated decision changing both package contracts or an explicit Host-owned mapping.
-6. **`Product.display_order` retention or exclusion in V1:** `Product.display_order` is defined in this candidate as a package-wide global ordering across the Product library within this single Product namespace, and NOT ordering within a Category, Store, or sales Channel. Contextual ordering within a presentation surface (such as within a Category or storefront channel) belongs strictly to the Host Application or Catalog coordinator mapping layer. Recommendation: do not consider `Product.display_order` a substitute for product ordering within a category or channel. If the Host/Catalog mapping layer already manages contextual product ordering and a package-wide product sequence is not required by consuming workflows, the Owner may decide to exclude `display_order` from `maa_product_products` in V1 persistence to keep the entity minimal. If retained, it remains strictly a global library listing sequence. The candidate schema retains the field under this gate pending the Owner's explicit decision.
+6. **`Product.display_order` retention or exclusion in V1 — Approved by Owner (`DEC-006`):** Product Ordering Boundary has been formally approved by the Owner on 2026-10-12 in [`DEC-006`](../decisions/DEC-006-product-ordering-boundary.md). The Owner's exact verbatim response was:
+   > اعتمد
 
-Gate 6 (`Product.display_order` retention or exclusion in V1) remains pending resolution by the Owner. Until all gates are resolved and implementation is explicitly authorized, the architecture remains `CANDIDATE`; the Executor must not silently convert recommendations into Owner decisions.
+   in direct approval of the recommendation to exclude package-wide `Product.display_order` from Product V1, preserve Product's independence from Category with mapping remaining outside both core libraries, persist ordering on the mapping relationship scoped by `category_id` using the stable `maatify/persistence` scoped-ordering API where applicable, avoid introducing a new integration package solely by assumption, and allow consumers to select different read/presentation sorts without treating that as Product-owned persistent ordering.
+
+   This replaces the previous recommendation with the approved decision. Package-wide `display_order` is excluded from `maa_product_products`, and its dedicated consumer-listing index is removed. Scoped ordering for other entities and relationships where ordering is meaningful (`maa_product_options`, `maa_product_option_values`, `maa_product_variants`, and `maa_product_media_assignments`) is preserved.
+
+All six Owner Decision Gates (`DEC-001` through `DEC-006`) are now formally resolved under Owner authority. Until implementation is explicitly authorized, the architecture remains `CANDIDATE`; recording these decision records does not authorize runtime PHP implementation, SQL migrations, database behavior, or modifications to `STANDARDS_MANIFEST.md`.
 
 ## 21. Source Inputs and Authority
 
