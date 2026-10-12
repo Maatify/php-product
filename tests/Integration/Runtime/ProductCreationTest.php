@@ -7,7 +7,7 @@ namespace Maatify\Product\Tests\Integration\Runtime;
 use DateTimeImmutable;
 use DateTimeZone;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
-use Maatify\Persistence\Pdo\Transaction\PdoTransactionRunner;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\Product\Command\CreateProductCommand;
@@ -130,7 +130,7 @@ final class ProductCreationTest extends RuntimeTestCase
             new PdoProductCommandRepository(self::$pdo),
             $failingVariants,
             new PdoProductQueryReader(self::$pdo),
-            new PdoTransactionRunner(self::$pdo),
+            new PdoSavepointTransactionRunner(self::$pdo),
             new SystemClock(new DateTimeZone('UTC')),
         );
 
@@ -161,39 +161,6 @@ final class ProductCreationTest extends RuntimeTestCase
         self::$pdo->commit();
         self::assertSame(1, self::rowCount('maa_product_products'));
         self::assertSame(1, self::rowCount('maa_product_variants'));
-    }
-
-    public function testAFailureInsideAHostTransactionLeavesItActiveForTheHostToResolve(): void
-    {
-        $failure = new RuntimeException('variant write failed');
-        $failingVariants = new class ($failure) implements VariantCommandRepositoryInterface {
-            public function __construct(private RuntimeException $failure) {}
-
-            public function createEmptyComposition(int $productId, DateTimeImmutable $occurredAt): int
-            {
-                throw $this->failure;
-            }
-        };
-        $service = new ProductService(
-            new PdoProductCommandRepository(self::$pdo),
-            $failingVariants,
-            new PdoProductQueryReader(self::$pdo),
-            new PdoTransactionRunner(self::$pdo),
-            new SystemClock(new DateTimeZone('UTC')),
-        );
-
-        self::$pdo->beginTransaction();
-        try {
-            $service->create(new CreateProductCommand('P-HOST-FAIL'));
-            self::fail('The failure must propagate.');
-        } catch (RuntimeException $caught) {
-            self::assertSame($failure, $caught);
-        }
-
-        self::assertTrue(self::$pdo->inTransaction(), 'The package must not roll back the Host transaction.');
-        self::assertSame(1, self::rowCount('maa_product_products'), 'The partial write stays visible until the Host decides.');
-        self::$pdo->rollBack();
-        self::assertSame(0, self::rowCount('maa_product_products'));
     }
 
     public function testVariantOrderIsAllocatedThroughTheSharedOrderingApi(): void

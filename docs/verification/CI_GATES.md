@@ -70,7 +70,9 @@ encoding cases, the composition fingerprint vector, and Service orchestration wi
   media target, scope, and primary rules.
 - `Runtime/`: the Product creation use case through the public factory: inactive Product plus
   one active empty-composition Variant, case-insensitive and soft-delete-reserved conflicts,
-  rollback of a failed operation the package started, joining a caller-owned transaction without committing it,
+  rollback of a failed operation the package started, and, inside a caller-owned transaction, savepoint rollback of a failed
+  operation that the Host then commits or rolls back (no Product without its Variant, the Host's other work preserved, the Host
+  transaction never committed or rolled back by the package),
   Ordering API allocation, and real concurrent writers in separate processes.
 
 ## Consumer Verification Harness

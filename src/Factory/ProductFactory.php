@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Maatify\Product\Factory;
 
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
-use Maatify\Persistence\Pdo\Transaction\PdoTransactionRunner;
+use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Product\Repository\Pdo\PdoProductCommandRepository;
 use Maatify\Product\Product\Repository\Pdo\PdoProductQueryReader;
@@ -29,8 +29,10 @@ final class ProductFactory
     /**
      * Builds the Product service on the given connection.
      *
-     * @param PDO $pdo Connection with `PDO::ERRMODE_EXCEPTION`. All writes of one operation use it,
-     *                 so a transaction the Host has already started on it is joined, never committed.
+     * @param PDO $pdo Connection with `PDO::ERRMODE_EXCEPTION`. All writes of one operation use it.
+     *                 A transaction the Host has already started on it is never committed or rolled back:
+     *                 each operation runs in its own savepoint inside it, and a failed operation is rolled back
+     *                 to that savepoint, so none of its writes reach the Host's commit.
      * @param ClockInterface $clock Host Clock whose instant is stored as the record timestamp.
      *
      * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
@@ -45,7 +47,7 @@ final class ProductFactory
             new PdoProductCommandRepository($pdo),
             new PdoVariantCommandRepository($pdo, new ScopedOrderingManager()),
             new PdoProductQueryReader($pdo),
-            new PdoTransactionRunner($pdo),
+            new PdoSavepointTransactionRunner($pdo),
             $clock,
         );
     }

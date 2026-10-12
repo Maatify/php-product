@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Product\Service;
 
-use Maatify\Persistence\Pdo\Transaction\TransactionRunnerInterface;
+use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\DTO\CreatedProductDTO;
 use Maatify\Product\Product\DTO\ProductDTO;
@@ -17,12 +17,15 @@ use Maatify\SharedCommon\Contracts\ClockInterface;
 /**
  * Orchestrates Product creation and lookup.
  *
- * The transaction runner owns the local transaction, or joins one that the caller
- * already holds on the same connection. Storage exceptions propagate unchanged;
- * the only conversions are the named exceptions raised by the repositories. A
- * transaction that the runner started is rolled back before the exception
- * propagates; a transaction that the Host started is never rolled back or
- * committed here, so on failure it stays active and the Host decides its outcome.
+ * `create()` is atomic on its own: the Product and its Variant are both written or
+ * neither is. The savepoint transaction runner owns a transaction when none is active
+ * and commits it on success. When the Host already holds a transaction on the same
+ * connection, the runner opens an operation-local savepoint inside it and, on any
+ * failure, rolls back to that savepoint before the exception propagates. So a failed
+ * call leaves none of its writes in the Host transaction, which stays active, never
+ * committed or rolled back here, and the Host can still commit its other work without
+ * ever persisting a Product that lacks its Variant. Storage exceptions propagate
+ * unchanged; the only conversions are the named exceptions raised by the repositories.
  */
 final readonly class ProductService implements ProductServiceInterface
 {
@@ -30,7 +33,7 @@ final readonly class ProductService implements ProductServiceInterface
         private ProductCommandRepositoryInterface $products,
         private VariantCommandRepositoryInterface $variants,
         private ProductQueryReaderInterface $reader,
-        private TransactionRunnerInterface $transactions,
+        private SavepointTransactionRunnerInterface $transactions,
         private ClockInterface $clock,
     ) {}
 

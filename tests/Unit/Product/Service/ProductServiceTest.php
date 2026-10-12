@@ -6,7 +6,7 @@ namespace Maatify\Product\Tests\Unit\Product\Service;
 
 use DateTimeImmutable;
 use DateTimeZone;
-use Maatify\Persistence\Pdo\Transaction\TransactionRunnerInterface;
+use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\DTO\ProductDTO;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
@@ -167,7 +167,7 @@ final class ProductServiceTest extends TestCase
                 return null;
             }
         };
-        $transactions = new class ($calls) implements TransactionRunnerInterface {
+        $transactions = new class ($calls) implements SavepointTransactionRunnerInterface {
             public function __construct(private CallLog $calls) {}
 
             public function run(callable $callback): mixed

@@ -18,11 +18,12 @@ interface ProductServiceInterface
     /**
      * Creates an inactive Product together with its single active empty-composition Variant.
      *
-     * Both rows are written in one local transaction: either both exist or neither
-     * does. When the caller already has an active transaction on the same
-     * connection, the operation joins it and never commits or rolls it back: on
-     * success or failure the caller decides, and after a failure that transaction
-     * may still hold the writes made before the failure.
+     * Both rows are written atomically: either both exist or neither does, whoever
+     * owns the transaction. When the caller already has an active transaction on the
+     * same connection, the operation runs in an operation-local savepoint inside it
+     * and never commits or rolls back that transaction. After a failure the savepoint
+     * is rolled back, so the caller's transaction holds none of this operation's
+     * writes, stays active, and may still be committed or rolled back by the caller.
      * The operation is not idempotent; repeating it with the same code conflicts.
      * It performs no Pricing, Inventory, or other cross-domain work.
      *
