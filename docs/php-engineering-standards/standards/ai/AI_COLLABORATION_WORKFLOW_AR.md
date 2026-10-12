@@ -3,7 +3,7 @@
 ## بيانات المعيار
 
 - **Standard ID:** `std-ai-collaboration-workflow`
-- **Standard Version:** `11.0.0`
+- **Standard Version:** `12.0.0`
 - **Standard Version Format:** `MAJOR.MINOR.PATCH`
 - **اللغة المعتمدة:** العربية.
 - **مالك المعيار:** مالك المشروع.
@@ -253,6 +253,22 @@ Lead personal repository implementation
 عند تغير chat أو session أو executor، يبدأ الاستئناف من PR الحالية وGitHub timeline والـremote refs والكود/التوثيق والمراجع authoritative. Chat أو Memory أو تقرير Executor أدوات discovery فقط وليست بديلًا عن هذا السجل.
 
 لكي يكون هذا العقد متاحًا لكل published governed work branch، تطبق قاعدة DEC-017: branch محلية غير منشورة قد توجد أثناء الإعداد والتنفيذ المحلي، لكن أي non-default work branch تُنشر إلى GitHub يجب أن ترتبط بالـPR الصحيحة ضمن نفس publication handoff قبل استمرار governed execution. لا تفرض هذه القاعدة PR جديدة إذا كانت branch مرتبطة بالفعل بـPR صحيحة قائمة.
+
+### 3.2.6 Lead-owned Merge-Ready PR Flowchart
+
+عندما يكتمل النطاق الفعلي للـPR، وتنجح Direct Lead Acceptance على exact accepted remote HEAD، وتصبح الـPR صالحة للعرض على المالك بوصفها `READY FOR MERGE`، يكون المساعد القائد مسؤولًا عن تقييم الحاجة إلى Flowchart داخل وصف الـPR وإعداده وتحديثه، إذا كان التغيير المنفذ يتضمن Workflow أو Behavior أو Integration Flow يستفيد فعليًا من الرسم.
+
+القواعد:
+
+- الرسم بصيغة Mermaid، و**كل النصوص الظاهرة داخله بالإنجليزية فقط**، بما يشمل Node Labels وDecision Labels وEdge Labels. تبقى Technical identifiers بأسمائها الأصلية.
+- يمثل الرسم التدفق الذي نُفّذ وثبتت صحته على accepted HEAD، وليس خطة مستقبلية ولا خطوات Git أو Review الشكلية.
+- وصف الـPR وعنوانه وردود الـLead ومراجعاته تبقى بالعربية افتراضيًا وفق §2؛ ولا تغيّر قاعدة الـMermaid لغة بقية الوصف.
+- إذا غيّرت remediation لاحقة السلوك الموصوف، يعيد الـLead تقييم الرسم ويحدّثه قبل إعادة إعلان الجاهزية، تطبيقًا لعقد current-state snapshot في §3.2.5.
+- الرسم، عند انطباقه، التزام PR metadata لعرض الجاهزية؛ لكنه ليس Engineering Verification أو Acceptance Evidence، ولا يُعلن `READY FOR MERGE` لمجرد وجوده، ولا يحل محل Direct Lead Acceptance أو Owner-only Merge. ولا يُعد مطلوبًا لـPR ما زالت Draft أو فشلت مراجعتها أو لم تُقبل بعد.
+- لا يُفرض Flowchart على مهمة Documentation-only أو Metadata-only أو تغيير بسيط لا يملك Flow ذا معنى، أو عندما يكون الرسم زائدًا أو مضللًا. لا يُضاف Diagram لمجرد استيفاء شكل إداري.
+- هذه مسؤولية الـLead عند Final Acceptance، وليست جزءًا من تسليم Executor، ولا يضيفها Executor إلى Draft PR نيابة عن الـLead.
+
+لا يغير هذا القسم ملكية Direct Lead Acceptance أو صلاحية Owner-only Merge، ولا يجعل الرسم جزءًا من canonical Documentation المستدامة؛ فلغة Durable Repository Documentation تحكمها Documentation Lifecycle.
 
 ## 3.3 المنفذ المحلي (Local Executor)
 
@@ -793,13 +809,15 @@ Manifest Validation
 
 أي Independent أو Separate Final Review مختارة وفق الـrisk تضيف طبقة تحقق مستقلة ولا تحل محل هذه المراجعة المباشرة.
 
+يطبق المساعد القائد في هذه المراجعة §13.1.3 على صلاحية Verification Evidence للمحتوى النهائي، و§13.1.4 على أي finding مؤكدة خارج النطاق.
+
 ## المرحلة 8 — Commit وPush وPR
 
 تحدث وفق صلاحيات Git المحددة في التوجيه. Commit وPush وفتح PR صلاحيات مستقلة على مستوى actor authority، لكن نشر governed work branch جديدة إلى GitHub لا يكتمل كـworkflow state قبل وجود PR صحيحة لها وفق DEC-017 وPhase Stack. إذا لم يملك المنفذ صلاحية فتحها، ينهي الناشر الـPush ويحوّل handoff فورًا إلى المساعد القائد لفتح PR قبل استمرار التنفيذ. أما كل GitHub Merge فيحتاج Owner authorization صريحة منفصلة. كل تصحيح بعد Commit يُضاف في Commit جديد. نشر Jules واختيار Publish Branch أو Publish PR يخضعان للقسم `6.7`.
 
 ## المرحلة 9 — مراجعة PR وmetadata handoff
 
-تشمل scope وdiff وbase freshness والـchecks والـthreads، ويطبق المساعد القائد عقد current-state/resume في §3.2.5. قبل عرض PR بوصفها جاهزة للدمج، يثبت exact remote HEAD التي راجعها، ويجعل الوصف يعكس الحالة الحالية الفعلية، ويسجل نتيجة القبول على تلك الـHEAD في GitHub timeline بصورة قابلة للاسترجاع تاريخيًا.
+تشمل scope وdiff وbase freshness والـchecks والـthreads، ويطبق المساعد القائد عقد current-state/resume في §3.2.5. قبل عرض PR بوصفها جاهزة للدمج، يثبت exact remote HEAD التي راجعها، ويجعل الوصف يعكس الحالة الحالية الفعلية، ويسجل نتيجة القبول على تلك الـHEAD في GitHub timeline بصورة قابلة للاسترجاع تاريخيًا. وإذا انطبق §3.2.6 يعد الـFlowchart أو يحدّثه في الوصف بعد ثبوت القبول وقبل إعلان الجاهزية.
 
 بعد مهمة Jules الناجحة، يتولى المساعد القائد تثبيت العنوان والوصف النهائيين للـPR من الحالة الفعلية. تستمر التصحيحات اليدوية الطبيعية داخل نفس PR. في مهام Jules تُرسل ملاحظات Lead أو PR على نفس المهمة عبر top-level PR conversation comment أو Reply عادي داخل نفس PR بمنشن صريح `@jules` وفق القسم `11.1`. أما task-scoped automatic CI remediation التابعة للمهمة نفسها فتتبع lifecycle §11.4 ولا تحتاج comment يدويًا منفصلًا لكل دورة. عند التكدس أو فقدان الاستيعاب يُطبق مسار الاستعادة في القسم `6.7`.
 
@@ -1570,6 +1588,58 @@ Owner Release Authorization = explicit
 
 لا يغير هذا القسم ملكية `Fresh Full Acceptance Review` أو `Direct Lead Review` أو Phase Stack أو Owner-only `Merge`؛ بل يربطها ببوابة RC وStable الصريحة.
 
+### 13.1.3 Verification Evidence Integrity
+
+عند استخدام Verification Evidence للحكم على جاهزية Commit أو Integration أو Direct Lead Acceptance، يجب أن تثبت الأدلة صلاحيتها للمحتوى الفعلي النهائي محل القرار، بما يشمل مدخلات التحقق ذات الصلة والـstaged أو committed أو published state بحسب الحد المعني.
+
+يثبت هذه الصلاحية الـActor المسؤول عن كل Verification Boundary:
+
+- **Executor** عند قرار Commit ضمن صلاحياته المفوضة.
+- **المساعد القائد** مستقلًا عند Direct Lead Acceptance أو Integration، وتبقى مسؤوليته النهائية عن القبول.
+
+لا ينشئ هذا القسم بوابة Lead review أو approval قبل كل Executor Commit، ولا يغير تفويض التنفيذ في §3.2.2–§3.2.3.
+
+```text
+Verification PASS on content A
+≠ acceptance evidence for materially changed content B
+```
+
+لا يجوز الاستناد إلى PASS سابقة لقبول محتوى تغيّر بطريقة تؤثر على صلاحية الدليل. عندما يتغير المحتوى المادي أو يتعذر إثبات استمرار صلاحية الأدلة:
+
+- تُعاد Affected Verification المناسبة للمحتوى النهائي.
+- تُنفّذ Full Applicable Verification عند Meaningful Integration Boundary الذي تفرضه العقود القائمة.
+- لا يُعلن Acceptance قبل ثبوت صلاحية الأدلة للحالة النهائية.
+
+حدود هذه القاعدة:
+
+- **Tool-agnostic:** لا تفرض Git tree hash معينًا أو Script name أو Docker أو Composer command عالميًا؛ يثبت كل مستودع الصلاحية بالوسيلة الملائمة له.
+- **Proportional:** لا تفرض Full Suite بعد كل Micro-change أو Commit؛ ويظل توقيت Affected مقابل Full Verification مملوكًا لـ`GITHUB_PHASE_STACK_WORKFLOW_AR.md` §6.
+- **Reuse allowed:** يجوز إعادة استخدام Evidence ثبت أنها ما زالت صالحة بعد تغيير غير مؤثر في مدخلاتها أو في الحالة المقبولة، بشرط إثبات صلاحية إعادة الاستخدام لا افتراضها.
+- **CI != Direct Lead Review:** نجاح GitHub CI أو أي Check منفردة لا يحل محل Direct Lead Review وفق §13.1.
+- لا تغير هذه القاعدة ملكية Testing Architecture أو CI Contracts أو Host Verification، وهي مملوكة لمعاييرها.
+
+### 13.1.4 Out-of-Scope Review Finding Tracking
+
+عندما يكتشف المساعد القائد أثناء مراجعة مهمة مشكلة حقيقية خارج نطاقها، ويثبت أنها Actionable Defect أو Material Engineering Improvement تستحق المعالجة أو المتابعة، يطبق ما يلي:
+
+1. يتحقق من الأدلة ومن Canonical Ownership.
+2. يبحث عن GitHub Issue قائمة لنفس المشكلة.
+3. إذا وجدت، يربط الاكتشاف بها ويحدّثها بما يلزم دون إنشاء Duplicate.
+4. إذا لم توجد، ينشئ Issue مستقلة داخل المستودع المالك للمشكلة، بحسب الصلاحيات المتاحة.
+5. يسجل المشكلة وتأثيرها، والأدلة أو طريقة إعادة الإنتاج عند الانطباق، والـPR أو Review التي كشفتها، وحالة المعالجة المقترحة.
+
+لا يجوز أن تبقى finding مؤكدة وقابلة للمعالجة محفوظة فقط داخل Chat أو ذاكرة الـLead أو تقرير مراجعة عابر.
+
+حدود القرار:
+
+- اكتشاف المشكلة لا يوسع Scope الـPR الحالية تلقائيًا، وإنشاء Issue لا يعني السماح بإصلاحها فورًا؛ فالنطاق المغلق وفق §5.5 و§5.6 يبقى حاكمًا.
+- إذا كانت finding تمنع القبول الآمن للـPR الحالية، فتوثيقها لا يحول النتيجة إلى `PASS`؛ وتعالج بوصفها blocker وفق الأقسام الأخرى من §13.1.
+- الملاحظات غير المثبتة أو غير القابلة للتصرف ليست سببًا لإنشاء Issues شكلية.
+- إذا تعذر إنشاء Issue بسبب الصلاحيات أو الأداة، يحفظ الـLead سجلًا مكتملًا قابلًا للنشر ويُظهر Recording Blocker صريحًا للمالك؛ ولا يسقط الاكتشاف بصمت.
+- لا تُنشر Secrets أو بيانات حساسة في GitHub Issues.
+
+يكمل هذا القسم مسؤولية Lead Review القائمة ولا يعيد كتابة Decision Governance أو Phase Stack. ولا يغني `Finding ID` التشغيلية الخاصة بـ§13.1.2 عن Issue عندما تنطبق هذه القاعدة، ولا يجعل Issue Decision Record دائمة.
+
 ## 13.2 تنفيذ الكود
 
 لا يعتبر التنفيذ جاهزًا للمراجعة إلا إذا تحقق حسب نطاق المهمة:
@@ -1604,7 +1674,7 @@ Owner Release Authorization = explicit
 2. base وHEAD وmerge-base وbehind/ahead معلومة.
 3. تبعية الـ branch للمهمة (Jules task branch) والـ changed files والـ diff داخل النطاق.
 4. checks والـ review threads وتاريخ commits مفهومة.
-5. وصف PR النهائي مبني على remote state.
+5. وصف PR النهائي مبني على remote state، ويشمل Flowchart فقط عند انطباق §3.2.6.
 6. في مهام Jules، إعداد Starting branch وطريقة النشر مطابقان للقسم `6.7`.
 7. أي manual PR feedback correction باستخدام `@jules` يخص نفس المهمة ونفس PR والـ branch وفق القسم `11.1`؛ أما task-scoped automatic CI remediation فتتبع §11.4 ولا تحتاج comment يدويًا منفصلًا لكل cycle.
 8. عند خطأ base، فُصل بين خطأ metadata وخطأ ancestry، ولم تُحذف branch قبل التحقق من البديل.
@@ -1689,6 +1759,13 @@ Owner Release Authorization = explicit
 ---
 
 # 17. سجل تغييرات المعيار
+
+## `12.0.0`
+
+- تطبيق `DEC-033`: إلزام الـLead بإثبات أن Verification Evidence ما زالت صالحة للمحتوى النهائي محل القبول، وعدم قبول محتوى تغيّر ماديًا استنادًا إلى PASS سابقة، دون فرض أداة أو Full Suite بعد كل تعديل صغير ودون تغيير توقيت Gates المملوك لـPhase Stack.
+- تطبيق `DEC-034`: تحميل الـLead مسؤولية Mermaid Flowchart إنجليزية فقط داخل وصف PR العربي عند `READY FOR MERGE` عندما يكون للتغيير Flow ذو معنى، مع استثناء Documentation-only/Metadata-only/الرسم الزائد.
+- تطبيق `DEC-035`: إلزام تتبع الـfindings المؤكدة خارج النطاق عبر GitHub Issue قائمة أو جديدة دون توسيع Scope أو تحويل blocker إلى PASS، مع Recording Blocker صريح عند تعذر الإنشاء.
+- التصنيف `NORMATIVE / BREAKING_CONTRACT_CHANGE / Major` من Frozen Version Baseline `11.0.0` (blob `9d5598065b9fefac8a045a5bb9ac710e4d46e161`) إلى Mutable Candidate `12.0.0`، مرة واحدة تراكميًا للمتطلبات الثلاثة.
 
 ## `11.0.0`
 
