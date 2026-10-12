@@ -1,6 +1,6 @@
 # Product Package V1 Architecture
 
-**Status:** Reviewed architecture candidate — **not yet Owner-approved for implementation**  
+**Status:** Owner-approved architecture contract for Product V1 implementation (`DEC-007`, 2026-10-12), approved at `main` commit `cdbefe7d4296d29292f051f2f7db52b79cb40d62`. Implementation is authorized only within the local Product scope defined here.<br>
 **Package:** `maatify/php-product`  
 **Repository:** `Maatify/php-product`  
 **Document path:** `docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`<br>
@@ -30,9 +30,9 @@ This is a deliberate redesign of parts of the historical Catalog V1 specificatio
 
 This document has been reviewed against the current Category package contract and the applicable Product repository standards references. The review tightened several previously under-specified areas: content identity and exact locale reads, composite foreign-key enforcement for Variant composition and media targets, mutation serialization, active Option Value coverage, status casing, and the candidate persistence design proposed for future implementation.
 
-This Pull Request introduces a proposed architecture document only; it does NOT add SQL DDL, migrations, or persistence implementation. The Candidate design proposes package-owned persistence behavior if approved by the Owner and implemented, but this document does not itself alter `STANDARDS_MANIFEST.md` or supersede the settled standards applicability recorded in it (which currently documents that conditional persistence requirements are not activated in the absence of package-owned database behavior). Prior to commencing any PHP or SQL implementation, standards applicability must be formally re-evaluated under the canonical standards governance procedure, and required adoption records updated if that process concludes they change. When persistence is implemented in the future, all applicable conditional requirements of the Package Building Standard must be satisfied according to the governance outcome approved at that time.
+This document itself adds no SQL DDL, migrations, or persistence implementation. The Owner approved it as the architecture contract for Product V1 under [`DEC-007`](../decisions/DEC-007-product-v1-implementation-start-authorization.md). The pre-implementation standards applicability re-evaluation required by that decision was completed on 2026-10-12 and is recorded in `STANDARDS_MANIFEST.md`: package-owned SQL persistence and manually maintained PHP are now applicable, so the conditional persistence requirements of the Package Building Standard, and the persistence-conditioned requirements of the CI Workflow, Testing, Composer Package, and Library Presentation Standards, apply to the implementation.
 
-This is still a **candidate**, not proof of Owner approval, implementation, schema execution, or test success. The Executor MUST NOT treat this document as an execution authorization until the Owner approves the architecture and the approval-gate items in §20 are resolved. No Product SQL schema or PHP implementation has been executed or validated by this review.
+Owner approval authorizes the start of implementation within the approved scope; it is not evidence of implementation, schema execution, or test success, and it does not authorize Pricing or Inventory libraries, full Catalog integration, a Product-to-Category relationship inside either core library, merge, release, or publish. No Product SQL schema or PHP implementation has been executed or validated by this review.
 
 ## 2. Design Principles
 
@@ -384,9 +384,7 @@ No cross-module foreign keys or joins are allowed to Category, Pricing, Inventor
 
 ## 11. V1 Persistence Outline
 
-The following is the proposed schema contract that future implementation must preserve if approved. This Pull Request introduces a proposed architecture specification only; it does NOT add executable SQL DDL, schema files, or database behavior. The Candidate design proposes package-owned SQL persistence if approved by the Owner and implemented. This document does not itself alter `STANDARDS_MANIFEST.md`, nor does it resolve or supersede the settled standards applicability currently recorded in the repository manifest (which documents that conditional persistence requirements are not activated in the absence of package-owned database behavior).
-
-Prior to commencing any PHP or SQL implementation, standards applicability must be formally re-evaluated under the canonical standards governance procedure, and required adoption records updated if that evaluation process determines they change. When persistence is implemented in the future, all applicable conditional requirements of the Package Building Standard (including physical DDL structure, comments, naming, indexes, transactions, and executable constraints) must be strictly satisfied according to the governance outcome approved at that time.
+The following is the approved schema contract that implementation must preserve. This document specifies it only; it does NOT add executable SQL DDL, schema files, or database behavior. The standards applicability re-evaluation required before implementation was completed on 2026-10-12 and recorded in `STANDARDS_MANIFEST.md` under `DEC-007`; this document does not itself alter the manifest. All applicable conditional requirements of the Package Building Standard (including physical DDL structure, comments, naming, indexes, transactions, and executable constraints) must be strictly satisfied by the implementation.
 
 | Table | Owns | Identity and required invariants |
 |---|---|---|
@@ -510,7 +508,7 @@ Use ecosystem shared packages rather than package-local duplicates when required
 - `maatify/shared-common` for `ClockInterface` when the package requires a clock.
 - `maatify/persistence` for supported pagination/order-management/transaction capabilities where its public API is applicable.
 
-Exact public class/method inventory must be documented in the root `PRODUCT_PACKAGE_REFERENCE.md`; this architecture document under `docs/architecture/` supports that reference and must not become a competing Package Reference.
+The Operational Read / Reporting classification required by Package Building Standard §15 (In Scope) and its read-contract boundaries are recorded in the root `PRODUCT_PACKAGE_REFERENCE.md`. Exact public class/method inventory must be documented in that same file; this architecture document under `docs/architecture/` supports that reference and must not become a competing Package Reference.
 
 ## 14. Transaction and Replacement Boundaries
 
@@ -624,7 +622,7 @@ These are integration decisions, not reasons to put foreign-domain ownership ins
 
 ## 19. Resolved V1 Decisions and Implementation Stop Conditions
 
-The following decisions are the candidate's proposed Product-local contract. After the Owner approves this document, these decisions MUST NOT be silently reopened by the Executor:
+The following decisions are the approved Product-local contract (`DEC-007`). These decisions MUST NOT be silently reopened by the Executor:
 
 - Product owns Product, Variant, variant-defining Options/Values, optionally localized Content, Product Media Roles, and Product/Variant media assignments only.
 - Product configurations remain structurally valid on every committed mutation, independent of Product visibility status; active Option Values under active Options are represented by at least one active valid Variant.
@@ -682,11 +680,11 @@ The following are not merely implementation details. The Owner MUST explicitly a
 
    This replaces the previous recommendation with the approved decision. Package-wide `display_order` is excluded from `maa_product_products`, and its dedicated consumer-listing index is removed. Scoped ordering for other entities and relationships where ordering is meaningful (`maa_product_options`, `maa_product_option_values`, `maa_product_variants`, and `maa_product_media_assignments`) is preserved.
 
-All six Owner Decision Gates (`DEC-001` through `DEC-006`) are now formally resolved under Owner authority. Until implementation is explicitly authorized, the architecture remains `CANDIDATE`; recording these decision records does not authorize runtime PHP implementation, SQL migrations, database behavior, or modifications to `STANDARDS_MANIFEST.md`.
+All six Owner Decision Gates (`DEC-001` through `DEC-006`) are formally resolved under Owner authority. On 2026-10-12 the Owner approved this document as the architecture contract and authorized the start of implementation within the local Product scope, bound by `DEC-001` through `DEC-006`, under [`DEC-007`](../decisions/DEC-007-product-v1-implementation-start-authorization.md). That authorization is subject to the completed standards applicability re-evaluation recorded in `STANDARDS_MANIFEST.md`, and it does not authorize merge, release, or publish.
 
 ## 21. Source Inputs and Authority
 
-This architecture was prepared from the supplied Catalog documents and deliberately redesigned where a more reusable Product package contract is recommended. Current-source review evidence on 2026-10-11 includes `maatify/php-category` `CATEGORY_PACKAGE_REFERENCE.md` blob `c177e8957786220335692b9cdf78a5b3dad64dee`, `docs/USAGE_GUIDE.md` blob `e397014cf80a7d8fc49d3238d4c46501c8b72eec`, and `schema/category.sql` blob `8b8c0f552d0df5a2513046312d1da2de93c04019`. The Product repository's current `STANDARDS_MANIFEST.md` is blob `fb09995840c495645f821899e19631e38ed4fb32`; the current `PACKAGE_BUILDING_STANDARD.md` is blob `1475bb006eefe9e1ef9a6973f6664c3d0690dc2c`. The manifest currently records that conditional SQL persistence requirements are not activated because the repository currently has no package-owned database behavior; if approved and implemented, the proposed Product runtime would introduce package-owned database behavior, which requires formal applicability re-evaluation under the canonical standards governance procedure before implementation. This document does not itself modify `STANDARDS_MANIFEST.md` or alter its settled adoption state. This remains a proposed contract, not an implemented or released contract:
+This architecture was prepared from the supplied Catalog documents and deliberately redesigned where a more reusable Product package contract is recommended. Current-source review evidence on 2026-10-11 includes `maatify/php-category` `CATEGORY_PACKAGE_REFERENCE.md` blob `c177e8957786220335692b9cdf78a5b3dad64dee`, `docs/USAGE_GUIDE.md` blob `e397014cf80a7d8fc49d3238d4c46501c8b72eec`, and `schema/category.sql` blob `8b8c0f552d0df5a2513046312d1da2de93c04019`. The Product repository's current `STANDARDS_MANIFEST.md` is blob `fb09995840c495645f821899e19631e38ed4fb32`; the current `PACKAGE_BUILDING_STANDARD.md` is blob `1475bb006eefe9e1ef9a6973f6664c3d0690dc2c`. The manifest, as it stood when this review was prepared, recorded that conditional SQL persistence requirements were not activated because the repository had no package-owned database behavior. After the Owner approved implementation, the formal applicability re-evaluation was completed on 2026-10-12 and the current manifest records those requirements as activated (`DEC-007`). This is an approved contract, not an implemented or released contract:
 
 - `CATALOG_PACKAGE_ARCHITECTURE.md` — package-level composition, domain ownership, and cross-domain orchestration.
 - `Catalog_V1_Architecture_Locked.pdf` — historical Product/Variant/Option model and original Catalog V1 schema.
@@ -694,4 +692,4 @@ This architecture was prepared from the supplied Catalog documents and deliberat
 - Current `maatify/php-category` `CATEGORY_PACKAGE_REFERENCE.md`, current consumer usage contract, and `schema/category.sql` — actual reusable package contracts used to reconcile language identity, Media Asset ID type, status/deletion, Clock, ordering, and dependency boundaries.
 - Current `Maatify/php-product` repository governance and pinned Composer Package standards.
 
-This is a proposed V1 architecture candidate, not evidence of implementation, tests, release readiness, or a merged repository contract.
+This is the Owner-approved V1 architecture contract, not evidence of implementation, tests, release readiness, or a released contract. The `CANDIDATE` filename is kept so existing references stay valid.

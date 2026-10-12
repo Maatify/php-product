@@ -2,7 +2,7 @@
 
 ## Discovery Status
 
-This index is the current discovery surface for durable engineering decisions in this repository. Local Owner decisions `DEC-001`, `DEC-002`, `DEC-003`, `DEC-004`, `DEC-005`, and `DEC-006` are recorded and indexed with status `ACTIVE`. All six Owner decision gates for Product V1 are resolved.
+This index is the current discovery surface for durable engineering decisions in this repository. Local Owner decisions `DEC-001`, `DEC-002`, `DEC-003`, `DEC-004`, `DEC-005`, `DEC-006`, and `DEC-007` are recorded and indexed with status `ACTIVE`. All six Owner decision gates for Product V1 are resolved, and `DEC-007` records the Owner approval of the architecture and the start of implementation.
 
 ## Decisions
 
@@ -14,3 +14,4 @@ This index is the current discovery surface for durable engineering decisions in
 | DEC-004 | Language-Only Product Content Scope for Product V1 | ACTIVE | Product Content Scoping / Language Identity Only | [DEC-004-language-only-product-content-scope.md](DEC-004-language-only-product-content-scope.md) | docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md (§4.1, §11.2, §20) | None | None |
 | DEC-005 | Shared Media Asset Identity Contract for Product V1 | ACTIVE | Shared Media Asset Identity Contract / Host-Owned Media Boundary | [DEC-005-shared-media-asset-identity.md](DEC-005-shared-media-asset-identity.md) | docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md (§9.1, §20) | None | None |
 | DEC-006 | Product Ordering Boundary for Product V1 | ACTIVE | Product Ordering Boundary / Exclusion of Package-Wide Product Display Order / Category Mapping Ordering Boundary | [DEC-006-product-ordering-boundary.md](DEC-006-product-ordering-boundary.md) | docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md (§10, §11, §20) | None | None |
+| DEC-007 | Product V1 Implementation Start Authorization | ACTIVE | Product V1 Architecture Approval / Implementation Start Authorization / Pre-Implementation Standards Applicability Re-evaluation | [DEC-007-product-v1-implementation-start-authorization.md](DEC-007-product-v1-implementation-start-authorization.md) | docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md (§1.1, §19, §20, §21); docs/php-engineering-standards/STANDARDS_MANIFEST.md | None | None |
