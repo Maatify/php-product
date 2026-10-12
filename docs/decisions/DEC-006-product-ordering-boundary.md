@@ -17,7 +17,7 @@
 During the architectural design and specification of `Product V1` ([`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](../architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md)), the candidate model tentatively included a `display_order` column on `maa_product_products` and a dedicated consumer-listing index `(status, deleted_at, display_order, id)`. This represented a global sequence across all products in the package-owned database namespace.
 
 However, during the evaluation of Product V1 architecture and domain boundaries:
-1. Merchandising presentations and catalog workflows typically order products within contextual scopes (such as within specific categories or promotional lists), rather than by a single global sequence across the entire product library.
+1. Persistent contextual ordering belongs on the relationship representing that specific scope (such as category-product mapping), rather than on the core Product entity as an artificial package-wide sequence.
 2. If `Product` retains a package-wide `display_order`, consuming applications or developers may conflate this global integer with category-specific ordering, leading to architectural leakage and invalid ordering assumptions across the catalog.
 3. Neither `Maatify/php-product` nor `Maatify/php-category` owns the relationship between products and categories. Introducing category-specific ordering into `Product` would violate the core architectural separation of the two independent packages.
 4. If contextual ordering belongs on the category-product relationship, where should that relationship live, and how should it be ordered?
