@@ -18,9 +18,11 @@ use Maatify\SharedCommon\Contracts\ClockInterface;
  * Orchestrates Product creation and lookup.
  *
  * The transaction runner owns the local transaction, or joins one that the caller
- * already holds on the same connection. Storage exceptions propagate unchanged
- * after rollback; the only conversions are the named exceptions raised by the
- * repositories.
+ * already holds on the same connection. Storage exceptions propagate unchanged;
+ * the only conversions are the named exceptions raised by the repositories. A
+ * transaction that the runner started is rolled back before the exception
+ * propagates; a transaction that the Host started is never rolled back or
+ * committed here, so on failure it stays active and the Host decides its outcome.
  */
 final readonly class ProductService implements ProductServiceInterface
 {

@@ -20,7 +20,9 @@ interface ProductServiceInterface
      *
      * Both rows are written in one local transaction: either both exist or neither
      * does. When the caller already has an active transaction on the same
-     * connection, the operation joins it and the caller decides commit or rollback.
+     * connection, the operation joins it and never commits or rolls it back: on
+     * success or failure the caller decides, and after a failure that transaction
+     * may still hold the writes made before the failure.
      * The operation is not idempotent; repeating it with the same code conflicts.
      * It performs no Pricing, Inventory, or other cross-domain work.
      *

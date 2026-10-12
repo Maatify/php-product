@@ -163,6 +163,39 @@ final class ProductCreationTest extends RuntimeTestCase
         self::assertSame(1, self::rowCount('maa_product_variants'));
     }
 
+    public function testAFailureInsideAHostTransactionLeavesItActiveForTheHostToResolve(): void
+    {
+        $failure = new RuntimeException('variant write failed');
+        $failingVariants = new class ($failure) implements VariantCommandRepositoryInterface {
+            public function __construct(private RuntimeException $failure) {}
+
+            public function createEmptyComposition(int $productId, DateTimeImmutable $occurredAt): int
+            {
+                throw $this->failure;
+            }
+        };
+        $service = new ProductService(
+            new PdoProductCommandRepository(self::$pdo),
+            $failingVariants,
+            new PdoProductQueryReader(self::$pdo),
+            new PdoTransactionRunner(self::$pdo),
+            new SystemClock(new DateTimeZone('UTC')),
+        );
+
+        self::$pdo->beginTransaction();
+        try {
+            $service->create(new CreateProductCommand('P-HOST-FAIL'));
+            self::fail('The failure must propagate.');
+        } catch (RuntimeException $caught) {
+            self::assertSame($failure, $caught);
+        }
+
+        self::assertTrue(self::$pdo->inTransaction(), 'The package must not roll back the Host transaction.');
+        self::assertSame(1, self::rowCount('maa_product_products'), 'The partial write stays visible until the Host decides.');
+        self::$pdo->rollBack();
+        self::assertSame(0, self::rowCount('maa_product_products'));
+    }
+
     public function testVariantOrderIsAllocatedThroughTheSharedOrderingApi(): void
     {
         $service = $this->productService();
