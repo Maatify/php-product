@@ -27,9 +27,12 @@ random, run-scoped database password.
 | Composer validation | `composer validate --strict` | Composer Validate |
 | Platform requirements | `composer check-platform-reqs` | each dependency job |
 | PHP syntax | `bash scripts/ci/check-php-syntax.sh` | PHP Syntax Check |
-| Static analysis (PHPStan max, no baseline or suppressions) | `composer analyse` | Static Analysis (PHPStan) |
-| Integration suite on real MySQL | `composer test:integration` (or `composer test`) | Integration (PHP x MySQL matrix) |
-| Lowest supported dependencies | `composer update --prefer-lowest --prefer-stable` then `composer analyse` and `composer test:integration` | Lowest Supported Dependencies |
+| Autoload (strict PSR-4) | `composer dump-autoload --optimize --strict-psr` | Static Analysis, Unit, Integration |
+| Static analysis (PHPStan max over `src` and `tests`, no baseline or suppressions) | `composer analyse` | Static Analysis (PHPStan) |
+| Coding style (PER-CS 3.1, non-mutating) | `composer format:check` | PHP Coding Style (PER 3.1) |
+| Unit suite (no Docker needed) | `composer test:unit` | Unit (PHP 8.4 and 8.5) |
+| Integration suite on real MySQL | `composer test:integration` (`composer test` runs Unit then the same Integration orchestration) | Integration (PHP x MySQL matrix) |
+| Lowest supported dependencies | `composer update --prefer-lowest --prefer-stable` then `composer analyse` and `composer test` | Lowest Supported Dependencies |
 | Dependency-policy audit | `composer audit --no-interaction --abandoned=fail` | Composer Security Audit |
 | Consumer Verification Harness | `composer verify:consumer` | Consumer Verification Harness |
 | Workflow lint (pinned, checksum-verified actionlint) | `bash scripts/ci/install-actionlint.sh <dir>` then `ACTIONLINT_BIN=<dir>/actionlint bash scripts/ci/lint-workflows.sh` | Workflow Lint |
@@ -55,14 +58,30 @@ Integration variables are `PRODUCT_TEST_*` and are set by the orchestration; run
 PHPUnit directly without them fails (nothing is skipped). Docker and Compose are
 verification-time dependencies only, never consumer runtime dependencies.
 
-## What each test class proves
+## What the suites prove
 
-The Integration suite installs `schema/product.sql` into a fresh database per class
-and asserts exact MySQL error numbers: install shape; status casing; code, SKU,
-barcode, language, platform, and role-key uniqueness including soft-deleted history;
-whitespace-only rejection (space, tab, LF, CR, VT, FF, NBSP, U+3000); composite
-ownership foreign keys; NULL-safe Content and media identity; media target, scope,
-and primary rules.
+**Unit** (`tests/Unit`, no infrastructure): command validation including whitespace-only and
+encoding cases, the composition fingerprint vector, and Service orchestration with test doubles.
+
+**Integration** (`tests/Integration`, real MySQL, exact MySQL error numbers):
+- `Schema/`: install shape; status casing; code, SKU, barcode, language, platform, and role-key
+  uniqueness including soft-deleted history; whitespace-only rejection (space, tab, LF, CR, VT,
+  FF, NBSP, U+3000); composite ownership foreign keys; NULL-safe Content and media identity;
+  media target, scope, and primary rules.
+- `Runtime/`: the Product creation use case through the public factory: inactive Product plus
+  one active empty-composition Variant, case-insensitive and soft-delete-reserved conflicts,
+  rollback of a failed operation, joining a caller-owned transaction without committing it,
+  Ordering API allocation, and real concurrent writers in separate processes.
+
+## Consumer Verification Harness
+
+`composer verify:consumer` installs the package into an external Composer root (path
+repository, copied, not symlinked), loads it only through the production PSR-4 autoloader
+(asserting that the public classes resolve from the installed package and that test namespaces
+are not autoloadable), installs the delivered `schema/product.sql`, and runs the workflow
+`ProductFactory` -> `ProductService::create` -> `getById` against a real MySQL service. It runs
+twice from clean consumer roots, uses the same Compose lifecycle as Integration, and is part of
+the stable `Final Gate`.
 
 ## Whitespace gate
 
@@ -74,35 +93,21 @@ hard line break); one space, three or more, a tab, or a whitespace-only line fai
 `test-whitespace-gate.sh` proves, in a throwaway repository, that each defect is
 rejected and that clean and hard-break files are accepted.
 
-## Current limits (not yet satisfiable)
+## Current limits
 
-**Consumer Verification Harness: not compliant with `std-testing` §3.4 (UNRESOLVED).**
-`composer verify:consumer` proves only Composer installation, clean-state
-repeatability, delivery of the schema asset, and the observable database workflow. A
-passing run must not be read as satisfying §3.4, which also requires production PSR-4
-autoload and use of the documented public API. Closing this needs production runtime
-classes under `src/`, an `autoload` mapping, the runtime dependencies the
-architecture names (`maatify/exceptions`, `maatify/shared-common`,
-`maatify/persistence`), and a public API inventory in the Package Reference. That is
-Product V1 runtime implementation, outside the schema and CI-gate scope authorized so
-far; it needs an explicit Owner authorization before it starts.
+The harness exercises the public API that exists today (Product creation). Each new public
+capability must extend it in the Work Unit that adds it.
 
-**Branch protection: not verified, and currently not in force.** The CI workflow
-exposes the stable `Final Gate` job, but GitHub reports `main` as not protected and
-no repository ruleset exists, so no check is required before merge. Requiring
-`Final Gate` is a repository-settings change for an administrator or the Owner.
+Not applicable or not yet provable, and not claimed:
 
-Other limits, all caused by the repository containing no PHP runtime classes yet and
-not claimed as proven:
+- Regression suite and `test:regression`: no resolved regression exists yet.
+- Concurrency proof for operations that do not exist yet (aggregate locking across
+  reconfiguration, atomic primary replacement) and structural validity of a full Product
+  configuration.
+- Release Artifact Verification and Published Artifact Verification: release-time gates, not
+  applicable before a release target exists.
 
-- Unit and Regression suites, and `test:unit`/`test:regression` scripts: there is no
-  PHP logic to test; they must be added with the first runtime code.
-- Production PSR-4 autoload and public-API use in the Harness: it currently proves
-  Composer installation, clean-state repeatability, delivery of the schema asset, and
-  the observable database workflow, but not a PHP public API. The `autoload` mapping
-  is omitted until `src/` exists.
-- Concurrency proof (aggregate locking, atomic primary replacement) and structural
-  validity of a Product configuration: these belong to the runtime.
-- Code-style dry-run: no formatter is configured, so the gate does not apply.
-- Release Artifact Verification and Published Artifact Verification: release-time
-  gates, not applicable before a release target exists.
+**Branch protection: not verified, and currently not in force.** The workflow exposes the stable
+`Final Gate` job, but GitHub reports `main` as not protected and no repository ruleset exists, so
+no check is required before merge. Requiring `Final Gate` is a repository-settings change for an
+administrator or the Owner.

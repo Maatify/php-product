@@ -1,7 +1,7 @@
 # Product Package Reference
 
 **Package:** `maatify/php-product`
-**Status:** Pre-implementation. This file is the canonical root Package Reference path required by the Package Building Standard (`/{PACKAGE_NAME}_PACKAGE_REFERENCE.md`). No runtime exists yet, so the Public Runtime API inventory, exception guarantees, and behavior sections are not populated. They are added in place by the implementation Work Units, and nothing here is a released contract.
+**Status:** Implementation in progress, nothing released. This file is the canonical root Package Reference path required by the Package Building Standard (`/{PACKAGE_NAME}_PACKAGE_REFERENCE.md`). The first runtime Work Unit (Product creation) is implemented and its contract is recorded under [Implemented Public API](#implemented-public-api); the remaining capabilities are added in place by later Work Units, and nothing here is a released contract.
 **Architecture contract:** [`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md), Owner-approved under [`DEC-007`](docs/decisions/DEC-007-product-v1-implementation-start-authorization.md)
 
 ## Source Topology
@@ -21,6 +21,37 @@ Capabilities:
 `php-product` is one domain, so no `Domain` directory is used; `src/` will hold one directory per capability, each containing only the responsibilities that capability actually owns (`Command`, `Criteria`, `DTO`, `Enum`, `Repository`, `Service`, and so on), per the Package Building Standard §5.
 
 The capability list is the one enumerated by the Owner-approved architecture (§13). **No `src/` directory exists yet**: Product V1 currently ships only `schema/product.sql`, and no empty or ceremonial folder is created. The architecture allows these capabilities to be merged or split "if the public contract and implementation justify" it (§13), so this declaration must be confirmed by the Lead or Owner before the first runtime Work Unit and is the topology that Work Unit must follow unless a recorded decision changes it.
+
+## Implemented Public API
+
+This is the current public runtime inventory, as implemented by the first Work Unit (Product creation with its simple Variant). It is not a released contract. Everything under `Maatify\Product\` that is not listed here is internal.
+
+Requirements: PHP `^8.4`, `ext-pdo`, `ext-pdo_mysql`, `ext-mbstring`, MySQL `8.0.16+` with `schema/product.sql` installed, `maatify/exceptions`, `maatify/persistence` (Ordering and Transaction APIs), and `maatify/shared-common` (`ClockInterface`).
+
+| Type | Role |
+|---|---|
+| `Factory\ProductFactory::createProductService(PDO, ClockInterface): ProductServiceInterface` | The only construction entry point. It rejects a PDO that is not in `ERRMODE_EXCEPTION`. |
+| `Product\Service\ProductServiceInterface` | `create(CreateProductCommand): CreatedProductDTO` and `getById(int): ProductDTO`. |
+| `Product\Command\CreateProductCommand` | Validated input: `code` only. |
+| `Product\DTO\CreatedProductDTO`, `Product\DTO\ProductDTO` | Typed results; both are `JsonSerializable`. |
+| `Product\Enum\ProductStatusEnum` | `active`, `inactive`. |
+| `Product\Exception\ProductCodeAlreadyExistsException`, `Product\Exception\ProductNotFoundException` | Named failures. |
+| `Common\Exception\ProductInvalidArgumentException` | Input contract violations. |
+| `Exception\ProductExceptionInterface` | Marker implemented by every package-defined exception. |
+
+### Behavior and guarantees
+
+- **Create.** `create()` writes an **inactive** Product and its single **active** empty-composition Variant in one local transaction; both rows exist or neither does. The Variant fingerprint is the SHA-256 of `v1`, its `display_order` is allocated through the shared `maatify/persistence` Ordering API under the Product row lock, and it has no SKU or barcode. The result carries both identities. The operation is not idempotent. It performs no Pricing, Inventory, or other cross-domain work.
+- **Code.** `CreateProductCommand::$code` must be valid UTF-8, at most 100 characters, and not empty or whitespace only (any Unicode whitespace). It is stored exactly as supplied, never trimmed. Uniqueness uses the database collation `utf8mb4_unicode_ci`, so `P-1` and `p-1` conflict, and a soft-deleted Product keeps its code reserved.
+- **Read.** `getById()` returns any stored Product, including inactive and soft-deleted ones, with `deletedAt` set when deleted. It is a management read; consumer visibility reads are not implemented yet.
+- **Transactions.** The package never commits a transaction it did not start. When the Host already has an active transaction on the same PDO connection, `create()` joins it and the Host decides commit or rollback. Atomic composition requires every participant to use that one connection.
+- **Failure contract.** A duplicate code (MySQL driver error 1062) becomes `ProductCodeAlreadyExistsException`, with the original `PDOException` as `previous`. A storage value the package cannot interpret raises the package-owned `ProductPersistenceException`. **Every other `PDOException` and `Throwable` propagates unchanged** after the transaction is rolled back; nothing is swallowed or blanket-wrapped.
+- **Timestamps.** `created_at`, `updated_at`, and `deleted_at` are taken from the Host-injected `ClockInterface` and stored and returned as the `Y-m-d H:i:s` string of that instant. The package performs no timezone normalization and makes no UTC claim.
+- **Concurrency.** Product creation serializes on the database unique key for the code and on the Product row lock for the Variant. Concurrent creates of one code yield exactly one Product; concurrent creates of different codes each yield exactly one Variant. This is proven against real MySQL by `tests/Integration/Runtime/ConcurrentCreationTest.php`.
+
+### Not yet implemented
+
+Content, Options, Option Values, non-empty Variant composition and reconfiguration, status mutations, soft delete and restore, Media Roles and Assignments, SKU and barcode mutation, Variant composition resolution, consumer-visibility reads, and pagination. They follow the architecture contract in later Work Units.
 
 ## Operational Read / Reporting Classification
 

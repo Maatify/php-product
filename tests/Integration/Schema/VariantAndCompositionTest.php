@@ -66,7 +66,7 @@ final class VariantAndCompositionTest extends SchemaTestCase
 
     public function testCompositeForeignKeysRejectCrossProductAndMismatchedOwnership(): void
     {
-        $row = static fn (int $p, int $v, int $o, int $ov): array => ['product_id' => $p, 'variant_id' => $v, 'option_id' => $o, 'option_value_id' => $ov];
+        $row = static fn(int $p, int $v, int $o, int $ov): array => ['product_id' => $p, 'variant_id' => $v, 'option_id' => $o, 'option_value_id' => $ov];
         $table = 'maa_product_variant_option_values';
 
         $this->assertInsertRejected(self::FK_CHILD_MISSING_PARENT, $table, $row($this->p1, $this->emptyVariant2, $this->colorOption, $this->red), 'Variant of another Product');

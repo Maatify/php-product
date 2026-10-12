@@ -13,9 +13,11 @@
         }
     ],
     "require": {
+        "ext-mbstring": "*",
         "ext-pdo": "*",
         "ext-pdo_mysql": "*",
-        "maatify/php-product": "*"
+        "maatify/php-product": "*",
+        "maatify/shared-common": "^1.0"
     },
     "config": {
         "allow-plugins": false,
