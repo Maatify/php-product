@@ -508,7 +508,7 @@ Use ecosystem shared packages rather than package-local duplicates when required
 - `maatify/shared-common` for `ClockInterface` when the package requires a clock.
 - `maatify/persistence` for supported pagination/order-management/transaction capabilities where its public API is applicable.
 
-Exact public class/method inventory must be documented in the root `PRODUCT_PACKAGE_REFERENCE.md`; this architecture document under `docs/architecture/` supports that reference and must not become a competing Package Reference.
+The Operational Read / Reporting classification required by Package Building Standard §15 (In Scope) and its read-contract boundaries are recorded in the root `PRODUCT_PACKAGE_REFERENCE.md`. Exact public class/method inventory must be documented in that same file; this architecture document under `docs/architecture/` supports that reference and must not become a competing Package Reference.
 
 ## 14. Transaction and Replacement Boundaries
 
