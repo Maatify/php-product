@@ -93,9 +93,9 @@ No speculative assumptions or unverified guarantees beyond this existing contrac
 
 ### Positive Consequences
 
-- Seamless interoperability between `php-product`, `php-category`, and Host applications using shared media assets.
+- A compatible Media Asset identity representation across `php-product` and `php-category` simplifies Host integration when the Host uses the same Media Asset identity in both packages; it does not guarantee direct integration in every case.
 - Robust boundary validation that rejects malformed, negative, or overflowing identifiers before integer casting.
-- Clean database design with zero external foreign key dependencies, allowing independent backup, migration, and scaling of media data.
+- No external foreign key from Product tables to Media Asset storage, so Product schema does not depend on how the Host stores media; preserving Media Asset identities, or a Host-owned mapping, remains the Host's responsibility when media data is migrated.
 - Strict namespace boundaries between Product Media Roles and Category Image Roles.
 
 ### Follow-up Requirements
