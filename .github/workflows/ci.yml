@@ -179,6 +179,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Self-Test Whitespace Gate
+        run: bash scripts/ci/test-whitespace-gate.sh
       - name: Verify Whitespace
         run: bash scripts/ci/check-whitespace.sh
 

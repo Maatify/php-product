@@ -4,6 +4,24 @@
 **Status:** Pre-implementation. This file is the canonical root Package Reference path required by the Package Building Standard (`/{PACKAGE_NAME}_PACKAGE_REFERENCE.md`). No runtime exists yet, so the Public Runtime API inventory, exception guarantees, and behavior sections are not populated. They are added in place by the implementation Work Units, and nothing here is a released contract.
 **Architecture contract:** [`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md), Owner-approved under [`DEC-007`](docs/decisions/DEC-007-product-v1-implementation-start-authorization.md)
 
+## Source Topology
+
+```text
+Source Topology: Multi Capability
+
+Capabilities:
+- Product
+- Variant
+- Option
+- Option Value
+- Media Role
+- Media Assignment
+```
+
+`php-product` is one domain, so no `Domain` directory is used; `src/` will hold one directory per capability, each containing only the responsibilities that capability actually owns (`Command`, `Criteria`, `DTO`, `Enum`, `Repository`, `Service`, and so on), per the Package Building Standard §5.
+
+The capability list is the one enumerated by the Owner-approved architecture (§13). **No `src/` directory exists yet**: Product V1 currently ships only `schema/product.sql`, and no empty or ceremonial folder is created. The architecture allows these capabilities to be merged or split "if the public contract and implementation justify" it (§13), so this declaration must be confirmed by the Lead or Owner before the first runtime Work Unit and is the topology that Work Unit must follow unless a recorded decision changes it.
+
 ## Operational Read / Reporting Classification
 
 This section records the classification required by Package Building Standard §15.

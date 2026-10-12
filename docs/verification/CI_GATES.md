@@ -33,7 +33,7 @@ random, run-scoped database password.
 | Dependency-policy audit | `composer audit --no-interaction --abandoned=fail` | Composer Security Audit |
 | Consumer Verification Harness | `composer verify:consumer` | Consumer Verification Harness |
 | Workflow lint (pinned, checksum-verified actionlint) | `bash scripts/ci/install-actionlint.sh <dir>` then `ACTIONLINT_BIN=<dir>/actionlint bash scripts/ci/lint-workflows.sh` | Workflow Lint |
-| Whitespace | `bash scripts/ci/check-whitespace.sh` | Whitespace Verification |
+| Whitespace (tracked tree, Markdown included) | `bash scripts/ci/test-whitespace-gate.sh` then `bash scripts/ci/check-whitespace.sh` | Whitespace Verification |
 
 ## Integration infrastructure contract
 
@@ -64,10 +64,36 @@ whitespace-only rejection (space, tab, LF, CR, VT, FF, NBSP, U+3000); composite
 ownership foreign keys; NULL-safe Content and media identity; media target, scope,
 and primary rules.
 
+## Whitespace gate
+
+`check-whitespace.sh` scans every tracked file in the checked-out tree, so it does
+not depend on checkout depth or on the PR base. Non-Markdown files may not end a line
+with a blank, and also pass `git diff --check` against the empty tree. Markdown is
+scanned too: the only exemption is exactly two trailing spaces after text (a Markdown
+hard line break); one space, three or more, a tab, or a whitespace-only line fail.
+`test-whitespace-gate.sh` proves, in a throwaway repository, that each defect is
+rejected and that clean and hard-break files are accepted.
+
 ## Current limits (not yet satisfiable)
 
-The repository contains no PHP runtime classes, so these cannot be exercised yet and
-are not claimed:
+**Consumer Verification Harness: not compliant with `std-testing` §3.4 (UNRESOLVED).**
+`composer verify:consumer` proves only Composer installation, clean-state
+repeatability, delivery of the schema asset, and the observable database workflow. A
+passing run must not be read as satisfying §3.4, which also requires production PSR-4
+autoload and use of the documented public API. Closing this needs production runtime
+classes under `src/`, an `autoload` mapping, the runtime dependencies the
+architecture names (`maatify/exceptions`, `maatify/shared-common`,
+`maatify/persistence`), and a public API inventory in the Package Reference. That is
+Product V1 runtime implementation, outside the schema and CI-gate scope authorized so
+far; it needs an explicit Owner authorization before it starts.
+
+**Branch protection: not verified, and currently not in force.** The CI workflow
+exposes the stable `Final Gate` job, but GitHub reports `main` as not protected and
+no repository ruleset exists, so no check is required before merge. Requiring
+`Final Gate` is a repository-settings change for an administrator or the Owner.
+
+Other limits, all caused by the repository containing no PHP runtime classes yet and
+not claimed as proven:
 
 - Unit and Regression suites, and `test:unit`/`test:regression` scripts: there is no
   PHP logic to test; they must be added with the first runtime code.
