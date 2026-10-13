@@ -2,7 +2,8 @@
 # Consumer Verification Harness gate (composer verify:consumer).
 #
 # Runs the harness twice, each from a clean consumer root, against the same
-# repository-owned MySQL service lifecycle used by Integration (mysql-service.sh).
+# repository-owned MySQL service lifecycle used by Integration (mysql-service.sh). Each
+# clean run also smoke-executes every standalone example in examples/.
 # Environment: PRODUCT_TEST_MYSQL_VERSION (default 8.0.16).
 set -euo pipefail
 
@@ -34,6 +35,9 @@ for run in 1 2; do
         composer check-platform-reqs
         composer show maatify/php-product
         php verify.php
+        # Standalone example smoke execution against the same MySQL service, through the
+        # consumer root's production autoloader (installed package, no repository source).
+        PRODUCT_EXAMPLE_AUTOLOAD="$consumer_root/vendor/autoload.php" php "$ROOT/scripts/ci/smoke-examples.php" "$ROOT"
     ) || status=$?
     rm -rf -- "$consumer_root"
     if [ "$status" -ne 0 ]; then

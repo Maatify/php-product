@@ -9,7 +9,9 @@ use Maatify\Exceptions\Exception\System\SystemMaatifyException;
 use Maatify\Product\Exception\ProductExceptionInterface;
 
 /**
- * Raised when storage returns data that does not match the package schema contract.
+ * Public package failure: raised when storage returns data that does not match the package
+ * schema contract (documented in the Package Reference failure contract). Consumers may catch
+ * it by class or through {@see ProductExceptionInterface}; the named constructors are internal.
  *
  * It reports package-owned storage-shape failures only. Unclassified database
  * failures propagate unchanged as {@see \PDOException}.

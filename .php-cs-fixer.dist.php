@@ -10,6 +10,7 @@ $finder = Finder::create()
         __DIR__ . '/src',
         __DIR__ . '/tests',
         __DIR__ . '/consumer-verification',
+        __DIR__ . '/examples',
         __DIR__ . '/scripts/ci',
     ])
     ->append([__DIR__ . '/.php-cs-fixer.dist.php'])
