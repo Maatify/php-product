@@ -61,7 +61,9 @@ verification-time dependencies only, never consumer runtime dependencies.
 ## What the suites prove
 
 **Unit** (`tests/Unit`, no infrastructure): command validation including whitespace-only and
-encoding cases, the composition fingerprint vector, DTO invariants, Service orchestration with test doubles,
+encoding cases (Product, Option, Value, Role, Assignment, and reconfiguration commands, the Media Asset identity
+contract, composition selections), the composition fingerprint vectors, the in-memory configuration validator,
+DTO invariants, Service orchestration with test doubles,
 the `ProductPersistenceException` consumer contract, identity stability (no package SQL statement sets an
 identity column and no service method replaces one), and the Package Reference conformity test, which fails
 when the "Implemented Public API" table and the code disagree (a listed type or method that does not exist,
@@ -72,13 +74,20 @@ an undocumented public method of a service or the factory, or a public type that
   uniqueness including soft-deleted history; whitespace-only rejection (space, tab, LF, CR, VT,
   FF, NBSP, U+3000); composite ownership foreign keys; NULL-safe Content and image-assignment identity;
   image-assignment target, scope, and default rules.
-- `Runtime/`: the Product creation use case through the public factory: inactive Product plus
-  one active empty-composition Variant, case-insensitive and soft-delete-reserved conflicts,
-  Variant reads (consumer visibility evaluated by the database, management filters, ordering and bounds),
-  rollback of a failed operation the package started, and, inside a caller-owned transaction, savepoint rollback of a failed
-  operation that the Host then commits or rolls back (no Product without its Variant, the Host's other work preserved, the Host
-  transaction never committed or rolled back by the package),
-  Ordering API allocation, and real concurrent writers in separate processes.
+- `Runtime/`: the public use cases through the factory: Product creation (inactive Product plus
+  one active empty-composition Variant, case-insensitive and soft-delete-reserved conflicts),
+  Variant reads (consumer visibility evaluated by the database including the product-wide
+  unrepresented-Value rule, management filters, ordering and bounds), composition resolution with
+  its four failure classes, the lifecycle contract of every family (soft-deleted row, soft-deleted
+  owner chain, restore with the saved status and revalidation, inactivity blocking nothing), Option
+  and Value creation and ordering, Image Roles and Assignments (identity, target integrity, the scope
+  key shared with the Ordering API, atomic default replacement, no promotion), Product reconfiguration
+  (transitions, explicit reuse, conflicts, restore, failure classes, full rollback), rollback of a failed
+  operation the package started, and, inside a caller-owned transaction, savepoint rollback of a failed
+  operation that the Host then commits or rolls back (the Host's other work preserved, the Host
+  transaction never committed or rolled back by the package), Ordering API allocation, and real
+  concurrent writers in separate processes (creation, reconfiguration of one Product, default
+  replacement within one scope).
 
 ## Consumer Verification Harness
 
@@ -86,7 +95,8 @@ an undocumented public method of a service or the factory, or a public type that
 repository, copied, not symlinked), loads it only through the production PSR-4 autoloader
 (asserting that the public classes resolve from the installed package and that test namespaces
 are not autoloadable), installs the delivered `schema/product.sql`, and runs the workflow
-`ProductFactory` -> `ProductService::create` -> `getByIdForManagement` and the hidden consumer `getById` against a real MySQL service. It runs
+`ProductFactory` -> create, activate, prepare Options and Values, reconfigure, resolve a composition, assign images and
+replace the default, soft-delete and restore, against a real MySQL service. It runs
 twice from clean consumer roots, uses the same Compose lifecycle as Integration, and is part of
 the stable `Final Gate`.
 
@@ -102,15 +112,14 @@ rejected and that clean and hard-break files are accepted.
 
 ## Current limits
 
-The harness exercises the public API that exists today (Product creation). Each new public
-capability must extend it in the Work Unit that adds it.
+The harness exercises the public API that exists today. Each new public capability must extend it
+in the Work Unit that adds it.
 
 Not applicable or not yet provable, and not claimed:
 
 - Regression suite and `test:regression`: no resolved regression exists yet.
-- Concurrency proof for operations that do not exist yet (aggregate locking across
-  reconfiguration, atomic default replacement) and structural validity of a full Product
-  configuration.
+- Concurrency proof for operations that do not exist yet (Content, SKU and barcode mutation,
+  ordering commands).
 - Release Artifact Verification and Published Artifact Verification: release-time gates, not
   applicable before a release target exists.
 

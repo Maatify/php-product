@@ -46,4 +46,34 @@ final class ProductStorageFailureFactory
             sprintf('Product storage column "%s" has an unexpected type.', $column),
         );
     }
+
+    /**
+     * A stored composition fingerprint does not match the Variant's actual composition pairs.
+     */
+    public static function compositionFingerprintMismatch(int $variantId): ProductPersistenceException
+    {
+        return new ProductPersistenceException(
+            sprintf('Variant [%d] stores a composition fingerprint that does not match its composition pairs.', $variantId),
+        );
+    }
+
+    /**
+     * The original empty-composition Variant a simple Product must retain is missing from storage.
+     */
+    public static function missingEmptyCompositionVariant(int $productId): ProductPersistenceException
+    {
+        return new ProductPersistenceException(
+            sprintf('Product [%d] has no empty-composition Variant in its history; the transition to a simple Product cannot reuse the original identity.', $productId),
+        );
+    }
+
+    /**
+     * A write that the package expected to affect exactly one locked row affected none.
+     */
+    public static function lockedRowVanished(string $resource, int $id): ProductPersistenceException
+    {
+        return new ProductPersistenceException(
+            sprintf('Product storage did not update the locked %s [%d].', $resource, $id),
+        );
+    }
 }

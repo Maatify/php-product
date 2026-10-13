@@ -68,6 +68,54 @@ final readonly class RowHydrator
 
     /**
      * @param array<string, mixed> $row
+     *
+     * @return positive-int|null
+     */
+    public static function nullablePositiveInt(array $row, string $column): ?int
+    {
+        return ($row[$column] ?? null) === null ? null : self::positiveInt($row, $column);
+    }
+
+    /**
+     * Reads a `0`/`1` flag column (a `TINYINT(1)` or a boolean SQL expression).
+     *
+     * @param array<string, mixed> $row
+     */
+    public static function flag(array $row, string $column): bool
+    {
+        $value = $row[$column] ?? null;
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (!is_int($value) && !is_string($value)) {
+            throw ProductStorageFailureFactory::unexpectedColumnType($column);
+        }
+        $digits = (string) $value;
+        if ($digits !== '0' && $digits !== '1') {
+            throw ProductStorageFailureFactory::invalidStorageValue($column);
+        }
+
+        return $digits === '1';
+    }
+
+    /**
+     * Reads a status column and reports whether it is exactly `active`; any other stored value
+     * than `active` or `inactive` breaks the schema contract.
+     *
+     * @param array<string, mixed> $row
+     */
+    public static function isActive(array $row, string $column = 'status'): bool
+    {
+        $status = self::string($row, $column);
+        if ($status !== 'active' && $status !== 'inactive') {
+            throw ProductStorageFailureFactory::invalidStorageValue($column);
+        }
+
+        return $status === 'active';
+    }
+
+    /**
+     * @param array<string, mixed> $row
      */
     public function timestamp(array $row, string $column): DateTimeImmutable
     {

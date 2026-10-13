@@ -16,8 +16,10 @@ use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
 use Maatify\Product\Product\Repository\Pdo\PdoProductCommandRepository;
+use Maatify\Product\Product\Repository\Pdo\PdoProductConfigurationRepository;
 use Maatify\Product\Product\Repository\Pdo\PdoProductQueryReader;
 use Maatify\Product\Product\Service\ProductService;
+use Maatify\Product\Tests\Support\UnusedVariantLifecycleWrites;
 use Maatify\Product\Variant\Repository\VariantCommandRepositoryInterface;
 use Maatify\Product\Variant\ValueObject\CompositionFingerprint;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
@@ -175,6 +177,8 @@ final class ProductCreationTest extends RuntimeTestCase
     {
         $failure = new RuntimeException('variant write failed');
         $failingVariants = new class ($failure) implements VariantCommandRepositoryInterface {
+            use UnusedVariantLifecycleWrites;
+
             public function __construct(private RuntimeException $failure) {}
 
             public function createEmptyComposition(int $productId, DateTimeImmutable $occurredAt): int
@@ -186,6 +190,7 @@ final class ProductCreationTest extends RuntimeTestCase
             new PdoProductCommandRepository(self::$pdo),
             $failingVariants,
             new PdoProductQueryReader(self::$pdo, new SystemClock(new DateTimeZone('UTC'))),
+            new PdoProductConfigurationRepository(self::$pdo, new ScopedOrderingManager()),
             new PdoSavepointTransactionRunner(self::$pdo),
             new SystemClock(new DateTimeZone('UTC')),
         );

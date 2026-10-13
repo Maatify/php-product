@@ -1,0 +1,177 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Maatify\Product\ImageAssignment\Repository\Pdo;
+
+use DateTimeImmutable;
+use Maatify\Persistence\Pdo\Ordering\ScopedOrderingConfig;
+use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
+use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
+use Maatify\Product\Common\Pdo\RowHydrator;
+use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
+use Maatify\Product\ImageAssignment\Exception\ImageAssignmentAlreadyExistsException;
+use Maatify\Product\ImageAssignment\Repository\ImageAssignmentCommandRepositoryInterface;
+use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentScope;
+use PDO;
+use PDOException;
+
+/**
+ * PDO write adapter for Image Assignment persistence on MySQL 8.0.16 or later.
+ *
+ * Only a duplicate-key error (MySQL driver code 1062) on insert is converted, to
+ * {@see ImageAssignmentAlreadyExistsException}: a new row is never default, so the identity key is
+ * the only unique key an insert can violate besides the primary key. Every other {@see PDOException}
+ * propagates, including a duplicate default caught by the database unique key during set-default.
+ *
+ * @internal Not part of the Public Runtime API.
+ */
+final readonly class PdoImageAssignmentCommandRepository implements ImageAssignmentCommandRepositoryInterface
+{
+    private const string TABLE = 'maa_product_image_assignments';
+    private const int MYSQL_DUPLICATE_KEY = 1062;
+
+    public function __construct(
+        private PDO $pdo,
+        private ScopedOrderingManager $orderingManager,
+    ) {}
+
+    public function create(CreateImageAssignmentCommand $command, ImageAssignmentScope $scope, DateTimeImmutable $occurredAt): int
+    {
+        $displayOrder = $this->orderingManager->getNextPosition(
+            $this->pdo,
+            new ScopedOrderingConfig(
+                table: self::TABLE,
+                scopeColumn: 'ordering_scope',
+                idColumn: 'id',
+                orderColumn: 'display_order',
+                deletedAtColumn: 'deleted_at',
+                nullableScope: false,
+                updatedAtColumn: 'updated_at',
+            ),
+            $scope->value,
+        );
+        $timestamp = $occurredAt->format('Y-m-d H:i:s');
+        $statement = $this->pdo->prepare(
+            'INSERT INTO `' . self::TABLE . '` (`product_id`, `variant_id`, `media_asset_id`, `role_id`, `language_code`, `platform`, '
+            . '`is_default`, `display_order`, `created_at`, `updated_at`, `deleted_at`) '
+            . 'VALUES (:product_id, :variant_id, :media_asset_id, :role_id, :language_code, :platform, 0, :display_order, :created_at, :updated_at, NULL)',
+        );
+        try {
+            $statement->execute([
+                'product_id' => $command->productId,
+                'variant_id' => $command->variantId,
+                'media_asset_id' => $command->mediaAssetId,
+                'role_id' => $command->roleId,
+                'language_code' => $command->languageCode,
+                'platform' => $command->platform,
+                'display_order' => $displayOrder,
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ]);
+        } catch (PDOException $exception) {
+            $driverCode = $exception->errorInfo[1] ?? null;
+            if ((is_int($driverCode) || is_string($driverCode)) && (int) $driverCode === self::MYSQL_DUPLICATE_KEY) {
+                throw ImageAssignmentAlreadyExistsException::forIdentity($command, $exception);
+            }
+
+            throw $exception;
+        }
+
+        $id = $this->pdo->lastInsertId();
+        if (!ctype_digit($id) || (int) $id < 1) {
+            throw ProductStorageFailureFactory::invalidAutoIncrementIdentity('Image Assignment');
+        }
+
+        return (int) $id;
+    }
+
+    public function findProductId(int $assignmentId): ?int
+    {
+        $statement = $this->pdo->prepare('SELECT `product_id` FROM `' . self::TABLE . '` WHERE `id` = :id LIMIT 1');
+        $statement->execute(['id' => $assignmentId]);
+
+        /** @var array<string, mixed>|false $row */
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : RowHydrator::positiveInt($row, 'product_id');
+    }
+
+    public function lockForUpdate(int $assignmentId): ?ImageAssignmentStateDTO
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT `id`, `product_id`, `variant_id`, `role_id`, `ordering_scope`, `is_default`, (`deleted_at` IS NOT NULL) AS `deleted` '
+            . 'FROM `' . self::TABLE . '` WHERE `id` = :id FOR UPDATE',
+        );
+        $statement->execute(['id' => $assignmentId]);
+
+        /** @var array<string, mixed>|false $row */
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return null;
+        }
+
+        return new ImageAssignmentStateDTO(
+            id: RowHydrator::positiveInt($row, 'id'),
+            productId: RowHydrator::positiveInt($row, 'product_id'),
+            variantId: RowHydrator::nullablePositiveInt($row, 'variant_id'),
+            roleId: RowHydrator::nullablePositiveInt($row, 'role_id'),
+            scope: RowHydrator::string($row, 'ordering_scope'),
+            isDefault: RowHydrator::flag($row, 'is_default'),
+            deleted: RowHydrator::flag($row, 'deleted'),
+        );
+    }
+
+    public function setDefault(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool
+    {
+        $timestamp = $occurredAt->format('Y-m-d H:i:s');
+        $clear = $this->pdo->prepare(
+            'UPDATE `' . self::TABLE . '` SET `is_default` = 0, `updated_at` = :updated_at WHERE '
+            . '`ordering_scope` = :scope AND `is_default` = 1 AND `deleted_at` IS NULL AND `id` <> :id',
+        );
+        $clear->execute(['updated_at' => $timestamp, 'scope' => $scope, 'id' => $assignmentId]);
+
+        $set = $this->pdo->prepare(
+            'UPDATE `' . self::TABLE . '` SET `is_default` = 1, `updated_at` = :updated_at WHERE '
+            . '`id` = :id AND `deleted_at` IS NULL AND `is_default` = 0',
+        );
+        $set->execute(['updated_at' => $timestamp, 'id' => $assignmentId]);
+
+        return $set->rowCount() > 0;
+    }
+
+    public function clearDefault(int $assignmentId, DateTimeImmutable $occurredAt): bool
+    {
+        $statement = $this->pdo->prepare(
+            'UPDATE `' . self::TABLE . '` SET `is_default` = 0, `updated_at` = :updated_at WHERE '
+            . '`id` = :id AND `deleted_at` IS NULL AND `is_default` = 1',
+        );
+        $statement->execute(['updated_at' => $occurredAt->format('Y-m-d H:i:s'), 'id' => $assignmentId]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function softDelete(int $assignmentId, DateTimeImmutable $occurredAt): bool
+    {
+        $statement = $this->pdo->prepare(
+            'UPDATE `' . self::TABLE . '` SET `is_default` = 0, `deleted_at` = :deleted_at, `updated_at` = :updated_at WHERE '
+            . '`id` = :id AND `deleted_at` IS NULL',
+        );
+        $timestamp = $occurredAt->format('Y-m-d H:i:s');
+        $statement->execute(['deleted_at' => $timestamp, 'updated_at' => $timestamp, 'id' => $assignmentId]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function restore(int $assignmentId, DateTimeImmutable $occurredAt): bool
+    {
+        $statement = $this->pdo->prepare(
+            'UPDATE `' . self::TABLE . '` SET `is_default` = 0, `deleted_at` = NULL, `updated_at` = :updated_at WHERE '
+            . '`id` = :id AND `deleted_at` IS NOT NULL',
+        );
+        $statement->execute(['updated_at' => $occurredAt->format('Y-m-d H:i:s'), 'id' => $assignmentId]);
+
+        return $statement->rowCount() > 0;
+    }
+}

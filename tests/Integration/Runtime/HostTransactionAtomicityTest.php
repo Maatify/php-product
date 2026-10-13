@@ -11,9 +11,11 @@ use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
 use Maatify\Product\Product\Repository\Pdo\PdoProductCommandRepository;
+use Maatify\Product\Product\Repository\Pdo\PdoProductConfigurationRepository;
 use Maatify\Product\Product\Repository\Pdo\PdoProductQueryReader;
 use Maatify\Product\Product\Service\ProductService;
 use Maatify\Product\Variant\Repository\Pdo\PdoVariantCommandRepository;
+use Maatify\Product\Tests\Support\UnusedVariantLifecycleWrites;
 use Maatify\Product\Variant\Repository\VariantCommandRepositoryInterface;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
 use PDOException;
@@ -77,6 +79,8 @@ final class HostTransactionAtomicityTest extends RuntimeTestCase
     {
         $real = new PdoVariantCommandRepository(self::$pdo, new ScopedOrderingManager());
         $failAfterWrite = new class ($real) implements VariantCommandRepositoryInterface {
+            use UnusedVariantLifecycleWrites;
+
             public function __construct(private PdoVariantCommandRepository $real) {}
 
             public function createEmptyComposition(int $productId, DateTimeImmutable $occurredAt): int
@@ -146,6 +150,8 @@ final class HostTransactionAtomicityTest extends RuntimeTestCase
     {
         $pdo = self::$pdo;
         $statementFailure = new class ($pdo) implements VariantCommandRepositoryInterface {
+            use UnusedVariantLifecycleWrites;
+
             public function __construct(private \PDO $pdo) {}
 
             public function createEmptyComposition(int $productId, DateTimeImmutable $occurredAt): int
@@ -258,6 +264,7 @@ final class HostTransactionAtomicityTest extends RuntimeTestCase
             new PdoProductCommandRepository(self::$pdo),
             $variants,
             new PdoProductQueryReader(self::$pdo, new SystemClock(new DateTimeZone('UTC'))),
+            new PdoProductConfigurationRepository(self::$pdo, new ScopedOrderingManager()),
             new PdoSavepointTransactionRunner(self::$pdo),
             new SystemClock(new DateTimeZone('UTC')),
         );
@@ -266,6 +273,8 @@ final class HostTransactionAtomicityTest extends RuntimeTestCase
     private function variantsFailingBeforeTheWrite(RuntimeException $failure): VariantCommandRepositoryInterface
     {
         return new class ($failure) implements VariantCommandRepositoryInterface {
+            use UnusedVariantLifecycleWrites;
+
             public function __construct(private RuntimeException $failure) {}
 
             public function createEmptyComposition(int $productId, DateTimeImmutable $occurredAt): int

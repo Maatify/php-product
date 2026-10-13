@@ -7,12 +7,16 @@ namespace Maatify\Product\Variant\Repository\Pdo;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\Common\Pdo\RowHydrator;
+use Maatify\Product\Option\DTO\OptionStateDTO;
+use Maatify\Product\OptionValue\DTO\OptionValueStateDTO;
 use Maatify\Product\Variant\DTO\VariantCompositionPairDTO;
 use Maatify\Product\Variant\DTO\VariantDTO;
 use Maatify\Product\Variant\DTO\VariantListCriteriaDTO;
+use Maatify\Product\Variant\DTO\VariantStateDTO;
 use Maatify\Product\Variant\DTO\VariantVisibleListCriteriaDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
 use Maatify\Product\Variant\Repository\VariantQueryReaderInterface;
+use Maatify\Product\Variant\ValueObject\OptionValueSelection;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 use PDO;
 
@@ -51,8 +55,8 @@ final readonly class PdoVariantQueryReader implements VariantQueryReaderInterfac
     public function findVisibleById(int $variantId): ?VariantDTO
     {
         $variants = $this->fetch(
-            'SELECT ' . self::COLUMNS . ' FROM `maa_product_variants` v '
-            . 'WHERE v.`id` = :variant_id AND ' . self::visiblePredicate() . ' LIMIT 1',
+            'SELECT ' . self::COLUMNS . ' FROM `maa_product_variants` v WHERE '
+            . 'v.`id` = :variant_id AND ' . self::visiblePredicate('v') . ' LIMIT 1',
             ['variant_id' => $variantId],
         );
 
@@ -83,39 +87,156 @@ final readonly class PdoVariantQueryReader implements VariantQueryReaderInterfac
     public function listVisible(int $productId, VariantVisibleListCriteriaDTO $criteria): array
     {
         return $this->fetch(
-            'SELECT ' . self::COLUMNS . ' FROM `maa_product_variants` v '
-            . 'WHERE v.`product_id` = :product_id AND ' . self::visiblePredicate()
+            'SELECT ' . self::COLUMNS . ' FROM `maa_product_variants` v WHERE '
+            . 'v.`product_id` = :product_id AND ' . self::visiblePredicate('v')
             . ' ORDER BY v.`display_order` ASC, v.`id` ASC LIMIT ' . $criteria->maxResults,
             ['product_id' => $productId],
         );
     }
 
-    /**
-     * Consumer visibility of the Variant aliased `v`: its Product and the Variant itself are
-     * active and not deleted, every selected Option and Value is active, not deleted, and
-     * labelled, and the composition covers exactly the Product's active Options. A pair per
-     * Option is unique, so equal counts over active Options mean exact coverage.
-     */
-    private static function visiblePredicate(): string
+    public function isProductVisible(int $productId): bool
     {
-        $labelled = static fn(string $table, string $key, string $alias): string => 'EXISTS (SELECT 1 FROM `' . $table . '` c '
-            . 'WHERE c.`' . $key . '` = ' . $alias . '.`id` AND c.`deleted_at` IS NULL '
-            . "AND c.`name` REGEXP '[^[:space:]]')";
+        $statement = $this->pdo->prepare(
+            'SELECT 1 FROM `maa_product_products` WHERE `id` = :id AND `deleted_at` IS NULL AND `status` = \'active\' LIMIT 1',
+        );
+        $statement->execute(['id' => $productId]);
 
-        return 'v.`deleted_at` IS NULL AND v.`status` = \'active\' '
-            . 'AND EXISTS (SELECT 1 FROM `maa_product_products` p WHERE p.`id` = v.`product_id` '
+        return $statement->fetchColumn() !== false;
+    }
+
+    public function listOptionStates(int $productId): array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT o.`id`, o.`product_id`, o.`status`, (o.`deleted_at` IS NOT NULL) AS `deleted`, '
+            . self::labelled('maa_product_option_contents', 'option_id', 'o') . ' AS `labelled` '
+            . 'FROM `maa_product_options` o WHERE o.`product_id` = :product_id ORDER BY o.`id` ASC',
+        );
+        $statement->execute(['product_id' => $productId]);
+
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        $options = [];
+        foreach ($rows as $row) {
+            $options[] = new OptionStateDTO(
+                id: RowHydrator::positiveInt($row, 'id'),
+                productId: RowHydrator::positiveInt($row, 'product_id'),
+                active: RowHydrator::isActive($row),
+                deleted: RowHydrator::flag($row, 'deleted'),
+                labelled: RowHydrator::flag($row, 'labelled'),
+            );
+        }
+
+        return $options;
+    }
+
+    public function listOptionValueStates(int $productId): array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT ov.`id`, ov.`option_id`, ov.`status`, (ov.`deleted_at` IS NOT NULL) AS `deleted`, '
+            . self::labelled('maa_product_option_value_contents', 'option_value_id', 'ov') . ' AS `labelled` '
+            . 'FROM `maa_product_option_values` ov JOIN `maa_product_options` o ON o.`id` = ov.`option_id` WHERE '
+            . 'o.`product_id` = :product_id ORDER BY ov.`id` ASC',
+        );
+        $statement->execute(['product_id' => $productId]);
+
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        $values = [];
+        foreach ($rows as $row) {
+            $values[] = new OptionValueStateDTO(
+                id: RowHydrator::positiveInt($row, 'id'),
+                optionId: RowHydrator::positiveInt($row, 'option_id'),
+                active: RowHydrator::isActive($row),
+                deleted: RowHydrator::flag($row, 'deleted'),
+                labelled: RowHydrator::flag($row, 'labelled'),
+            );
+        }
+
+        return $values;
+    }
+
+    public function findActiveByFingerprint(int $productId, string $fingerprint): ?VariantStateDTO
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT `id`, `product_id`, `composition_fingerprint`, `status`, (`deleted_at` IS NOT NULL) AS `deleted` '
+            . 'FROM `maa_product_variants` WHERE `product_id` = :product_id AND `composition_fingerprint` = :fingerprint '
+            . 'AND `deleted_at` IS NULL AND `status` = \'active\' LIMIT 1',
+        );
+        $statement->execute(['product_id' => $productId, 'fingerprint' => $fingerprint]);
+
+        /** @var array<string, mixed>|false $row */
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return null;
+        }
+        $id = RowHydrator::positiveInt($row, 'id');
+        $pairs = $this->compositions([$id])[$id] ?? [];
+
+        return new VariantStateDTO(
+            id: $id,
+            productId: RowHydrator::positiveInt($row, 'product_id'),
+            fingerprint: RowHydrator::string($row, 'composition_fingerprint'),
+            active: RowHydrator::isActive($row),
+            deleted: RowHydrator::flag($row, 'deleted'),
+            composition: array_map(
+                static fn(VariantCompositionPairDTO $pair): OptionValueSelection => new OptionValueSelection($pair->optionId, $pair->optionValueId),
+                $pairs,
+            ),
+        );
+    }
+
+    /**
+     * Consumer visibility of the Variant aliased `$v`: its Product and the Variant itself are
+     * active and not deleted, its own composition is valid, and the Product's configuration is
+     * valid as a whole: no active Value of an active Option is left unrepresented by an active,
+     * valid Variant. The product-wide rule fails closed, so a broken configuration hides every
+     * Variant of the Product from the single get and from the list alike.
+     */
+    private static function visiblePredicate(string $v): string
+    {
+        return $v . '.`deleted_at` IS NULL AND ' . $v . '.`status` = \'active\' '
+            . 'AND EXISTS (SELECT 1 FROM `maa_product_products` p WHERE p.`id` = ' . $v . '.`product_id` '
             . 'AND p.`deleted_at` IS NULL AND p.`status` = \'active\') '
-            . 'AND NOT EXISTS (SELECT 1 FROM `maa_product_variant_option_values` cv '
-            . 'JOIN `maa_product_options` o ON o.`id` = cv.`option_id` '
-            . 'JOIN `maa_product_option_values` ov ON ov.`id` = cv.`option_value_id` '
-            . 'WHERE cv.`variant_id` = v.`id` AND ('
-            . 'o.`deleted_at` IS NOT NULL OR o.`status` <> \'active\' '
-            . 'OR ov.`deleted_at` IS NOT NULL OR ov.`status` <> \'active\' '
-            . 'OR NOT ' . $labelled('maa_product_option_contents', 'option_id', 'o') . ' '
-            . 'OR NOT ' . $labelled('maa_product_option_value_contents', 'option_value_id', 'ov') . ')) '
-            . 'AND (SELECT COUNT(*) FROM `maa_product_variant_option_values` cp WHERE cp.`variant_id` = v.`id`) = '
-            . '(SELECT COUNT(*) FROM `maa_product_options` ao WHERE ao.`product_id` = v.`product_id` '
-            . 'AND ao.`deleted_at` IS NULL AND ao.`status` = \'active\')';
+            . 'AND ' . self::validCompositionPredicate($v, 'a')
+            . ' AND NOT EXISTS (SELECT 1 FROM `maa_product_option_values` uv '
+            . 'JOIN `maa_product_options` uo ON uo.`id` = uv.`option_id` WHERE '
+            . 'uo.`product_id` = ' . $v . '.`product_id` AND uo.`deleted_at` IS NULL AND uo.`status` = \'active\' '
+            . 'AND uv.`deleted_at` IS NULL AND uv.`status` = \'active\' '
+            . 'AND NOT EXISTS (SELECT 1 FROM `maa_product_variants` rv '
+            . 'JOIN `maa_product_variant_option_values` rp ON rp.`variant_id` = rv.`id` WHERE '
+            . 'rp.`option_value_id` = uv.`id` AND rv.`product_id` = ' . $v . '.`product_id` '
+            . 'AND rv.`deleted_at` IS NULL AND rv.`status` = \'active\' '
+            . 'AND ' . self::validCompositionPredicate('rv', 'b') . '))';
+    }
+
+    /**
+     * Structural validity of the composition of the Variant aliased `$v`: every selected Option
+     * and Value is active, not deleted, and labelled, and the composition covers exactly the
+     * Product's active Options. A pair per Option is unique, so equal counts over active
+     * Options mean exact coverage. `$s` makes the inner aliases unique per nesting level.
+     */
+    private static function validCompositionPredicate(string $v, string $s): string
+    {
+        return 'NOT EXISTS (SELECT 1 FROM `maa_product_variant_option_values` cv' . $s . ' '
+            . 'JOIN `maa_product_options` o' . $s . ' ON o' . $s . '.`id` = cv' . $s . '.`option_id` '
+            . 'JOIN `maa_product_option_values` ov' . $s . ' ON ov' . $s . '.`id` = cv' . $s . '.`option_value_id` WHERE '
+            . 'cv' . $s . '.`variant_id` = ' . $v . '.`id` AND ('
+            . 'o' . $s . '.`deleted_at` IS NOT NULL OR o' . $s . '.`status` <> \'active\' '
+            . 'OR ov' . $s . '.`deleted_at` IS NOT NULL OR ov' . $s . '.`status` <> \'active\' '
+            . 'OR NOT ' . self::labelled('maa_product_option_contents', 'option_id', 'o' . $s) . ' '
+            . 'OR NOT ' . self::labelled('maa_product_option_value_contents', 'option_value_id', 'ov' . $s) . ')) '
+            . 'AND (SELECT COUNT(*) FROM `maa_product_variant_option_values` cp' . $s . ' WHERE cp' . $s . '.`variant_id` = ' . $v . '.`id`) = '
+            . '(SELECT COUNT(*) FROM `maa_product_options` ao' . $s . ' WHERE ao' . $s . '.`product_id` = ' . $v . '.`product_id` '
+            . 'AND ao' . $s . '.`deleted_at` IS NULL AND ao' . $s . '.`status` = \'active\')';
+    }
+
+    /**
+     * `EXISTS` predicate: the owner aliased `$alias` has a non-deleted Content record with a non-empty label.
+     */
+    private static function labelled(string $table, string $key, string $alias): string
+    {
+        return 'EXISTS (SELECT 1 FROM `' . $table . '` c_' . $alias . ' WHERE c_' . $alias . '.`' . $key . '` = ' . $alias . '.`id` '
+            . 'AND c_' . $alias . '.`deleted_at` IS NULL AND c_' . $alias . '.`name` REGEXP \'[^[:space:]]\')';
     }
 
     /**
@@ -177,8 +298,8 @@ final readonly class PdoVariantQueryReader implements VariantQueryReaderInterfac
     {
         $placeholders = implode(',', array_fill(0, count($variantIds), '?'));
         $statement = $this->pdo->prepare(
-            'SELECT `variant_id`, `option_id`, `option_value_id` FROM `maa_product_variant_option_values` '
-            . 'WHERE `variant_id` IN (' . $placeholders . ') ORDER BY `variant_id` ASC, `option_id` ASC',
+            'SELECT `variant_id`, `option_id`, `option_value_id` FROM `maa_product_variant_option_values` WHERE '
+            . '`variant_id` IN (' . $placeholders . ') ORDER BY `variant_id` ASC, `option_id` ASC',
         );
         $statement->execute($variantIds);
 

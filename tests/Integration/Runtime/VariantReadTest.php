@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Tests\Integration\Runtime;
 
-use DateTimeZone;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Variant\DTO\VariantCollectionDTO;
 use Maatify\Product\Variant\DTO\VariantCompositionPairDTO;
@@ -17,7 +15,6 @@ use Maatify\Product\Variant\DTO\VariantVisibleListCriteriaDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
 use Maatify\Product\Variant\Exception\VariantNotFoundException;
 use Maatify\Product\Variant\Service\VariantServiceInterface;
-use Maatify\SharedCommon\Infrastructure\SystemClock;
 use Throwable;
 
 /**
@@ -60,7 +57,8 @@ final class VariantReadTest extends RuntimeTestCase
         $size = $this->option($product, 'size', 'active', 'Size');
         $red = $this->value($color, 'red', 'active', 'Red');
         $medium = $this->value($size, 'm', 'active', 'Medium');
-        $blue = $this->value($color, 'blue', 'active', 'Blue');
+        // blue stays inactive: an active Value represented by no valid Variant would hide the whole Product (GAP-26).
+        $blue = $this->value($color, 'blue', 'inactive', 'Blue');
 
         $full = $this->variant($product, 'full', 1, [[$size, $medium], [$color, $red]]);
         $partial = $this->variant($product, 'partial', 2, [[$color, $blue]]);
@@ -155,33 +153,36 @@ final class VariantReadTest extends RuntimeTestCase
     }
 
     /**
-     * The architecture (A§6.2) requires every active Value of an active Option to appear in at least
-     * one active valid Variant as a postcondition of every committed mutation. No package write path
-     * can break it, so the state below only exists through direct SQL. Whether a read must also hide
-     * the Product's Variants in that state is not defined (GAP-26), so this test asserts only what
-     * every policy must satisfy: the single get, the consumer list, and the management list agree.
+     * GAP-26 (Lead decision): the consumer reads apply the whole Product configuration, not only the
+     * validity of the single Variant. While an active Value of an active Option is represented by no
+     * active valid Variant, every Variant of the Product is hidden from the single get and from the
+     * list alike; management reads keep showing the stored state; and the reads return the correct
+     * result again once every active Value is represented.
      */
-    public function testReadsAgreeWhenAnActiveValueIsRepresentedByNoActiveVariant(): void
+    public function testAnUnrepresentedActiveValueHidesEveryVariantOfTheProductFromConsumers(): void
     {
         $product = $this->activeProduct('UNREPRESENTED');
         $color = $this->option($product, 'color', 'active', 'Color');
         $red = $this->value($color, 'red', 'active', 'Red');
-        $this->value($color, 'blue', 'active', 'Blue');
+        $blue = $this->value($color, 'blue', 'active', 'Blue');
         $redVariant = $this->variant($product, 'red', 1, [[$color, $red]]);
         $service = $this->variantService();
 
-        $visibleThroughGet = [];
-        foreach ($service->listByProductIdForManagement($product)->items() as $variant) {
-            try {
-                $visibleThroughGet[] = $service->getById($variant->id)->id;
-            } catch (VariantNotFoundException) {
-                continue;
-            }
-        }
-        $visibleThroughList = array_map(static fn(VariantDTO $v): int => $v->id, $service->listByProductId($product)->items());
+        $this->assertNotVisible($service, $redVariant, 'The Product has an active Value (blue) that no active Variant represents, so the get hides its Variants.');
+        self::assertTrue($service->listByProductId($product)->isEmpty(), 'The consumer list hides the Variants of the same Product for the same reason.');
+        self::assertSame($redVariant, $service->getByIdForManagement($redVariant)->id, 'Management reads show the stored state.');
+        self::assertSame([$redVariant], array_map(static fn(VariantDTO $v): int => $v->id, $service->listByProductIdForManagement($product)->items()));
 
-        self::assertSame($visibleThroughGet, $visibleThroughList, 'The single get and the consumer list must apply the same visibility.');
-        self::assertSame($redVariant, $service->getByIdForManagement($redVariant)->id, 'Management reads never apply visibility.');
+        $blueVariant = $this->variant($product, 'blue', 2, [[$color, $blue]]);
+        self::assertSame($redVariant, $service->getById($redVariant)->id, 'Once every active Value is represented, the Variants are visible again.');
+        self::assertSame([$redVariant, $blueVariant], array_map(static fn(VariantDTO $v): int => $v->id, $service->listByProductId($product)->items()));
+
+        $this->execute('DELETE FROM maa_product_variant_option_values WHERE variant_id = :v', ['v' => $blueVariant]);
+        $this->execute('DELETE FROM maa_product_variants WHERE id = :v', ['v' => $blueVariant]);
+        $this->assertNotVisible($service, $redVariant, 'Removing the representing Variant hides the Product again.');
+        $this->execute("UPDATE maa_product_option_values SET status = 'inactive' WHERE id = :i", ['i' => $blue]);
+        self::assertSame($redVariant, $service->getById($redVariant)->id, 'Deactivating the unrepresented Value restores the correct result.');
+        self::assertSame([$redVariant], array_map(static fn(VariantDTO $v): int => $v->id, $service->listByProductId($product)->items()));
     }
 
     public function testInvalidIdentitiesAndLimitsAreRejected(): void
@@ -205,11 +206,6 @@ final class VariantReadTest extends RuntimeTestCase
         }
         $this->expectException(VariantNotFoundException::class);
         $service->getById(999999);
-    }
-
-    private function variantService(): VariantServiceInterface
-    {
-        return ProductFactory::createVariantService(self::$pdo, new SystemClock(new DateTimeZone('UTC')));
     }
 
     private function assertNotVisible(VariantServiceInterface $service, int $variantId, string $message = ''): void

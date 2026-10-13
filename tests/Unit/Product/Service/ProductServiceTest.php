@@ -17,6 +17,9 @@ use Maatify\Product\Product\Repository\ProductCommandRepositoryInterface;
 use Maatify\Product\Product\Repository\ProductQueryReaderInterface;
 use Maatify\Product\Product\Service\ProductService;
 use Maatify\Product\Tests\Support\CallLog;
+use Maatify\Product\Tests\Support\UnusedProductConfigurationRepository;
+use Maatify\Product\Tests\Support\UnusedProductLifecycleWrites;
+use Maatify\Product\Tests\Support\UnusedVariantLifecycleWrites;
 use Maatify\Product\Variant\Repository\VariantCommandRepositoryInterface;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 use PHPUnit\Framework\TestCase;
@@ -49,6 +52,8 @@ final class ProductServiceTest extends TestCase
     {
         $log = new CallLog();
         $products = new class ($log) implements ProductCommandRepositoryInterface {
+            use UnusedProductLifecycleWrites;
+
             public function __construct(private CallLog $log) {}
 
             public function create(CreateProductCommand $command, DateTimeImmutable $occurredAt): int
@@ -59,6 +64,8 @@ final class ProductServiceTest extends TestCase
             }
         };
         $variants = new class ($log) implements VariantCommandRepositoryInterface {
+            use UnusedVariantLifecycleWrites;
+
             public function __construct(private CallLog $log) {}
 
             public function createEmptyComposition(int $productId, DateTimeImmutable $occurredAt): int
@@ -80,6 +87,8 @@ final class ProductServiceTest extends TestCase
     public function testCreateDoesNotWriteTheVariantWhenTheProductWriteFails(): void
     {
         $products = new class implements ProductCommandRepositoryInterface {
+            use UnusedProductLifecycleWrites;
+
             public function create(CreateProductCommand $command, DateTimeImmutable $occurredAt): int
             {
                 throw ProductCodeAlreadyExistsException::withCode($command->code);
@@ -98,6 +107,8 @@ final class ProductServiceTest extends TestCase
     {
         $failure = new RuntimeException('variant write failed');
         $variants = new class ($failure) implements VariantCommandRepositoryInterface {
+            use UnusedVariantLifecycleWrites;
+
             public function __construct(private RuntimeException $failure) {}
 
             public function createEmptyComposition(int $productId, DateTimeImmutable $occurredAt): int
@@ -200,6 +211,8 @@ final class ProductServiceTest extends TestCase
         $calls = $this->calls;
 
         $products ??= new class ($calls) implements ProductCommandRepositoryInterface {
+            use UnusedProductLifecycleWrites;
+
             public function __construct(private CallLog $calls) {}
 
             public function create(CreateProductCommand $command, DateTimeImmutable $occurredAt): int
@@ -210,6 +223,8 @@ final class ProductServiceTest extends TestCase
             }
         };
         $variants ??= new class ($calls) implements VariantCommandRepositoryInterface {
+            use UnusedVariantLifecycleWrites;
+
             public function __construct(private CallLog $calls) {}
 
             public function createEmptyComposition(int $productId, DateTimeImmutable $occurredAt): int
@@ -249,6 +264,6 @@ final class ProductServiceTest extends TestCase
             }
         };
 
-        return new ProductService($products, $variants, $reader, $transactions, $clock);
+        return new ProductService($products, $variants, $reader, new UnusedProductConfigurationRepository(), $transactions, $clock);
     }
 }

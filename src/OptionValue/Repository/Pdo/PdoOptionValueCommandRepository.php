@@ -1,0 +1,116 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Maatify\Product\OptionValue\Repository\Pdo;
+
+use DateTimeImmutable;
+use Maatify\Persistence\Pdo\Ordering\ScopedOrderingConfig;
+use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
+use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
+use Maatify\Product\Common\Pdo\RowHydrator;
+use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
+use Maatify\Product\OptionValue\Exception\OptionValueCodeAlreadyExistsException;
+use Maatify\Product\OptionValue\Repository\OptionValueCommandRepositoryInterface;
+use PDO;
+use PDOException;
+
+/**
+ * PDO write adapter for Option Value persistence on MySQL 8.0.16 or later.
+ *
+ * Only a duplicate-key error (MySQL driver code 1062) on insert is converted, to
+ * {@see OptionValueCodeAlreadyExistsException}; the `(option_id, code)` key is the only unique
+ * key an insert can violate besides the generated keys. Every other {@see PDOException} propagates.
+ *
+ * @internal Not part of the Public Runtime API.
+ */
+final readonly class PdoOptionValueCommandRepository implements OptionValueCommandRepositoryInterface
+{
+    private const string TABLE = 'maa_product_option_values';
+    private const int MYSQL_DUPLICATE_KEY = 1062;
+
+    public function __construct(
+        private PDO $pdo,
+        private ScopedOrderingManager $orderingManager,
+    ) {}
+
+    public function create(CreateOptionValueCommand $command, DateTimeImmutable $occurredAt): int
+    {
+        $displayOrder = $this->orderingManager->getNextPosition(
+            $this->pdo,
+            new ScopedOrderingConfig(
+                table: self::TABLE,
+                scopeColumn: 'option_id',
+                idColumn: 'id',
+                orderColumn: 'display_order',
+                deletedAtColumn: 'deleted_at',
+                nullableScope: false,
+                updatedAtColumn: 'updated_at',
+            ),
+            $command->optionId,
+        );
+        $timestamp = $occurredAt->format('Y-m-d H:i:s');
+        $statement = $this->pdo->prepare(
+            'INSERT INTO `' . self::TABLE . '` (`option_id`, `code`, `status`, `display_order`, `created_at`, `updated_at`, `deleted_at`) '
+            . 'VALUES (:option_id, :code, \'inactive\', :display_order, :created_at, :updated_at, NULL)',
+        );
+        try {
+            $statement->execute([
+                'option_id' => $command->optionId,
+                'code' => $command->code,
+                'display_order' => $displayOrder,
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ]);
+        } catch (PDOException $exception) {
+            $driverCode = $exception->errorInfo[1] ?? null;
+            if ((is_int($driverCode) || is_string($driverCode)) && (int) $driverCode === self::MYSQL_DUPLICATE_KEY) {
+                throw OptionValueCodeAlreadyExistsException::withCode($command->optionId, $command->code, $exception);
+            }
+
+            throw $exception;
+        }
+
+        $id = $this->pdo->lastInsertId();
+        if (!ctype_digit($id) || (int) $id < 1) {
+            throw ProductStorageFailureFactory::invalidAutoIncrementIdentity('Option Value');
+        }
+
+        return (int) $id;
+    }
+
+    public function findProductId(int $optionValueId): ?int
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT o.`product_id` FROM `' . self::TABLE . '` ov JOIN `maa_product_options` o ON o.`id` = ov.`option_id` WHERE '
+            . 'ov.`id` = :id LIMIT 1',
+        );
+        $statement->execute(['id' => $optionValueId]);
+
+        /** @var array<string, mixed>|false $row */
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : RowHydrator::positiveInt($row, 'product_id');
+    }
+
+    public function softDelete(int $optionValueId, DateTimeImmutable $occurredAt): bool
+    {
+        $statement = $this->pdo->prepare(
+            'UPDATE `' . self::TABLE . '` SET `deleted_at` = :deleted_at, `updated_at` = :updated_at WHERE `id` = :id AND `deleted_at` IS NULL',
+        );
+        $timestamp = $occurredAt->format('Y-m-d H:i:s');
+        $statement->execute(['deleted_at' => $timestamp, 'updated_at' => $timestamp, 'id' => $optionValueId]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function restore(int $optionValueId, DateTimeImmutable $occurredAt): bool
+    {
+        $statement = $this->pdo->prepare(
+            'UPDATE `' . self::TABLE . '` SET `deleted_at` = NULL, `updated_at` = :updated_at WHERE `id` = :id AND `deleted_at` IS NOT NULL',
+        );
+        $statement->execute(['updated_at' => $occurredAt->format('Y-m-d H:i:s'), 'id' => $optionValueId]);
+
+        return $statement->rowCount() > 0;
+    }
+}

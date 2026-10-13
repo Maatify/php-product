@@ -1,0 +1,19 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Maatify\Product\ImageRole\DTO;
+
+/**
+ * Lifecycle state of a stored Image Role as read under its row lock.
+ *
+ * @internal Not part of the Public Runtime API.
+ */
+final readonly class ImageRoleStateDTO
+{
+    public function __construct(
+        public int $id,
+        public bool $active,
+        public bool $deleted,
+    ) {}
+}

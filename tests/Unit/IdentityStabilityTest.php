@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Maatify\Product\Tests\Unit;
 
 use FilesystemIterator;
+use Maatify\Product\ImageAssignment\Service\ImageAssignmentServiceInterface;
+use Maatify\Product\ImageRole\Service\ImageRoleServiceInterface;
+use Maatify\Product\Option\Service\OptionServiceInterface;
+use Maatify\Product\OptionValue\Service\OptionValueServiceInterface;
 use Maatify\Product\Product\Service\ProductServiceInterface;
 use Maatify\Product\Variant\Service\VariantServiceInterface;
 use PHPUnit\Framework\TestCase;
@@ -48,7 +52,14 @@ final class IdentityStabilityTest extends TestCase
     public function testNoPublicServiceMethodCanReplaceAnIdentity(): void
     {
         $methods = [];
-        foreach ([ProductServiceInterface::class, VariantServiceInterface::class] as $interface) {
+        foreach ([
+            ProductServiceInterface::class,
+            VariantServiceInterface::class,
+            OptionServiceInterface::class,
+            OptionValueServiceInterface::class,
+            ImageRoleServiceInterface::class,
+            ImageAssignmentServiceInterface::class,
+        ] as $interface) {
             foreach ((new ReflectionClass($interface))->getMethods() as $method) {
                 $methods[] = $interface . '::' . $method->getName();
             }

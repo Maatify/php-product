@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Variant\Repository;
 
+use Maatify\Product\Option\DTO\OptionStateDTO;
+use Maatify\Product\OptionValue\DTO\OptionValueStateDTO;
 use Maatify\Product\Variant\DTO\VariantDTO;
 use Maatify\Product\Variant\DTO\VariantListCriteriaDTO;
+use Maatify\Product\Variant\DTO\VariantStateDTO;
 use Maatify\Product\Variant\DTO\VariantVisibleListCriteriaDTO;
 
 /**
@@ -24,9 +27,11 @@ interface VariantQueryReaderInterface
      * Finds a Variant only when it is consumer-visible.
      *
      * A Variant is visible when its Product is active and not deleted, the Variant is active
-     * and not deleted, and its composition is structurally valid: every selected Option and
+     * and not deleted, its composition is structurally valid (every selected Option and
      * Option Value is active, not deleted, and labelled, and the composition covers exactly
-     * the Product's active Options.
+     * the Product's active Options), and the Product's configuration is valid as a whole:
+     * every active Value of an active Option is represented by at least one active, valid
+     * Variant. When that product-wide rule is broken, every Variant of the Product is hidden.
      */
     public function findVisibleById(int $variantId): ?VariantDTO;
 
@@ -43,4 +48,29 @@ interface VariantQueryReaderInterface
      * @return list<VariantDTO> Ordered by display order then identity.
      */
     public function listVisible(int $productId, VariantVisibleListCriteriaDTO $criteria): array;
+
+    /**
+     * Whether the Product exists, is active, and is not soft deleted.
+     */
+    public function isProductVisible(int $productId): bool;
+
+    /**
+     * The lifecycle state of every Option of a Product, including inactive and soft-deleted ones.
+     *
+     * @return list<OptionStateDTO>
+     */
+    public function listOptionStates(int $productId): array;
+
+    /**
+     * The lifecycle state of every Option Value of a Product, including inactive and soft-deleted ones.
+     *
+     * @return list<OptionValueStateDTO>
+     */
+    public function listOptionValueStates(int $productId): array;
+
+    /**
+     * Finds the active, non-deleted Variant of a Product that stores the given composition fingerprint,
+     * with its actual composition pairs, whatever its consumer visibility.
+     */
+    public function findActiveByFingerprint(int $productId, string $fingerprint): ?VariantStateDTO;
 }

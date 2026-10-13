@@ -2,7 +2,7 @@
 
 This guide shows how a Host application consumes `maatify/php-product`. The technical contract (the complete Public Runtime API and its guarantees) is owned by the [Package Reference](../../PRODUCT_PACKAGE_REFERENCE.md); this guide does not redefine it. Runnable code is in [`examples/`](../../examples/).
 
-The package is in development and no version is published. This guide covers exactly what is implemented today: Product creation with its Variant, the Product reads, and the Variant reads.
+The package is in development and no version is published. This guide covers exactly what is implemented today: Product creation, lifecycle, and reconfiguration; Variant reads, composition resolution, and lifecycle; Options and Option Values; Image Roles and Image Assignments.
 
 ## Fit
 
@@ -25,8 +25,12 @@ It does not fit if you need prices, stock, suppliers, Categories, orders, URL sl
 | Read the Variants of a Product for management or consumers | [3. Read Variants](#3-read-variants) | [`03-read-variants.php`](../../examples/03-read-variants.php) |
 | Handle duplicate codes and other failures | [4. Handle failures](#4-handle-failures) | [`01-create-and-read-product.php`](../../examples/01-create-and-read-product.php) |
 | Create inside a Host-owned transaction | [5. Compose with a Host transaction](#5-compose-with-a-host-transaction) | [`02-host-transaction.php`](../../examples/02-host-transaction.php) |
+| Activate, deactivate, soft-delete, and restore | [6. Lifecycle](#6-lifecycle) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
+| Prepare Options and Values, then make a Product configurable | [7. Reconfigure a Product](#7-reconfigure-a-product) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
+| Resolve a shopper's choices to one Variant | [8. Resolve a composition](#8-resolve-a-composition) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
+| Assign Media Assets with roles, scopes, and one default | [9. Image Roles and Assignments](#9-image-roles-and-assignments) | none yet |
 
-Options, Option Values, Content, Image Roles and Assignments, status changes, soft delete, and restore are not implemented yet and have no walkthrough.
+Content commands, management lists and search, pagination, SKU and barcode mutation, ordering commands, and standalone Option and Option Value status changes are not implemented yet and have no walkthrough.
 
 ## Setup
 
@@ -37,7 +41,7 @@ use Maatify\SharedCommon\Infrastructure\SystemClock;
 $products = ProductFactory::createProductService($pdo, new SystemClock(new DateTimeZone('UTC')));
 ```
 
-`ProductFactory::createProductService()` is the only construction entry point. All writes of one operation use the connection you pass, so a transaction you already hold on it is joined, never committed by the package.
+`ProductFactory` is the only construction entry point; it builds one service per capability (`createProductService()`, `createVariantService()`, `createOptionService()`, `createOptionValueService()`, `createImageRoleService()`, `createImageAssignmentService()`) on the connection and Clock you pass. All writes of one operation use that connection, so a transaction you already hold on it is joined, never committed by the package.
 
 ## 1. Create a Product
 
@@ -67,7 +71,7 @@ $product = $products->getByIdForManagement($created->productId);
 - **Input:** a Product or Variant identity.
 - **Public call:** `VariantServiceInterface` from `ProductFactory::createVariantService($pdo, $clock)`: `getById()` and `listByProductId()` for consumers, `getByIdForManagement()` and `listByProductIdForManagement()` for management.
 - **Result:** a `VariantDTO` (`id`, `productId`, `sku`, `barcode`, `status`, `displayOrder`, `composition`, timestamps) or a `VariantCollectionDTO`, ordered by `display_order` then `id`, at most 100.
-- **Boundary:** consumer reads return only visible Variants: the Product and the Variant are active and not deleted and the composition is valid (every selected Option and Value active, not deleted, and labelled, covering exactly the Product's active Options). A single get of a missing or not-visible Variant raises `VariantNotFoundException`; a list never fails for a missing Product and returns an empty collection. Management reads ignore visibility and filter by status (`null` means any) and `ProductDeletedStateEnum`.
+- **Boundary:** consumer reads return only visible Variants: the Product and the Variant are active and not deleted, the composition is valid (every selected Option and Value active, not deleted, and labelled, covering exactly the Product's active Options), and the Product's configuration is valid as a whole (every active Value of an active Option is represented by an active valid Variant; otherwise every Variant of the Product is hidden). A single get of a missing or not-visible Variant raises `VariantNotFoundException`; a list never fails for a missing Product and returns an empty collection. Management reads ignore visibility and filter by status (`null` means any) and `ProductDeletedStateEnum`.
 
 ```php
 $variants = ProductFactory::createVariantService($pdo, $clock);
@@ -79,13 +83,13 @@ $visible = $variants->listByProductId($created->productId); // empty until the P
 
 - **Input:** any call.
 - **Public call:** catch the named exceptions you care about; all package-defined failures implement `Maatify\Product\Exception\ProductExceptionInterface`.
-- **Result:** `ProductCodeAlreadyExistsException` for a duplicate code (compared case-insensitively across all history, including soft-deleted Products); `ProductNotFoundException` for a missing or not-visible Product; `VariantNotFoundException` for a missing or not-visible Variant; `ProductInvalidArgumentException` for invalid input; `ProductPersistenceException` when storage returns data the schema contract does not allow.
+- **Result:** a conflict exception for a taken identity (`ProductCodeAlreadyExistsException`, `OptionCodeAlreadyExistsException`, `OptionValueCodeAlreadyExistsException`, `ImageRoleKeyAlreadyExistsException`, `ImageAssignmentAlreadyExistsException`, `VariantCompositionConflictException`; identities compare case-insensitively and stay reserved across soft-deleted history); a not-found exception for a missing or not-visible identity (`ProductNotFoundException`, `VariantNotFoundException`, `OptionNotFoundException`, `OptionValueNotFoundException`, `ImageRoleNotFoundException`, `ImageAssignmentNotFoundException`); `ProductInvalidArgumentException` for invalid input, including a structurally invalid composition selection; `ProductBusinessRuleException` when the row or its owner is soft deleted or the operation would break a Product invariant; `ProductPersistenceException` when storage returns data the schema contract does not allow.
 - **Boundary:** every other `PDOException` or `Throwable` propagates unchanged. See the Package Reference, *Failure contract*.
 
 ## 5. Compose with a Host transaction
 
 - **Input:** a transaction you opened on the same PDO connection you gave the factory.
-- **Public call:** `create()` inside it.
+- **Public call:** any mutation inside it (`create()`, `reconfigure()`, the lifecycle commands, the image-assignment commands).
 - **Result:** the call runs in an operation-local savepoint. If it fails, none of its writes remain in your transaction, which stays active; you decide whether to commit or roll back, and your other work in it is unaffected. A Host that catches the failure and commits can never persist a Product without its Variant.
 - **Boundary:** the package never commits or rolls back your transaction. Composition requires every participant to use that one connection.
 
@@ -98,6 +102,59 @@ try {
 }
 $pdo->commit(); // commits Product 'A' and its Variant only
 ```
+
+## 6. Lifecycle
+
+- **Input:** a Product, Variant, Option, Option Value, Image Role, or Image Assignment identity.
+- **Public call:** `updateStatus(id, StatusEnum)` (Products, Variants, Image Roles), `softDelete(id)`, and `restore(id)` on the capability's service.
+- **Result:** `void`; read the new state back through the management read.
+- **Boundary:** one contract for every family. A soft-deleted row accepts nothing but `restore()`; a status change, re-delete, default operation, or other change on it is a `ProductBusinessRuleException`. A child under a soft-deleted owner (an Option of a deleted Product, a Value of a deleted Option, an Assignment of a deleted Product or Variant) cannot be created or changed until the owner chain is restored. `restore()` keeps the saved status (an inactive row stays inactive) and revalidates the Product invariants first. A missing identity is the family's not-found exception. Inactivity alone blocks no management operation. Product activation needs a non-empty name and a valid configuration; deactivating or deleting the last valid active Variant, or deleting an Option or Value an active Variant needs, is rejected: those changes belong to reconfiguration.
+
+```php
+$products->updateStatus($created->productId, ProductStatusEnum::ACTIVE); // needs a name and a valid configuration
+$products->softDelete($created->productId);
+$products->restore($created->productId);                                  // status preserved, invariants revalidated
+```
+
+## 7. Reconfigure a Product
+
+- **Input:** a `ReconfigureProductCommand`: the Product, the complete set of Options that must be active (`ReconfigureOptionTarget`, each with the complete set of its active Values), and the complete set of Variant compositions that must be active (`ReconfigureVariantTarget`, each a list of `OptionValueSelection` pairs and, when that composition already exists in the Product's history, its `reuseVariantId`). Options and Values are created inactive beforehand with `OptionServiceInterface::create()` and `OptionValueServiceInterface::create()` and need a label; the command never creates them and carries no SKU or barcode.
+- **Public call:** `ProductServiceInterface::reconfigure($command)`.
+- **Result:** a `ProductReconfigurationResultDTO` with the Variant identities created (in request order), reactivated, restored, and deactivated, and the Option and Value identities whose status changed.
+- **Boundary:** one atomic Product-local operation: the Product row is locked before anything is read, and any failure rejects the whole operation. An active Variant absent from the target becomes inactive and keeps its history. A composition that already exists (active, inactive, or soft-deleted) is a `VariantCompositionConflictException` unless `reuseVariantId` names that Variant; the named Variant is then reactivated or restored inside the operation. The empty composition is the simple Product: going back to simple means naming the original empty-composition Variant, never creating a second one (a missing original is a `ProductPersistenceException`). A target that would violate an invariant (an Option of another Product, a deleted or unlabelled Option or Value, incomplete or extra coverage, an unrepresented Value, no Variant) is a `ProductBusinessRuleException`; a repeated element in the command is a `ProductInvalidArgumentException`.
+
+```php
+$result = $products->reconfigure(new ReconfigureProductCommand(
+    $productId,
+    [new ReconfigureOptionTarget($color, [$red, $blue])],
+    [
+        new ReconfigureVariantTarget([new OptionValueSelection($color, $red)]),
+        new ReconfigureVariantTarget([new OptionValueSelection($color, $blue)]),
+    ],
+));
+// $result->createdVariantIds, $result->deactivatedVariantIds (the empty-composition Variant)
+```
+
+## 8. Resolve a composition
+
+- **Input:** the Product identity and a `VariantCompositionCriteriaDTO` holding the shopper's `OptionValueSelection` pairs, in any order; an empty selection is valid and names a simple Product's Variant.
+- **Public call:** `VariantServiceInterface::resolveByComposition($productId, $criteria)`.
+- **Result:** the `VariantDTO` of the one consumer-visible Variant with exactly that composition.
+- **Boundary:** read-only: it never creates or reactivates a Variant and never invents a default. A Product that does not exist or is not consumer-visible is a `ProductNotFoundException`. A structurally invalid selection (a repeated Option, an Option or Value that is not an active member of the Product, a Value paired with the wrong Option, an active Option left unselected) is a `ProductInvalidArgumentException`. A valid, complete selection that matches no visible Variant, including a historical inactive composition, is a `VariantNotFoundException`.
+
+```php
+$variant = $variants->resolveByComposition($productId, new VariantCompositionCriteriaDTO([
+    new OptionValueSelection($size, $medium),
+    new OptionValueSelection($color, $blue),
+]));
+```
+
+## 9. Image Roles and Assignments
+
+- **Input:** a `CreateImageRoleCommand` (the role key), and a `CreateImageAssignmentCommand`: the Product, an optional Variant of that Product, the Host-owned `mediaAssetId` (`int`, or a string of digits), and the exact `roleId`, `languageCode`, and `platform` scope where `null` means exactly `null`.
+- **Public call:** `ImageRoleServiceInterface::create()`, `updateStatus()`, `softDelete()`, `restore()`; `ImageAssignmentServiceInterface::create()`, `setDefault()`, `clearDefault()`, `softDelete()`, `restore()`; `getByIdForManagement()` on both.
+- **Result:** `CreatedImageRoleDTO` and `CreatedImageAssignmentDTO` identities; `ImageRoleDTO` and `ImageAssignmentDTO` snapshots.
+- **Boundary:** the package never resolves or verifies the Media Asset. A new assignment is not the default and gets its position within its exact scope from the shared Ordering API. `setDefault()` makes a non-deleted assignment the single default of its exact `(target, role, language, platform)` scope, clearing the previous one in the same operation; it needs a non-deleted target Product and Variant and a non-deleted Role, while an inactive Product, Variant, or Role does not block it. `clearDefault()` works even under a deleted target or Role and promotes nothing. Soft-deleting a default clears the marker and promotes nothing; `restore()` leaves the row non-default. An identity that exists in soft-deleted history is an `ImageAssignmentAlreadyExistsException`: restore it instead.
 
 ## Running the examples
 

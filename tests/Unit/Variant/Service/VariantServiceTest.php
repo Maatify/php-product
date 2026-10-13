@@ -13,8 +13,14 @@ use Maatify\Product\Variant\DTO\VariantListCriteriaDTO;
 use Maatify\Product\Variant\DTO\VariantVisibleListCriteriaDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
 use Maatify\Product\Variant\Exception\VariantNotFoundException;
+use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
+use Maatify\Product\Tests\Support\UnusedProductConfigurationRepository;
+use Maatify\Product\Tests\Support\UnusedVariantLifecycleWrites;
+use Maatify\Product\Variant\DTO\VariantStateDTO;
+use Maatify\Product\Variant\Repository\VariantCommandRepositoryInterface;
 use Maatify\Product\Variant\Repository\VariantQueryReaderInterface;
 use Maatify\Product\Variant\Service\VariantService;
+use Maatify\SharedCommon\Contracts\ClockInterface;
 use PHPUnit\Framework\TestCase;
 
 final class VariantServiceTest extends TestCase
@@ -24,7 +30,7 @@ final class VariantServiceTest extends TestCase
         $live = $this->variant(null);
         $reader = $this->reader(visible: $live, all: null);
 
-        self::assertSame($live, (new VariantService($reader))->getById(5));
+        self::assertSame($live, (self::service($reader))->getById(5));
     }
 
     public function testGetByIdThrowsNotFoundWhenTheVariantIsNotVisible(): void
@@ -32,7 +38,7 @@ final class VariantServiceTest extends TestCase
         $reader = $this->reader(visible: null, all: $this->variant(null));
 
         $this->expectException(VariantNotFoundException::class);
-        (new VariantService($reader))->getById(5);
+        (self::service($reader))->getById(5);
     }
 
     public function testManagementReadFiltersOnlyByDeletedState(): void
@@ -40,13 +46,13 @@ final class VariantServiceTest extends TestCase
         $live = $this->variant(null);
         $deleted = $this->variant(new DateTimeImmutable('2026-01-02'));
 
-        self::assertSame($live, (new VariantService($this->reader(null, $live)))->getByIdForManagement(5));
-        self::assertSame($deleted, (new VariantService($this->reader(null, $deleted)))->getByIdForManagement(5, ProductDeletedStateEnum::DELETED_ONLY));
-        self::assertSame($deleted, (new VariantService($this->reader(null, $deleted)))->getByIdForManagement(5, ProductDeletedStateEnum::INCLUDE_DELETED));
+        self::assertSame($live, (self::service($this->reader(null, $live)))->getByIdForManagement(5));
+        self::assertSame($deleted, (self::service($this->reader(null, $deleted)))->getByIdForManagement(5, ProductDeletedStateEnum::DELETED_ONLY));
+        self::assertSame($deleted, (self::service($this->reader(null, $deleted)))->getByIdForManagement(5, ProductDeletedStateEnum::INCLUDE_DELETED));
 
         foreach ([[$deleted, ProductDeletedStateEnum::NON_DELETED], [$live, ProductDeletedStateEnum::DELETED_ONLY]] as [$variant, $state]) {
             try {
-                (new VariantService($this->reader(null, $variant)))->getByIdForManagement(5, $state);
+                (self::service($this->reader(null, $variant)))->getByIdForManagement(5, $state);
                 self::fail('The deleted-state filter must exclude the Variant.');
             } catch (VariantNotFoundException) {
                 $this->addToAssertionCount(1);
@@ -57,7 +63,7 @@ final class VariantServiceTest extends TestCase
     public function testListsDelegateAndWrapTheReaderResult(): void
     {
         $variant = $this->variant(null);
-        $service = new VariantService($this->reader($variant, $variant, [$variant]));
+        $service = self::service($this->reader($variant, $variant, [$variant]));
 
         self::assertSame([$variant], $service->listByProductId(1)->items());
         self::assertSame([$variant], $service->listByProductIdForManagement(1, new VariantListCriteriaDTO(VariantStatusEnum::ACTIVE))->items());
@@ -66,7 +72,7 @@ final class VariantServiceTest extends TestCase
 
     public function testNonPositiveIdentitiesAreRejectedBeforeAnyRead(): void
     {
-        $service = new VariantService($this->reader(null, null));
+        $service = self::service($this->reader(null, null));
 
         foreach ([
             static fn() => $service->getById(0),
@@ -116,6 +122,57 @@ final class VariantServiceTest extends TestCase
             {
                 return $this->list;
             }
+
+            public function isProductVisible(int $productId): bool
+            {
+                return false;
+            }
+
+            public function listOptionStates(int $productId): array
+            {
+                return [];
+            }
+
+            public function listOptionValueStates(int $productId): array
+            {
+                return [];
+            }
+
+            public function findActiveByFingerprint(int $productId, string $fingerprint): ?VariantStateDTO
+            {
+                return null;
+            }
         };
+    }
+
+    private static function service(VariantQueryReaderInterface $reader): VariantService
+    {
+        $variants = new class implements VariantCommandRepositoryInterface {
+            use UnusedVariantLifecycleWrites;
+
+            public function createEmptyComposition(int $productId, DateTimeImmutable $occurredAt): int
+            {
+                throw new \LogicException('createEmptyComposition is not expected in this test.');
+            }
+        };
+        $transactions = new class implements SavepointTransactionRunnerInterface {
+            public function run(callable $callback): mixed
+            {
+                return $callback();
+            }
+        };
+        $clock = new class implements ClockInterface {
+            public function now(): DateTimeImmutable
+            {
+                return new DateTimeImmutable('2026-01-01 00:00:00', new DateTimeZone('UTC'));
+            }
+
+            public function getTimezone(): DateTimeZone
+            {
+                return new DateTimeZone('UTC');
+            }
+        };
+
+        return new VariantService($reader, $variants, new UnusedProductConfigurationRepository(), $transactions, $clock);
     }
 }

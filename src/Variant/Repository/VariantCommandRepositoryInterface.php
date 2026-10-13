@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Maatify\Product\Variant\Repository;
 
 use DateTimeImmutable;
+use Maatify\Product\Variant\DTO\VariantLifecycleStateDTO;
+use Maatify\Product\Variant\Enum\VariantStatusEnum;
 
 /**
  * Write port for Variant persistence.
@@ -28,4 +30,25 @@ interface VariantCommandRepositoryInterface
      * @return positive-int The new Variant identity.
      */
     public function createEmptyComposition(int $productId, DateTimeImmutable $occurredAt): int;
+
+    /**
+     * Locks the Variant row (`SELECT ... FOR UPDATE`) and returns its lifecycle state, or null when
+     * no Variant has that identity. The owning Product must already be locked.
+     */
+    public function lockForUpdate(int $variantId): ?VariantLifecycleStateDTO;
+
+    /**
+     * Sets the status of a non-deleted Variant. Returns whether a row was changed.
+     */
+    public function updateStatus(int $variantId, VariantStatusEnum $status, DateTimeImmutable $occurredAt): bool;
+
+    /**
+     * Soft-deletes a non-deleted Variant. Returns whether a row was changed.
+     */
+    public function softDelete(int $variantId, DateTimeImmutable $occurredAt): bool;
+
+    /**
+     * Restores a soft-deleted Variant, preserving its saved status. Returns whether a row was changed.
+     */
+    public function restore(int $variantId, DateTimeImmutable $occurredAt): bool;
 }
