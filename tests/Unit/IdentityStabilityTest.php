@@ -32,6 +32,13 @@ final class IdentityStabilityTest extends TestCase
         'option_value_id', 'language_code', 'platform', 'media_asset_id', 'role_id',
     ];
 
+    /**
+     * A public service method that would replace an identity. Unanchored, so a longer name such as
+     * `updateCodeAndStatus` is caught too; only `updateIdentifiers` (the secondary SKU and barcode,
+     * which are not identities) is excluded.
+     */
+    private const string IDENTITY_METHOD = '/::(update|rename|change|replace|set)(?:Code|Identity|Key|Id(?!entifiers\\b))/i';
+
     public function testNoUpdateStatementSetsAnIdentityColumn(): void
     {
         $offences = [];
@@ -79,11 +86,20 @@ final class IdentityStabilityTest extends TestCase
 
         $forbidden = array_filter(
             $methods,
-            // The secondary SKU and barcode are not identities, so `updateIdentifiers` is allowed.
-            static fn(string $name): bool => preg_match('/::(update|rename|change|replace|set)(Code|Identity|Id|Key)s?$/i', $name) === 1,
+            static fn(string $name): bool => preg_match(self::IDENTITY_METHOD, $name) === 1,
         );
 
         self::assertSame([], array_values($forbidden));
+    }
+
+    public function testTheIdentityMethodGuardStaysStrict(): void
+    {
+        foreach (['updateId', 'updateIdentity', 'updateCode', 'updateCodeAndStatus', 'setKey', 'setIdentityColumn', 'renameCode', 'changeKeys', 'replaceId'] as $name) {
+            self::assertSame(1, preg_match(self::IDENTITY_METHOD, 'Service::' . $name), $name . ' must be rejected.');
+        }
+        foreach (['updateIdentifiers', 'updateStatus', 'updateDisplayOrder', 'setDefault'] as $name) {
+            self::assertSame(0, preg_match(self::IDENTITY_METHOD, 'Service::' . $name), $name . ' must be allowed.');
+        }
     }
 
     /** @return list<string> */
