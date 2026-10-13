@@ -2,7 +2,11 @@
 
 # Maatify Product
 
-![Maatify.dev](https://www.maatify.dev/assets/img/img/maatify_logo_white.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://www.maatify.dev/company-profile/maatify_logo_white.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://www.maatify.dev/company-profile/maatify_logo_dark.svg">
+  <img alt="Maatify.dev" src="https://www.maatify.dev/company-profile/maatify_logo_white.svg">
+</picture>
 
 [![Status](https://img.shields.io/badge/Status-Development-blue)](README.md)
 [![PHP](https://img.shields.io/badge/PHP-%5E8.4-8892BF)](composer.json)
