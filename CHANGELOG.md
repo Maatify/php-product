@@ -13,6 +13,7 @@ No version has been released.
 - MySQL schema `schema/product.sql`: ten `maa_product_` tables for Product, Variant, Option, Option Value, Content, Image Role, and Image Assignment, with foreign keys, case-sensitive status checks, exact-scope uniqueness, and a database-enforced rule that a soft-deleted Image Assignment is never the default.
 - Product creation: `ProductServiceInterface::create()` writes an inactive Product and its single active empty-composition Variant atomically, including inside a Host-owned transaction (operation-local savepoint).
 - Product reads: `getById()` (active, not deleted) and `getByIdForManagement()` with `ProductDeletedStateEnum`.
+- Variant reads: `VariantServiceInterface` (`getById`, `getByIdForManagement`, `listByProductId`, `listByProductIdForManagement`), `VariantDTO` with its composition pairs, bounded list criteria, and `VariantNotFoundException`; `ProductFactory::createVariantService()`.
 - `ProductFactory::createProductService()` as the framework-agnostic construction entry point.
 - Public failures: `ProductCodeAlreadyExistsException`, `ProductNotFoundException`, `ProductInvalidArgumentException`, and `ProductPersistenceException`, all implementing `ProductExceptionInterface`.
 - Consumer documentation: Usage Guide, runnable examples, and `llms.txt`.

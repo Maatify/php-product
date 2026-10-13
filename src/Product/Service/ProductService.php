@@ -6,6 +6,7 @@ namespace Maatify\Product\Product\Service;
 
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
+use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\DTO\CreatedProductDTO;
 use Maatify\Product\Product\DTO\ProductDTO;
@@ -55,6 +56,7 @@ final readonly class ProductService implements ProductServiceInterface
 
     public function getById(int $productId): ProductDTO
     {
+        self::requirePositive($productId);
         $product = $this->reader->findById($productId);
         if ($product === null || $product->deletedAt !== null || $product->status !== ProductStatusEnum::ACTIVE) {
             throw ProductNotFoundException::withId($productId);
@@ -67,6 +69,7 @@ final readonly class ProductService implements ProductServiceInterface
         int $productId,
         ProductDeletedStateEnum $deletedState = ProductDeletedStateEnum::NON_DELETED,
     ): ProductDTO {
+        self::requirePositive($productId);
         $product = $this->reader->findById($productId);
         $matches = $product !== null && match ($deletedState) {
             ProductDeletedStateEnum::NON_DELETED => $product->deletedAt === null,
@@ -78,5 +81,12 @@ final readonly class ProductService implements ProductServiceInterface
         }
 
         return $product;
+    }
+
+    private static function requirePositive(int $productId): void
+    {
+        if ($productId < 1) {
+            throw ProductInvalidArgumentException::nonPositiveId('productId');
+        }
     }
 }

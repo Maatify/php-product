@@ -45,6 +45,22 @@ final class ProductInvalidArgumentException extends InvalidArgumentMaatifyExcept
     }
 
     /**
+     * A display order is not a positive integer.
+     */
+    public static function invalidDisplayOrder(int $displayOrder): self
+    {
+        return new self(sprintf('Display order must be a positive integer, got %d.', $displayOrder));
+    }
+
+    /**
+     * A list limit is outside the allowed range.
+     */
+    public static function invalidListLimit(int $limit, int $maximum): self
+    {
+        return new self(sprintf('List maxResults must be between 1 and %d, got %d.', $maximum, $limit));
+    }
+
+    /**
      * The PDO connection does not report errors as exceptions.
      */
     public static function pdoMustThrowExceptions(): self

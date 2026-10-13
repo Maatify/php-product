@@ -171,6 +171,21 @@ final class ProductServiceTest extends TestCase
         };
     }
 
+    public function testNonPositiveIdentitiesAreRejected(): void
+    {
+        foreach ([
+            fn() => $this->service()->getById(0),
+            fn() => $this->service()->getByIdForManagement(-1),
+        ] as $call) {
+            try {
+                $call();
+                self::fail('A non-positive identity must be rejected.');
+            } catch (\Maatify\Product\Common\Exception\ProductInvalidArgumentException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
     public function testGetByIdThrowsNotFoundForAnUnknownIdentity(): void
     {
         $this->expectException(ProductNotFoundException::class);

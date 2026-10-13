@@ -32,7 +32,7 @@ Framework-agnostic PHP library for Product and Variant identity on MySQL: a stab
 - **Host-owned boundaries.** The Host supplies the PDO connection and the Clock. The package performs no Pricing, Inventory, Supplier, Category, or media storage work.
 - **Database-enforced invariants.** `schema/product.sql` defines ten tables with foreign keys, case-sensitive status checks, and exact-scope uniqueness, verified against real MySQL.
 
-The package is in development: only Product creation and the two Product reads are implemented. Options, Option Values, Content, Image Roles and Assignments, status changes, and soft delete are specified by the architecture but not yet implemented. See [Not yet implemented](PRODUCT_PACKAGE_REFERENCE.md#not-yet-implemented).
+The package is in development: only Product creation, the Product reads, and the Variant reads are implemented. Options, Option Values, Content, Image Roles and Assignments, status changes, and soft delete are specified by the architecture but not yet implemented. See [Not yet implemented](PRODUCT_PACKAGE_REFERENCE.md#not-yet-implemented).
 
 ## Requirements
 
@@ -87,12 +87,13 @@ This is an overview; the complete inventory and the stable contract are in the [
 
 | Type | Role |
 |---|---|
-| `Factory\ProductFactory` | The only construction entry point: `createProductService(PDO, ClockInterface)`. |
+| `Factory\ProductFactory` | The only construction entry point: `createProductService()` and `createVariantService()`. |
 | `Product\Service\ProductServiceInterface` | `create()`, `getById()`, `getByIdForManagement()`. |
+| `Variant\Service\VariantServiceInterface` | `getById()`, `getByIdForManagement()`, `listByProductId()`, `listByProductIdForManagement()`. |
 | `Product\Command\CreateProductCommand` | Validated input: the Product `code`. |
-| `Product\DTO\CreatedProductDTO`, `Product\DTO\ProductDTO` | Typed results. |
+| `Product\DTO\CreatedProductDTO`, `Product\DTO\ProductDTO`, `Variant\DTO\VariantDTO` and its collection and criteria types | Typed results and bounded read criteria. |
 | `Product\Enum\ProductStatusEnum`, `Common\Enum\ProductDeletedStateEnum` | Status and soft-deletion visibility. |
-| `ProductCodeAlreadyExistsException`, `ProductNotFoundException`, `ProductInvalidArgumentException`, `ProductPersistenceException` | Named failures; all implement `Exception\ProductExceptionInterface`. |
+| `ProductCodeAlreadyExistsException`, `ProductNotFoundException`, `VariantNotFoundException`, `ProductInvalidArgumentException`, `ProductPersistenceException` | Named failures; all implement `Exception\ProductExceptionInterface`. |
 
 Everything under `Maatify\Product\` that the Package Reference does not list is internal.
 
@@ -114,6 +115,7 @@ A duplicate code becomes `ProductCodeAlreadyExistsException`; a missing or not-v
 
 - [`01-create-and-read-product.php`](examples/01-create-and-read-product.php): create, read, consumer visibility, duplicate handling.
 - [`02-host-transaction.php`](examples/02-host-transaction.php): composing `create()` inside a Host-owned transaction.
+- [`03-read-variants.php`](examples/03-read-variants.php): management and consumer Variant reads.
 
 ## Documentation
 

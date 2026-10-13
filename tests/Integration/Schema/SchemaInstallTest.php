@@ -68,6 +68,12 @@ final class SchemaInstallTest extends SchemaTestCase
         ));
     }
 
+    public function testTheSchemaDefinesNoTriggersOrRoutines(): void
+    {
+        self::assertSame(0, (int) self::scalar('SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema = DATABASE()'));
+        self::assertSame(0, (int) self::scalar('SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema = DATABASE()'));
+    }
+
     public function testEveryColumnHasAComment(): void
     {
         self::assertSame(0, (int) self::scalar(

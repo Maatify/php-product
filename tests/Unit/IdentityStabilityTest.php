@@ -1,0 +1,80 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Maatify\Product\Tests\Unit;
+
+use FilesystemIterator;
+use Maatify\Product\Product\Service\ProductServiceInterface;
+use Maatify\Product\Variant\Service\VariantServiceInterface;
+use PHPUnit\Framework\TestCase;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use ReflectionClass;
+
+/**
+ * Identity stability is enforced by the application, not by database triggers
+ * (architecture 4.1: ordinary update commands do not mutate `id` or `code`). These tests
+ * prove that no package write path can change an identity column, so a future write path
+ * that does must fail them.
+ */
+final class IdentityStabilityTest extends TestCase
+{
+    private const array IDENTITY_COLUMNS = [
+        'id', 'code', 'role_key', 'composition_fingerprint', 'product_id', 'variant_id', 'option_id',
+        'option_value_id', 'language_code', 'platform', 'media_asset_id', 'role_id',
+    ];
+
+    public function testNoUpdateStatementSetsAnIdentityColumn(): void
+    {
+        $offences = [];
+        foreach ($this->sourceFiles() as $file) {
+            $source = (string) file_get_contents($file);
+            if (preg_match_all('/UPDATE\s+`?maa_product_\w+`?\s+SET\s+(.*?)\s+WHERE/is', $source, $matches) === 0) {
+                continue;
+            }
+            foreach ($matches[1] as $assignments) {
+                foreach (self::IDENTITY_COLUMNS as $column) {
+                    if (preg_match('/`?\b' . $column . '`?\s*=/i', $assignments) === 1) {
+                        $offences[] = $file . ': sets ' . $column;
+                    }
+                }
+            }
+        }
+
+        self::assertSame([], $offences);
+    }
+
+    public function testNoPublicServiceMethodCanReplaceAnIdentity(): void
+    {
+        $methods = [];
+        foreach ([ProductServiceInterface::class, VariantServiceInterface::class] as $interface) {
+            foreach ((new ReflectionClass($interface))->getMethods() as $method) {
+                $methods[] = $interface . '::' . $method->getName();
+            }
+        }
+
+        $forbidden = array_filter(
+            $methods,
+            static fn(string $name): bool => preg_match('/::(update|rename|change|replace|set)(Code|Identity|Id|Key)/i', $name) === 1,
+        );
+
+        self::assertSame([], array_values($forbidden));
+    }
+
+    /** @return list<string> */
+    private function sourceFiles(): array
+    {
+        $files = [];
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/src', FilesystemIterator::SKIP_DOTS),
+        );
+        foreach ($iterator as $file) {
+            if ($file instanceof \SplFileInfo && $file->getExtension() === 'php') {
+                $files[] = $file->getPathname();
+            }
+        }
+
+        return $files;
+    }
+}

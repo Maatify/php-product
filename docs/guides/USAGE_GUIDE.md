@@ -2,7 +2,7 @@
 
 This guide shows how a Host application consumes `maatify/php-product`. The technical contract (the complete Public Runtime API and its guarantees) is owned by the [Package Reference](../../PRODUCT_PACKAGE_REFERENCE.md); this guide does not redefine it. Runnable code is in [`examples/`](../../examples/).
 
-The package is in development and no version is published. This guide covers exactly what is implemented today: Product creation with its Variant and two Product reads.
+The package is in development and no version is published. This guide covers exactly what is implemented today: Product creation with its Variant, the Product reads, and the Variant reads.
 
 ## Fit
 
@@ -22,8 +22,9 @@ It does not fit if you need prices, stock, suppliers, Categories, orders, URL sl
 |---|---|---|
 | Create a Product together with its Variant | [1. Create a Product](#1-create-a-product) | [`01-create-and-read-product.php`](../../examples/01-create-and-read-product.php) |
 | Read a Product for consumers or for management | [2. Read a Product](#2-read-a-product) | [`01-create-and-read-product.php`](../../examples/01-create-and-read-product.php) |
-| Handle duplicate codes and other failures | [3. Handle failures](#3-handle-failures) | [`01-create-and-read-product.php`](../../examples/01-create-and-read-product.php) |
-| Create inside a Host-owned transaction | [4. Compose with a Host transaction](#4-compose-with-a-host-transaction) | [`02-host-transaction.php`](../../examples/02-host-transaction.php) |
+| Read the Variants of a Product for management or consumers | [3. Read Variants](#3-read-variants) | [`03-read-variants.php`](../../examples/03-read-variants.php) |
+| Handle duplicate codes and other failures | [4. Handle failures](#4-handle-failures) | [`01-create-and-read-product.php`](../../examples/01-create-and-read-product.php) |
+| Create inside a Host-owned transaction | [5. Compose with a Host transaction](#5-compose-with-a-host-transaction) | [`02-host-transaction.php`](../../examples/02-host-transaction.php) |
 
 Options, Option Values, Content, Image Roles and Assignments, status changes, soft delete, and restore are not implemented yet and have no walkthrough.
 
@@ -61,14 +62,27 @@ $created = $products->create(new CreateProductCommand('SIMPLE-1'));
 $product = $products->getByIdForManagement($created->productId);
 ```
 
-## 3. Handle failures
+## 3. Read Variants
+
+- **Input:** a Product or Variant identity.
+- **Public call:** `VariantServiceInterface` from `ProductFactory::createVariantService($pdo, $clock)`: `getById()` and `listByProductId()` for consumers, `getByIdForManagement()` and `listByProductIdForManagement()` for management.
+- **Result:** a `VariantDTO` (`id`, `productId`, `sku`, `barcode`, `status`, `displayOrder`, `composition`, timestamps) or a `VariantCollectionDTO`, ordered by `display_order` then `id`, at most 100.
+- **Boundary:** consumer reads return only visible Variants: the Product and the Variant are active and not deleted and the composition is valid (every selected Option and Value active, not deleted, and labelled, covering exactly the Product's active Options). A single get of a missing or not-visible Variant raises `VariantNotFoundException`; a list never fails for a missing Product and returns an empty collection. Management reads ignore visibility and filter by status (`null` means any) and `ProductDeletedStateEnum`.
+
+```php
+$variants = ProductFactory::createVariantService($pdo, $clock);
+$managed = $variants->getByIdForManagement($created->variantId);
+$visible = $variants->listByProductId($created->productId); // empty until the Product is active
+```
+
+## 4. Handle failures
 
 - **Input:** any call.
 - **Public call:** catch the named exceptions you care about; all package-defined failures implement `Maatify\Product\Exception\ProductExceptionInterface`.
-- **Result:** `ProductCodeAlreadyExistsException` for a duplicate code (compared case-insensitively across all history, including soft-deleted Products); `ProductNotFoundException` for a missing or not-visible Product; `ProductInvalidArgumentException` for invalid input; `ProductPersistenceException` when storage returns data the schema contract does not allow.
+- **Result:** `ProductCodeAlreadyExistsException` for a duplicate code (compared case-insensitively across all history, including soft-deleted Products); `ProductNotFoundException` for a missing or not-visible Product; `VariantNotFoundException` for a missing or not-visible Variant; `ProductInvalidArgumentException` for invalid input; `ProductPersistenceException` when storage returns data the schema contract does not allow.
 - **Boundary:** every other `PDOException` or `Throwable` propagates unchanged. See the Package Reference, *Failure contract*.
 
-## 4. Compose with a Host transaction
+## 5. Compose with a Host transaction
 
 - **Input:** a transaction you opened on the same PDO connection you gave the factory.
 - **Public call:** `create()` inside it.
@@ -87,7 +101,7 @@ $pdo->commit(); // commits Product 'A' and its Variant only
 
 ## Running the examples
 
-Both examples need a MySQL database with `schema/product.sql` installed and these environment variables: `PRODUCT_EXAMPLE_DSN`, `PRODUCT_EXAMPLE_USER`, `PRODUCT_EXAMPLE_PASSWORD`, and optionally `PRODUCT_EXAMPLE_AUTOLOAD` (the Composer autoloader of your project). The repository smoke-executes them against its own MySQL service in `composer verify:consumer`.
+All examples need a MySQL database with `schema/product.sql` installed and these environment variables: `PRODUCT_EXAMPLE_DSN`, `PRODUCT_EXAMPLE_USER`, `PRODUCT_EXAMPLE_PASSWORD`, and optionally `PRODUCT_EXAMPLE_AUTOLOAD` (the Composer autoloader of your project). The repository smoke-executes them against its own MySQL service in `composer verify:consumer`.
 
 ## Where to go next
 

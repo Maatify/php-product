@@ -24,19 +24,22 @@ The capability list is the one enumerated by the Owner-approved architecture (§
 
 ## Implemented Public API
 
-This is the current public runtime inventory, as implemented by the first Work Unit (Product creation with its simple Variant). It is not a released contract. Everything under `Maatify\Product\` that is not listed here is internal.
+This is the current public runtime inventory: Product creation with its simple Variant, the Product reads, and the Variant reads. It is not a released contract. Everything under `Maatify\Product\` that is not listed here is internal.
 
 Requirements: PHP `^8.4`, `ext-pdo`, `ext-pdo_mysql`, `ext-mbstring`, MySQL `8.0.16+` with `schema/product.sql` installed, `maatify/exceptions`, `maatify/persistence` `^1.4` (Ordering and Savepoint Transaction APIs), and `maatify/shared-common` (`ClockInterface`).
 
 | Type | Role |
 |---|---|
-| `Factory\ProductFactory::createProductService(PDO, ClockInterface): ProductServiceInterface` | The only construction entry point. It rejects a PDO that is not in `ERRMODE_EXCEPTION`. |
+| `Factory\ProductFactory` | The only construction entry point: `createProductService(PDO, ClockInterface): ProductServiceInterface` and `createVariantService(PDO, ClockInterface): VariantServiceInterface`. Both reject a PDO that is not in `ERRMODE_EXCEPTION`. |
 | `Product\Service\ProductServiceInterface` | `create(CreateProductCommand): CreatedProductDTO`, `getById(int $productId): ProductDTO` (consumer-visible), and `getByIdForManagement(int $productId, ProductDeletedStateEnum = NON_DELETED): ProductDTO`. |
 | `Product\Command\CreateProductCommand` | Validated input: `code` only. |
 | `Common\Enum\ProductDeletedStateEnum` | Soft-deletion visibility for management reads. |
 | `Product\DTO\CreatedProductDTO`, `Product\DTO\ProductDTO` | Typed results; both are `JsonSerializable`. |
-| `Product\Enum\ProductStatusEnum` | `active`, `inactive`. |
-| `Product\Exception\ProductCodeAlreadyExistsException`, `Product\Exception\ProductNotFoundException` | Named failures. |
+| `Product\Enum\ProductStatusEnum`, `Variant\Enum\VariantStatusEnum` | `active`, `inactive`. |
+| `Variant\Service\VariantServiceInterface` | `getById(int $variantId): VariantDTO` (consumer-visible), `getByIdForManagement(int $variantId, ProductDeletedStateEnum = NON_DELETED): VariantDTO`, `listByProductId(int $productId, VariantVisibleListCriteriaDTO): VariantCollectionDTO` (consumer), and `listByProductIdForManagement(int $productId, VariantListCriteriaDTO): VariantCollectionDTO`. |
+| `Variant\DTO\VariantDTO`, `Variant\DTO\VariantCompositionPairDTO`, `Variant\DTO\VariantCollectionDTO` | Typed results; all are `JsonSerializable`. |
+| `Variant\DTO\VariantListCriteriaDTO`, `Variant\DTO\VariantVisibleListCriteriaDTO` | Bounded read criteria. |
+| `Product\Exception\ProductCodeAlreadyExistsException`, `Product\Exception\ProductNotFoundException`, `Variant\Exception\VariantNotFoundException` | Named failures. |
 | `Common\Exception\ProductInvalidArgumentException` | Input contract violations. |
 | `Common\Exception\ProductPersistenceException` | Storage returned data that does not match the schema contract (see Failure contract). Consumers depend on the class and the `ProductExceptionInterface` marker only. The class exposes no named constructors: the package raises it through an internal factory, which is not part of this inventory. |
 | `Exception\ProductExceptionInterface` | Marker implemented by every package-defined exception. |
@@ -48,14 +51,16 @@ Consumer walkthroughs are in the [Usage Guide](docs/guides/USAGE_GUIDE.md) and r
 - **Create.** `create()` writes an **inactive** Product and its single **active** empty-composition Variant in one local transaction; both rows exist or neither does. The Variant fingerprint is the SHA-256 of `v1`, its `display_order` is allocated through the shared `maatify/persistence` Ordering API under the Product row lock, and it has no SKU or barcode. The result carries both identities. The operation is not idempotent. It performs no Pricing, Inventory, or other cross-domain work.
 - **Code.** `CreateProductCommand::$code` must be valid UTF-8, at most 100 characters, and not empty or whitespace only (any Unicode whitespace). It is stored exactly as supplied, never trimmed. Uniqueness uses the database collation `utf8mb4_unicode_ci`, so `P-1` and `p-1` conflict, and a soft-deleted Product keeps its code reserved.
 - **Read.** `getById()` is the consumer read: it returns only an active, non-deleted Product, and any other identity raises `ProductNotFoundException`. `getByIdForManagement()` ignores status and filters only by soft-deletion state (`NON_DELETED` by default, `INCLUDE_DELETED`, `DELETED_ONLY`), matching `php-category`'s read pair. `ProductDTO` timestamps are `DateTimeImmutable` values hydrated in the Host Clock timezone, with no normalization, and serialize as `DATE_ATOM`; `ProductDTO` rejects a non-positive `id`.
+- **Variant reads.** `getById()` and `listByProductId()` return only consumer-visible Variants: the Variant and its Product are active and not deleted, every selected Option and Option Value is active, not deleted, and has a non-deleted label, and the composition covers exactly the Product's active Options (none missing, none extra). `getByIdForManagement()` and `listByProductIdForManagement()` ignore visibility and filter by status (`null` means any) and soft-deletion state. A missing or not-visible identity raises `VariantNotFoundException`; a list read never fails for a missing Product and returns an empty collection. Lists are ordered by `display_order, id` and bounded to at most 100 (`maxResults` 1 to 100). `VariantDTO` carries `id`, `productId`, `sku`, `barcode`, `status`, `displayOrder`, `composition` (the Option and Option Value pairs ordered by numeric Option identity, empty for a simple Product's Variant), and the three timestamps; the composition fingerprint is internal and never exposed. Every identity argument must be a positive integer, otherwise `ProductInvalidArgumentException`.
+- **Identity stability.** `id`, `code`, and the other identity columns never change through the package: no write path updates them, and the schema defines no triggers. Stability is enforced by the application contract (architecture 4.1), and `tests/Unit/IdentityStabilityTest.php` fails if a package SQL statement sets an identity column or a service method replaces an identity.
 - **Transactions.** The package never commits or rolls back a transaction it did not start. When the Host already has an active transaction on the same PDO connection, `create()` runs inside an operation-local savepoint in it (`PdoSavepointTransactionRunner`, `maatify/persistence` `^1.4`), so the Host still decides commit or rollback of its own transaction. Atomic composition requires every participant to use that one connection.
 - **Failure contract.** A duplicate code (MySQL driver error 1062) becomes `ProductCodeAlreadyExistsException`, with the original `PDOException` as `previous`. A storage value the package cannot interpret raises the public, package-owned `ProductPersistenceException` (a `maatify/exceptions` `SystemMaatifyException` that implements `ProductExceptionInterface`): an unknown `status`, an unparseable timestamp, a column returned with an unexpected PHP type, or an `AUTO_INCREMENT` that did not yield a positive identity. It reports a broken storage contract, not a caller error, so it is not retryable by the caller, and it carries no Product data. During `create()` it is raised inside the operation's transaction or savepoint, so the failed operation is rolled back like any other failure. **Every other `PDOException` and `Throwable` propagates unchanged**; nothing is swallowed or blanket-wrapped. When the package started the transaction, it is rolled back before the exception propagates. When the Host already had a transaction on the connection, the failed operation is rolled back to its savepoint before the exception propagates: none of its writes remain in the Host transaction, so a Host that catches the exception and still commits cannot persist a Product without its Variant. The Host transaction stays active, neither committed nor rolled back by the package, and the Host's other work in it is unaffected.
-- **Timestamps.** `created_at`, `updated_at`, and `deleted_at` are taken from the Host-injected `ClockInterface` and stored and returned as the `Y-m-d H:i:s` string of that instant. The package performs no timezone normalization and makes no UTC claim.
+- **Timestamps.** `created_at`, `updated_at`, and `deleted_at` are taken from the Host-injected `ClockInterface` and stored as the `Y-m-d H:i:s` string of that instant. Reads return `DateTimeImmutable` values hydrated in the Host Clock's timezone. The package performs no timezone normalization and makes no UTC claim.
 - **Concurrency.** Product creation serializes on the database unique key for the code and on the Product row lock for the Variant. Concurrent creates of one code yield exactly one Product; concurrent creates of different codes each yield exactly one Variant. This is proven against real MySQL by `tests/Integration/Runtime/ConcurrentCreationTest.php`.
 
 ### Not yet implemented
 
-Content, Options, Option Values, non-empty Variant composition and reconfiguration, status mutations, soft delete and restore, Image Roles and Assignments, SKU and barcode mutation, Variant composition resolution, consumer-visibility reads, and pagination. They follow the architecture contract in later Work Units; their approved contract is inventoried in [Approved Contract Inventory](#approved-contract-inventory).
+Content, Options, Option Values, non-empty Variant composition and reconfiguration, status mutations, soft delete and restore, Image Roles and Assignments, SKU and barcode mutation, Variant composition resolution, the consumer reads of the families that are not implemented, and pagination. They follow the architecture contract in later Work Units; their approved contract is inventoried in [Approved Contract Inventory](#approved-contract-inventory).
 
 ## Approved Contract Inventory
 
@@ -168,7 +173,7 @@ The package exposes the marker interface `Maatify\Product\Exception\ProductExcep
 | Class | Family | Meaning |
 |---|---|---|
 | `FC-VAL` | Validation | **Implemented as `ProductInvalidArgumentException`.** An input violates the contract at construction. Examples: empty or whitespace-only code, overlength value, malformed language code or `media_asset_id`, non-positive position, unknown status, duplicate Option in a selection. |
-| `FC-NF` | NotFound | **Implemented as `ProductNotFoundException`.** The target identity does not exist, or is not visible to the read that asked. Whether an invisible or soft-deleted record reads as not found is part of `GAP-07`. |
+| `FC-NF` | NotFound | **Implemented as `ProductNotFoundException`.** The target identity does not exist, or is not visible to the read that asked. An invisible or soft-deleted record reads as not found for a single get; a list returns an empty collection (see 3.9). |
 | `FC-CONF` | Conflict | **Implemented for the Product code as `ProductCodeAlreadyExistsException`.** An identity is already taken. This covers duplicate code, role key, SKU, barcode, content identity, and Image Assignment identity. It also covers a composition that already exists in history (the conflict must identify the existing Variant, A§5.3). |
 | `FC-INV` | BusinessRule | The operation would leave an invalid configuration, or a precondition fails. See [§2](#2-structural-invariants). |
 | `FC-INT` | System | **Implemented as `ProductPersistenceException` for storage data that breaks the schema contract.** Persisted state is inconsistent. Examples: a composition digest matches but the pairs differ (A§5.3), or the expected original empty-composition Variant is missing or invalid during a configurable-to-simple transition (A§4.5). |
@@ -181,7 +186,7 @@ Infrastructure failures: an unclassified `PDOException` or other `Throwable` pro
 |---|---|---|
 | Status | Enum (`active`, `inactive`) | A§6.1 |
 | Management deleted-state filter | `ProductDeletedStateEnum` (`NON_DELETED` by default, `INCLUDE_DELETED`, `DELETED_ONLY`). **Implemented**, same values as `php-category`. | A§12 |
-| Management status filter | Enum or equivalent. Value domain and default are undefined (`GAP-03`). | A§12 |
+| Management status filter | The family's status enum, nullable: `null` means any status. **Settled** (implemented for Variants). | A§12 |
 | Content language selector | Criteria selector (three states) | A§12 |
 | Image dimension selector | Criteria selector | `GAP-19` |
 | Option/Value selection pair | Value object (`option_id`, `option_value_id`, both positive) | A§5.5 |
@@ -253,8 +258,8 @@ Rules and edge cases:
 | `VAR-03` | Command | Soft-delete a Variant. Rejected for the last valid active Variant. | variant id | none | `FC-NF`, `FC-INV` |
 | `VAR-04` | Command | Restore a Variant. Saved status is preserved. Invariants and fingerprint uniqueness are revalidated. | variant id | none | `FC-NF`, `FC-INV` |
 | `VAR-05` | Command | Move a Variant within its Product's ordering scope. | variant id, positive position | none | `FC-NF`, `FC-VAL` |
-| `VAR-R1` | Management read | Get a Variant. List Variants of a Product with status and deleted-state filters, ordered `display_order, id`. | criteria | DTO, or list/page of DTOs | `FC-NF` |
-| `VAR-R2` | Consumer read | List the Variants of a Product that are consumer-visible (see below). | product id | list of DTOs, at most 100 | `FC-NF` (`GAP-07`) |
+| `VAR-R1` | Management read | **Implemented.** `getByIdForManagement(int $variantId, ProductDeletedStateEnum = NON_DELETED)` returns one Variant whatever its status. `listByProductIdForManagement(int $productId, VariantListCriteriaDTO)` lists the Variants of a Product filtered by status (`null` means any) and deleted state, ordered `display_order, id`, at most 100. | variant id, or product id and criteria | `VariantDTO`, or `VariantCollectionDTO` | `FC-NF` for a single get |
+| `VAR-R2` | Consumer read | **Implemented.** `getById(int $variantId)` and `listByProductId(int $productId, VariantVisibleListCriteriaDTO)` return only consumer-visible Variants (see below), at most 100, ordered `display_order, id`. | variant id, or product id and criteria | `VariantDTO`, or `VariantCollectionDTO` | `FC-NF` for a single get; a list of a missing or not-visible Product is empty |
 | `VAR-R3` | Consumer read | Resolve a composition to one Variant. See `RES-01` in [§3.8](#38-cross-family-contracts). | | | |
 
 Rules and edge cases:
@@ -266,7 +271,7 @@ Rules and edge cases:
 - **SKU/barcode edge cases.** Each is `NULL` or a non-empty string, and an empty string is not stored. A soft-deleted Variant still reserves its values. Replacing or clearing releases the old value. Case-only differences collide. The Command must distinguish "leave unchanged", "set", and "clear to NULL" for each of the two fields (`GAP-14`).
 - **Consumer visibility of a Variant:** the Product is active and not deleted. The Variant is active, not deleted, and structurally valid. Every Option Value in its composition is active, not deleted, belongs to the selected Option and to the Product, and the composition covers exactly the Product's active Options. A simple Product's single empty-composition Variant is valid because it has no active Options. Every active Value must be represented by at least one visible Variant (A§12, A§6.2).
 - Management reads can include inactive and soft-deleted Variants. Consumer reads cannot request deleted records.
-- The contents of the consumer Variant DTO (for example whether the composition pairs are exposed) are not specified (`GAP-06`).
+- **`VariantDTO` fields (settled).** `id`, `productId`, `sku`, `barcode`, `status`, `displayOrder`, `composition` (the `(optionId, optionValueId)` pairs ordered by numeric `optionId`, empty for a simple Product's Variant), `createdAt`, `updatedAt`, `deletedAt`. The composition is exposed because the Host needs it to map shopper choices to a Variant; the fingerprint is internal and is not exposed (A§5.3). The consumer and management reads return the same DTO.
 
 #### 3.3 Option
 
@@ -278,7 +283,7 @@ Rules and edge cases:
 | `OPT-04` | Command | Restore an Option. Saved status is preserved and invariants are revalidated. | option id | none | `FC-NF`, `FC-INV` |
 | `OPT-05` | Command | Move an Option within its Product's ordering scope. | option id, positive position | none | `FC-NF`, `FC-VAL` |
 | `OPT-R1` | Management read | Get an Option. List Options of a Product with status and deleted-state filters, ordered `display_order, id`. | criteria | DTO, or list/page | `FC-NF` |
-| `OPT-R2` | Consumer read | Selectable Options of an active, visible Product. Not enumerated by the sources. | | | `GAP-06` |
+| `OPT-R2` | Consumer read | Selectable Options of an active, visible Product (see 3.9). | product id, bounded criteria | collection of Option DTOs | empty collection |
 
 Rules and edge cases:
 
@@ -297,7 +302,7 @@ Rules and edge cases:
 | `OVL-04` | Command | Restore a Value. | value id | none | `FC-NF`, `FC-INV` |
 | `OVL-05` | Command | Move a Value within its Option's ordering scope. | value id, positive position | none | `FC-NF`, `FC-VAL` |
 | `OVL-R1` | Management read | Get a Value. List Values of an Option with status and deleted-state filters, ordered `display_order, id`. | criteria | DTO, or list/page | `FC-NF` |
-| `OVL-R2` | Consumer read | Selectable Values of a visible Option. Not enumerated by the sources. | | | `GAP-06` |
+| `OVL-R2` | Consumer read | Selectable Values of a visible Option (see 3.9). | option id, bounded criteria | collection of Option Value DTOs | empty collection |
 
 Rules and edge cases:
 
@@ -317,7 +322,7 @@ The three Content tables share one contract. The owner is a Product, an Option, 
 | `CNT-03` | Command | Soft-delete a Content record. | content id | none | `FC-NF`, `FC-INV` |
 | `CNT-04` | Command | Restore a Content record. This is the only way to bring back a soft-deleted identity. | content id | none | `FC-NF`, `FC-INV` |
 | `CNT-R1` | Management read | List Content of an owner with one of three selectors: exact language, unlocalized only, all languages. | owner id, selector | list of DTOs | |
-| `CNT-R2` | Consumer read | Exact-language read, or exact unlocalized read. The all-languages selector is not available to consumers (A§12). | owner id, exact-language or unlocalized selector | DTO, or absence (`GAP-07`) | |
+| `CNT-R2` | Consumer read | Exact-language read, or exact unlocalized read. The all-languages selector is not available to consumers (A§12). | owner id, exact-language or unlocalized selector | collection of zero or one DTO | empty collection |
 
 Rules and edge cases:
 
@@ -346,17 +351,18 @@ Rules and edge cases:
 - A Role has no mutable business field besides `status`. The Host defines what a role means. There is no `hero` or `gallery` meaning in the package **(A§9.2; no update command, derived, `GAP-17`)**.
 - A new role-scoped assignment needs an active, non-deleted Role. Existing assignments are not changed when the Role becomes inactive or deleted. They disappear from consumer reads and stay in management reads (A§9.2).
 - `role_id = NULL` on an assignment is the exact generic/unclassified scope, not a "no role requested" fallback.
-- No consumer read of the Role registry is enumerated. Consumers read assignments, not roles (`GAP-06`).
+- No consumer read of the Role registry is enumerated. Consumers read assignments, not roles (see 3.9).
 
 #### 3.7 Image Assignments
 
 | ID | Kind | Contract | Input | Output | Fails |
 |---|---|---|---|---|---|
 | `IAS-01` | Command | Create an assignment of one external Media Asset to a Product (target `variant_id = NULL`) or to one Variant of that Product, within an exact `(role, language, platform)` scope. | product id, optional variant id, `media_asset_id`, optional role id, `language_code`, `platform` | typed result with the new id | `FC-NF`, `FC-VAL`, `FC-CONF`, `FC-INV` |
-| `IAS-02` | Command | Set the default assignment of an exact scope. Atomically clears the previous default and sets the requested one. | assignment id | none | `FC-NF`, `FC-INV` |
-| `IAS-03` | Command | Soft-delete an assignment. If it was the default, the default marker is cleared and no other row is promoted. | assignment id | none | `FC-NF` |
-| `IAS-04` | Command | Restore an assignment. It is always restored as non-default. | assignment id | none | `FC-NF`, `FC-INV` |
-| `IAS-05` | Command | Move an assignment within its exact ordering scope. | assignment id, positive position | none | `FC-NF`, `FC-VAL` |
+| `IAS-02` | Command | Set the default assignment of an exact scope: atomically clears the previous default of that scope and sets the requested one in one transaction, serialized on the target scope, with the database unique key as the final guard. Applies to a non-deleted assignment whatever the status of its Role or target; consumer reads hide it while the Role or target is inactive. | assignment id | none | `FC-NF`, `FC-INV` |
+| `IAS-03` | Command | Clear the default of an exact scope: clears the marker of the given assignment, promotes no other row, and is a no-op for a non-default row. Adopted from `php-category` (`clearDefault`) as an independent, explicit operation. | assignment id | none | `FC-NF` |
+| `IAS-04` | Command | Soft-delete an assignment. If it was the default, the default marker is cleared and no other row is promoted. | assignment id | none | `FC-NF` |
+| `IAS-05` | Command | Restore an assignment. It is always restored as non-default. | assignment id | none | `FC-NF`, `FC-INV` |
+| `IAS-06` | Command | Move an assignment within its exact ordering scope. | assignment id, positive position | none | `FC-NF`, `FC-VAL` |
 | `IAS-R1` | Management read | List assignments of a target, with deleted-state filter, ordered `display_order, id`. | criteria | list/page of DTOs | |
 | `IAS-R2` | Consumer read | Exact-scope read: target (Product or Variant) plus `role_id`, `language_code`, `platform`, each matched exactly. | exact scope | list of DTOs, at most 100 | |
 
@@ -369,7 +375,8 @@ Rules and edge cases:
 - **Consumer visibility.** The Product is active and not deleted. For a Variant target, the Variant is active and not deleted. If `role_id` is non-`NULL`, the Role is active and not deleted. The assignment is not deleted. An inactive or deleted ancestor hides the assignment without changing it (A§9.3, A§12).
 - **No inheritance.** A Product-level read does not return Variant-level assignments, and a Variant-level read does not return Product-level assignments (A§9.4).
 - **No media check.** The package never uploads, resolves, transforms, or verifies the Media Asset (A§9.4, DEC-005).
-- Whether a create can set `is_default`, whether a standalone clear-default operation exists (`php-category` provides `clearDefault`; adoption awaits Lead confirmation), whether `IAS-02` is allowed under an inactive Role or inactive target, and the management criteria are open (`GAP-12`, `GAP-18`, `GAP-19`).
+- **Default operations (settled).** `IAS-02` and `IAS-03` apply to a non-deleted assignment whatever the status of its Role or target (the sources restrict only the creation of a role-scoped assignment to an active Role, A§9.2), and an inactive Role or target only hides the assignment from consumer reads. A soft-deleted assignment cannot be made default (the database rejects it). Set and clear are independent explicit operations, as in `php-category`; creation never selects a default and `display_order` changes never alter it.
+- Whether a create can set `is_default`, whether the default operations are allowed when the target Product or Variant is soft-deleted (the parent-state family of `GAP-10`), and the management criteria are open (`GAP-12`, `GAP-18`, `GAP-19`).
 
 #### 3.8 Cross-family contracts
 
@@ -381,7 +388,7 @@ Resolves a shopper's option choices to one concrete `variant_id`. The Host owns 
 |---|---|
 | Input | `product_id` and a typed collection of selection pairs `(option_id, option_value_id)`. No associative array is accepted. An empty collection is valid input. |
 | Order | Order-independent. Pairs are canonicalized by numeric `option_id` (A§5.3). |
-| Output | The single matching active, non-deleted Variant identity (shape: `GAP-06`). |
+| Output | The single matching active, non-deleted Variant identity (`VariantDTO`, see 3.9). |
 | Rejects (`FC-VAL` or `FC-INV`, exact split `GAP-08`) | A repeated Option. An Option or Value from another Product. A Value paired with the wrong Option. An inactive or soft-deleted Option or Value. |
 | Coverage | For a configurable Product, exactly one active Value for every active Option, with none missing and none extra. |
 | Simple Product | An empty selection returns the single active empty-composition Variant, provided the Product and Variant are visible to consumers. A non-empty selection names Options that are not active, so it is rejected **(derived from A§5.5 items 3 and 4)**. |
@@ -416,8 +423,36 @@ Transitions it must support:
 Boundaries:
 
 - It never calls Pricing, Inventory, or Supplier, and never copies or transfers their records. New Variants inherit nothing (A§5.4, A§14). The Host/Catalog coordinator reconciles external mappings before it reactivates a historical Variant (A§4.5).
-- Its result must let the Host see the deterministic old and new Variant identities (A§14). The exact shape is open.
-- The command model (declarative target state or deltas), what happens to a currently active Variant that is omitted, whether Options/Values are only activated or can also be created inside it, and whether it may also soft-delete or restore Options and Values are not specified (`GAP-15`).
+- Its result must let the Host see the deterministic old and new Variant identities (A§14): a typed result listing the Variant identities it created, deactivated, and reactivated, and the Option and Option Value identities whose status it changed. The exact type is chosen when the operation is implemented.
+
+**Reconfiguration model (derived from the architecture; each answer cites its source, and the points marked open need a Lead decision before implementation, `GAP-15`):**
+
+| Question | Answer | Basis |
+|---|---|---|
+| Target state or deltas | **Declarative target state.** The input is the intended active Option and Value set plus the proposed Variant compositions; validation is against that whole set. | A§5.4 items 1 to 3 validate "the intended new active set" and "every proposed composition" |
+| An active Variant omitted from the proposed set | It is **deactivated, never deleted**; its identity and history stay. | A§5.4 item 4 ("deactivates replaced Variants without deleting historical identities") |
+| Creating Options and Values inside the operation | **Not allowed.** They are created inactive through their own commands so codes and labels can be prepared; the operation only activates or deactivates prepared ones. | A§5.4 first bullet, A§6.1 |
+| Soft delete and restore inside the operation | **No soft delete.** Options and Values are retained as history and deactivated. The only restore is the explicit restore of the Product's original empty-composition Variant (and of a named historical Variant). | A§4.5, A§6.5 |
+| State of replacement Variants | Non-empty Variants are created **active** as members of the validated set; a historical Variant becomes active again only when named explicitly and revalidated. | A§4.5, A§5.3, A§6.3 |
+| Transaction and locking | One local transaction through the savepoint runner; the Product row is locked first, before any read of the current configuration; all invariants (`INV-01` to `INV-10`) are validated before commit and any failure rejects the whole operation. | A§6.5, A§11.6, A§14 |
+| Open | The exact input and result type shapes, and the lock order after the Product row across Options, Values, and Variants. | A§11.6 asks for a stable order without fixing it |
+
+#### 3.9 Consumer read contracts
+
+The consumer reads the architecture requires (A§12, A§13), with their input, result, and absence semantics. A single get raises a typed not-found exception, a list returns an empty collection, and every list is bounded to at most 100 records. The exact PHP names of the unimplemented types follow the suffix rules of Package Building §4 and the `php-category` convention.
+
+| Read | Input | Result | Absent or not visible | Visibility rule | State |
+|---|---|---|---|---|---|
+| Product (`PRD-R2`) | product id | `ProductDTO` | `ProductNotFoundException` | Product active and not deleted | Implemented |
+| Variant (`VAR-R2`) | variant id | `VariantDTO` | `VariantNotFoundException` | Product, Variant, Options, Values valid and active (see Variant rules) | Implemented |
+| Variant list (`VAR-R2`) | product id, bounded criteria | `VariantCollectionDTO` | empty collection | as above | Implemented |
+| Composition resolution (`RES-01`) | product id and a typed collection of `(optionId, optionValueId)` selections, never an array | `VariantDTO` of the single matching visible Variant | `VariantNotFoundException` when a structurally valid composition matches no visible Variant; the split between validation and business-rule failures for a structurally invalid selection is open (`GAP-08`) | as `VAR-R2`; an empty selection resolves a simple Product's Variant | Specified |
+| Selectable Options (`OPT-R2`) | product id, bounded criteria | collection of Option DTOs (`id`, `productId`, `code`, `displayOrder`; the label comes from the exact Content read) | empty collection | Product visible; Option active, not deleted, labelled | Specified |
+| Selectable Option Values (`OVL-R2`) | option id, bounded criteria | collection of Option Value DTOs (`id`, `optionId`, `code`, `displayOrder`) | empty collection | Option visible; Value active, not deleted, labelled, and represented by at least one visible Variant (A§12) | Specified |
+| Exact Content (`CNT-R2`) | owner id and one of two selectors: exact language, or unlocalized only (never all languages) | collection of zero or one Content DTO | empty collection; never falls back to another language or to the unlocalized record | owner chain visible; record not deleted | Specified |
+| Exact-scope Image Assignments (`IAS-R2`) | target (Product or Variant) plus `role_id`, `language_code`, `platform`, each matched exactly | collection of Image Assignment DTOs, `display_order, id` | empty collection | Product, target Variant, and Role (when set) active and not deleted; assignment not deleted | Specified |
+
+The Variant DTO is settled (see the Variant rules); the field lists of the other DTOs are the persisted business columns of their table plus the timestamps, without internal keys. These specifications are derived from A§12 and A§13 and the `php-category` read pairs; implementing a row needs no further contract decision except where a gap names one.
 
 ### 4. Management and Consumer Behavior
 
@@ -452,27 +487,24 @@ Typical flows:
 
 ### 6. Open Contract Gaps
 
-Each gap is open until a decision or evidence closes it, and the closing change updates this file in place; a closed gap is removed (the source topology, the timestamp representation, and infrastructure-exception propagation are closed and appear above as settled contracts). "Needs" names the kind of resolution. It is advisory, and authority follows `std-ai-collaboration-workflow` §3.2.1: a public-contract choice belongs to the Lead and, where it changes the approved contract, the Owner. An implementer must not guess on any of these.
+Each gap is open until a decision or evidence closes it, and the closing change updates this file in place; a closed gap is removed (the source topology, the timestamp representation, infrastructure-exception propagation, the status filter, absence semantics, and the consumer read surface are closed and appear above as settled contracts). "Needs" names the kind of resolution. It is advisory, and authority follows `std-ai-collaboration-workflow` §3.2.1: a public-contract choice belongs to the Lead and, where it changes the approved contract, the Owner. An implementer must not guess on any of these.
 
 | ID | Gap | Sources and what is missing | Impact | Needs |
 |---|---|---|---|---|
 | `GAP-02` | Exact PHP type names for the unimplemented capabilities. The root namespace `Maatify\Product\` is fixed by Package Building §4 and the production autoload in `composer.json`; the implemented types are listed in the Public API table. | Illustrative names only (the illustrative-names table above). | Each new contract signature. | Technical decision when each type is written |
-| `GAP-03` | Management status filter. The status filter's value domain and default are undefined. The deleted-state filter is settled (`ProductDeletedStateEnum`). | A§12 says "explicit status and deleted-state filters" only. | Every management list. | Contract decision |
 | `GAP-04` | Management search semantics. Searchable fields, matching mode, escaping, sort whitelist, count alignment. Lookup by business key (Product code, SKU, barcode, role key, Option/Value code) is unspecified. | Package Building §11 makes these package-owned. A§12 names "search" without defining it. | Management list/search contracts. | Contract decision |
 | `GAP-05` | List bounding and pagination. Which lists are paginated. Behavior when an unpaginated list would exceed 100 (truncate or reject). Page-size limit versus the shared default of 200. Default order for lists with no `display_order` (Product, Role, Content). | A§12, DEC-006, persistence reference. | Every list. | Contract decision |
-| `GAP-06` | The consumer read surface is partly enumerated. Required by the architecture: Variant listing, composition resolution, exact Content reads, exact-scope image-assignment reads, and selectable Option and Option Value data for the Host's selectors (A§4.4, A§6.2). The Product consumer read is implemented. What is open is the exact capability list for selectable Options and Values and the consumer Variant DTO fields (for example the composition pairs), not whether consumer reads exist. | A§4.4, A§6.2, A§12, Package Building §15 (the Host must not reproduce invariants). | Selectors cannot be built from the approved list alone. | Lead contract decision; Owner only if scope changes |
-| `GAP-07` | Absence semantics for the remaining reads. The Product single reads raise `ProductNotFoundException` (settled). A single get, an exact Content read, and an exact image-assignment read of the other families can return no record: nullable or empty result versus a not-found exception is not fixed. Only the resolution query is allowed either way. | A§12 ("returns no match"), Package Building §10, §13. | Every other single-record read. | Contract decision |
 | `GAP-08` | Resolution failure contract. Typed result or exception is open (A§5.5). The classes `FC-VAL` versus `FC-INV` for each rejection, and the error for a Product that is not visible, are not fixed. | A§5.5(6), A§12. | `RES-01`. | Contract decision |
-| `GAP-09` | Re-adding a soft-deleted identity. Content: "reject, restore explicitly". Image Assignment and the general rule: "restores or reuses its original identity". These can be consistent as different entity-family rules (`php-category` rejects a duplicate Image Assignment identity, including soft-deleted history). Whether Create implicitly restores or fails with a typed conflict is unresolved for Option, Option Value, Role, Content, and Assignment. | A§6.1, A§9.3, A§12, A§17. | Create semantics of five families. | Lead contract decision; Owner only if the sources prove an incompatible rule |
+| `GAP-09` | Re-adding a soft-deleted identity: implicit restore on Create, or a typed conflict with an explicit restore? **The approved text is not uniform.** For implicit or unspecified: A§6.1 last bullet ("re-adding a soft-deleted logical identity restores/reuses that identity; it never inserts a second row") and A§9.3 ("re-adding the same logical assignment restores/reuses its original identity"). For explicit restore: A§6.4 and A§17 for Content ("re-addition requires explicit restoration"; the database and application "reject re-creating" the identity), and A§5.3 for compositions ("must not ... silently reactivate"; a typed conflict identifies the existing Variant). Current behavior: Product `code` creation rejects a soft-deleted code with `ProductCodeAlreadyExistsException` (tested); `php-category` rejects a duplicate Image Assignment and Content identity with a typed conflict and offers an explicit restore. No other family is implemented. The two readings are not equivalent, so no implementation chooses between them. **Question for the Lead (the Owner only if the Lead reads A§6.1/A§9.3 as requiring implicit restore):** may Create of a soft-deleted identity fail with a typed conflict that names the existing identity, with the explicit restore as the only way back, for Option, Option Value, Role, Content, and Image Assignment? That reading satisfies "restores/reuses ... never a second row" through the explicit restore, matches A§6.4, A§17, A§5.3, Category, and the implemented Product `code`, and contradicts no approved sentence. | A§5.3, A§6.1, A§6.4, A§9.3, A§17; `php-category` repositories. | Create semantics of five families. | Lead interpretation; Owner only if implicit restore is intended |
 | `GAP-10` | Mutations under inactive or soft-deleted parents. May Options, Values, Content, or Image Assignments be added under a soft-deleted Product? Is a status change on a soft-deleted row rejected? | A§6.1 ("where allowed"). | Error semantics of every child command. | Contract decision |
 | `GAP-11` | Restore and `display_order`. A restored row's position (original, or next position) and duplicate positions are unspecified. The shared Ordering API ignores soft-deleted rows. | A§9.4, A§11.3, persistence reference. | Restore of Option, Value, Variant, Assignment. | Contract decision |
 | `GAP-12` | Ordering and default scope key for Image Assignments. The shared Ordering API takes one scope column. The approved scope is a composite with `NULL`s, expressed as a generated key. Compatibility with that API, and the lock order against the Product lock, are unproven. | A§9.4, A§11.4, A§11.6, persistence reference (`ScopedOrderingConfig`). | Assignment ordering and primary. | Evidence (MySQL integration) |
 | `GAP-13` | Content fields and value limits. Fields and lengths of Option and Option Value Content, and whether identifier codes other than the Product code follow the Product code rules. The Product code rules are settled. | A§11 table, A§11.2. | Content Commands, other identifier Commands. | Technical decision |
 | `GAP-14` | Command shapes the sources leave open. Product creation takes only `code` (settled). Open: whether reconfiguration-created Variants take SKU/barcode, whether `IAS-01` can set `is_default`, "leave, set, clear" for identifiers, and the behavior of a same-status request. | A§4.5, A§4.2, A§9.4. | Create and update contracts. | Contract decision |
-| `GAP-15` | Reconfiguration model. Declarative target state or deltas. Treatment of active Variants omitted from the set. Whether Options and Values can be created inside it. Whether it may soft-delete or restore Options and Values. Whether replacement Variants may be inactive (A§4.5 and A§6.1 differ in wording). Result shape. | A§4.5, A§5.4, A§6.1, A§14. | `CFG-01`. | Bounded Lead design decision before implementation; Owner only if it changes an approved domain invariant or scope |
+| `GAP-15` | Reconfiguration input and result shapes, and the lock order after the Product row. The model itself (declarative target state, omitted active Variants deactivated, Options and Values not created inside, no soft delete, replacement Variants created active, one savepoint transaction under the Product lock) is derived from the architecture in `CFG-01`. Open: the exact typed input and result, and the stable lock order across Options, Values, and Variants (A§11.6). Needs the Lead to confirm the derived model before `CFG-01` is implemented. | A§4.5, A§5.4, A§6.1, A§6.5, A§11.6, A§14. | `CFG-01`. | Lead confirmation of the derived model; Owner only if the Lead finds it changes an approved invariant or scope |
 | `GAP-16` | Standalone Option and Value status changes. Derived: an Option status change always breaks an invariant outside reconfiguration, and a Value status change is valid only under an inactive Option. Whether these are public commands or only reconfiguration internals is not stated. | A§5.4, A§6.2, A§6.4, A§6.5 (derivation in §3.3, §3.4). | `OPT-02`, `OVL-02`. | Lead confirmation |
 | `GAP-17` | No generic update commands. Derived: Product, Option, Option Value, and Role have no mutable business field. Confirm no `Update*` command is intended. | A§4.1, A§5.2, A§9.2, DEC-006. | Command inventory. | Lead confirmation |
-| `GAP-18` | Default operations not fully enumerated. `php-category` provides set-default and clear-default; adoption by Product awaits Lead confirmation. Is setting a default allowed under an inactive Role, inactive Product, or soft-deleted target? | A§9.4, A§11.4. | `IAS-02`. | Contract decision |
+| `GAP-18` | Default operations. Settled: clear-default is an independent operation; set-default is an atomic replacement; both apply to a non-deleted assignment whatever the status of its Role or target; the soft-deleted-default, no-promotion, and restore-as-non-default rules (see Image Assignments). Open: whether they are allowed when the target Product or Variant is soft-deleted, which is the parent-state question of `GAP-10`. Runtime verification of the default operations (atomic replacement under concurrency, no promotion) awaits the Image Assignment implementation; the schema-level guarantees are verified now. | A§9.4, A§11.4, `php-category`. | `IAS-02`, `IAS-03`. | Resolved with `GAP-10` |
 | `GAP-19` | Image assignment management criteria. Omitted dimension versus `NULL` versus value for role, language, platform. Whether a Role is identified by id or by key. | A§9.3, A§12. | `IAS-R1`, `IAS-R2`. | Contract decision |
 | `GAP-21` | Lock order across Product, Option, Value, Variant, Role, and Assignment rows for the unimplemented multi-table mutations. The transaction runner and Host-transaction behavior are settled (see the Atomicity section). | A§11.6, A§14, Package Building §25, persistence reference. | Every multi-table mutation. | Contract decision with Integration evidence |
 | `GAP-23` | Collation consequences for identity beyond the Product code. Equality under `utf8mb4_unicode_ci` (including accent-insensitive and trailing-space behavior) versus the PHP pre-check, so the PHP layer does not apply a different rule. Proven for the Product code only. | A§4.1, A§5.2, A§9.2. | Other identifier Commands and conflicts. | Evidence (MySQL integration) |

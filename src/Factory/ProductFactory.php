@@ -12,6 +12,9 @@ use Maatify\Product\Product\Repository\Pdo\PdoProductQueryReader;
 use Maatify\Product\Product\Service\ProductService;
 use Maatify\Product\Product\Service\ProductServiceInterface;
 use Maatify\Product\Variant\Repository\Pdo\PdoVariantCommandRepository;
+use Maatify\Product\Variant\Repository\Pdo\PdoVariantQueryReader;
+use Maatify\Product\Variant\Service\VariantService;
+use Maatify\Product\Variant\Service\VariantServiceInterface;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 use PDO;
 
@@ -50,5 +53,22 @@ final class ProductFactory
             new PdoSavepointTransactionRunner($pdo),
             $clock,
         );
+    }
+
+    /**
+     * Builds the Variant read service on the given connection.
+     *
+     * @param PDO $pdo Connection with `PDO::ERRMODE_EXCEPTION`, on a database where `schema/product.sql` is installed.
+     * @param ClockInterface $clock Host Clock whose timezone hydrates the returned timestamps.
+     *
+     * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
+     */
+    public static function createVariantService(PDO $pdo, ClockInterface $clock): VariantServiceInterface
+    {
+        if ($pdo->getAttribute(PDO::ATTR_ERRMODE) !== PDO::ERRMODE_EXCEPTION) {
+            throw ProductInvalidArgumentException::pdoMustThrowExceptions();
+        }
+
+        return new VariantService(new PdoVariantQueryReader($pdo, $clock));
     }
 }

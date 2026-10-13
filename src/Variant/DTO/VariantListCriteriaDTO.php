@@ -1,0 +1,33 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Maatify\Product\Variant\DTO;
+
+use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
+use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Variant\Enum\VariantStatusEnum;
+
+/**
+ * Bounded criteria for the management Variant list.
+ *
+ * A `null` status means any status. The deleted-state filter defaults to non-deleted rows.
+ */
+final readonly class VariantListCriteriaDTO
+{
+    public const int DEFAULT_MAX_RESULTS = 100;
+    public const int MAX_MAX_RESULTS = 100;
+
+    /**
+     * @throws ProductInvalidArgumentException When `maxResults` is outside 1 to 100.
+     */
+    public function __construct(
+        public ?VariantStatusEnum $status = null,
+        public ProductDeletedStateEnum $deletedState = ProductDeletedStateEnum::NON_DELETED,
+        public int $maxResults = self::DEFAULT_MAX_RESULTS,
+    ) {
+        if ($maxResults < 1 || $maxResults > self::MAX_MAX_RESULTS) {
+            throw ProductInvalidArgumentException::invalidListLimit($maxResults, self::MAX_MAX_RESULTS);
+        }
+    }
+}

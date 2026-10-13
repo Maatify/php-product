@@ -28,7 +28,7 @@ random, run-scoped database password.
 | Platform requirements | `composer check-platform-reqs` | each dependency job |
 | PHP syntax | `bash scripts/ci/check-php-syntax.sh` | PHP Syntax Check |
 | Autoload (strict PSR-4) | `composer dump-autoload --optimize --strict-psr` | Static Analysis, Unit, Integration |
-| Static analysis (PHPStan max over `src` and `tests`, no baseline or suppressions) | `composer analyse` | Static Analysis (PHPStan) |
+| Static analysis (PHPStan max over `src`, `tests`, and `examples`, no baseline or suppressions) | `composer analyse` | Static Analysis (PHPStan) |
 | Coding style (PER-CS 3.1, non-mutating) | `composer format:check` | PHP Coding Style (PER 3.1) |
 | Unit suite (no Docker needed) | `composer test:unit` | Unit (PHP 8.4 and 8.5) |
 | Integration suite on real MySQL | `composer test:integration` (`composer test` runs Unit then the same Integration orchestration) | Integration (PHP x MySQL matrix) |
@@ -61,7 +61,11 @@ verification-time dependencies only, never consumer runtime dependencies.
 ## What the suites prove
 
 **Unit** (`tests/Unit`, no infrastructure): command validation including whitespace-only and
-encoding cases, the composition fingerprint vector, and Service orchestration with test doubles.
+encoding cases, the composition fingerprint vector, DTO invariants, Service orchestration with test doubles,
+the `ProductPersistenceException` consumer contract, identity stability (no package SQL statement sets an
+identity column and no service method replaces one), and the Package Reference conformity test, which fails
+when the "Implemented Public API" table and the code disagree (a listed type or method that does not exist,
+an undocumented public method of a service or the factory, or a public type that is neither listed nor internal).
 
 **Integration** (`tests/Integration`, real MySQL, exact MySQL error numbers):
 - `Schema/`: install shape; status casing; code, SKU, barcode, language, platform, and role-key
@@ -70,6 +74,7 @@ encoding cases, the composition fingerprint vector, and Service orchestration wi
   image-assignment target, scope, and default rules.
 - `Runtime/`: the Product creation use case through the public factory: inactive Product plus
   one active empty-composition Variant, case-insensitive and soft-delete-reserved conflicts,
+  Variant reads (consumer visibility evaluated by the database, management filters, ordering and bounds),
   rollback of a failed operation the package started, and, inside a caller-owned transaction, savepoint rollback of a failed
   operation that the Host then commits or rolls back (no Product without its Variant, the Host's other work preserved, the Host
   transaction never committed or rolled back by the package),

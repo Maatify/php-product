@@ -35,6 +35,8 @@ default Product Image Roles, and it never touches tables it does not own. Instal
 it once per deployed set of Product tables: V1 supports one Product identity
 namespace per table set, so there is no `catalog_id`, tenant, or store column.
 
+Identity stability (`id`, `code`, `role_key`, the composition fingerprint, and the identity dimensions of Content and Image Assignments) is deliberately not enforced by triggers: the architecture (4.1) makes it an application contract, and the package has no write path that changes an identity column. `tests/Unit/IdentityStabilityTest.php` and the schema test that asserts no trigger or routine exists keep both facts true.
+
 ## Tables
 
 Creation order follows foreign-key dependency.
