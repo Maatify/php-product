@@ -11,6 +11,8 @@ namespace Maatify\Product\Variant\ValueObject;
  * composition string: `v1` for the empty composition, followed by one
  * `|{option_id}={option_value_id}` segment per pair. Only the empty composition is
  * available in this release.
+ *
+ * @internal Not part of the Public Runtime API.
  */
 final readonly class CompositionFingerprint
 {

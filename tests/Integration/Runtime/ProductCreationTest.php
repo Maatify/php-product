@@ -88,14 +88,25 @@ final class ProductCreationTest extends RuntimeTestCase
         self::assertSame(1, self::rowCount('maa_product_variants'));
     }
 
-    public function testASoftDeletedProductKeepsItsCodeReserved(): void
+    public function testASoftDeletedProductKeepsItsCodeReservedAndIsNeverRestoredByCreate(): void
     {
         $service = $this->productService();
         $created = $service->create(new CreateProductCommand('P-DEL'));
         $this->execute('UPDATE maa_product_products SET deleted_at = :t WHERE id = :i', ['t' => '2026-01-01 00:00:00', 'i' => $created->productId]);
 
-        $this->expectException(ProductCodeAlreadyExistsException::class);
-        $service->create(new CreateProductCommand('P-DEL'));
+        foreach (['P-DEL', 'p-del'] as $code) {
+            try {
+                $service->create(new CreateProductCommand($code));
+                self::fail('Create must conflict with the soft-deleted identity: ' . $code);
+            } catch (ProductCodeAlreadyExistsException $conflict) {
+                self::assertStringContainsString($code, $conflict->getMessage(), 'The conflict identifies the colliding code.');
+                self::assertInstanceOf(\PDOException::class, $conflict->getPrevious());
+            }
+        }
+
+        self::assertSame(1, self::rowCount('maa_product_products'), 'No second row is inserted.');
+        self::assertSame(1, self::rowCount('maa_product_variants'), 'No Variant is created for the rejected attempts.');
+        self::assertSame(1, self::rowCount('maa_product_products', 'deleted_at IS NOT NULL'), 'Create never restores the soft-deleted identity.');
     }
 
     public function testManagementReadReturnsSoftDeletedProductsOnlyWhenAskedToAndHydratesInTheHostTimezone(): void

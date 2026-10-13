@@ -14,6 +14,8 @@ use PDO;
 
 /**
  * PDO read adapter for stored Products. It performs no write and holds no lock.
+ *
+ * @internal Not part of the Public Runtime API.
  */
 final readonly class PdoProductQueryReader implements ProductQueryReaderInterface
 {

@@ -21,6 +21,8 @@ use PDOException;
  * unique key an insert can violate besides the generated primary key. Every other
  * {@see PDOException} propagates unchanged. The connection must report errors as
  * exceptions.
+ *
+ * @internal Not part of the Public Runtime API.
  */
 final readonly class PdoProductCommandRepository implements ProductCommandRepositoryInterface
 {

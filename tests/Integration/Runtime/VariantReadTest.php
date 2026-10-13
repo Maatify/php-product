@@ -154,6 +154,36 @@ final class VariantReadTest extends RuntimeTestCase
         $service->getByIdForManagement($third);
     }
 
+    /**
+     * The architecture (A§6.2) requires every active Value of an active Option to appear in at least
+     * one active valid Variant as a postcondition of every committed mutation. No package write path
+     * can break it, so the state below only exists through direct SQL. Whether a read must also hide
+     * the Product's Variants in that state is not defined (GAP-26), so this test asserts only what
+     * every policy must satisfy: the single get, the consumer list, and the management list agree.
+     */
+    public function testReadsAgreeWhenAnActiveValueIsRepresentedByNoActiveVariant(): void
+    {
+        $product = $this->activeProduct('UNREPRESENTED');
+        $color = $this->option($product, 'color', 'active', 'Color');
+        $red = $this->value($color, 'red', 'active', 'Red');
+        $this->value($color, 'blue', 'active', 'Blue');
+        $redVariant = $this->variant($product, 'red', 1, [[$color, $red]]);
+        $service = $this->variantService();
+
+        $visibleThroughGet = [];
+        foreach ($service->listByProductIdForManagement($product)->items() as $variant) {
+            try {
+                $visibleThroughGet[] = $service->getById($variant->id)->id;
+            } catch (VariantNotFoundException) {
+                continue;
+            }
+        }
+        $visibleThroughList = array_map(static fn(VariantDTO $v): int => $v->id, $service->listByProductId($product)->items());
+
+        self::assertSame($visibleThroughGet, $visibleThroughList, 'The single get and the consumer list must apply the same visibility.');
+        self::assertSame($redVariant, $service->getByIdForManagement($redVariant)->id, 'Management reads never apply visibility.');
+    }
+
     public function testInvalidIdentitiesAndLimitsAreRejected(): void
     {
         $service = $this->variantService();

@@ -11,6 +11,8 @@ use DateTimeImmutable;
  *
  * Implementations never open or commit a transaction; the calling Service owns the
  * transaction boundary and must already hold one.
+ *
+ * @internal Not part of the Public Runtime API.
  */
 interface VariantCommandRepositoryInterface
 {

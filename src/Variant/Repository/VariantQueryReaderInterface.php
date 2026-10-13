@@ -10,6 +10,8 @@ use Maatify\Product\Variant\DTO\VariantVisibleListCriteriaDTO;
 
 /**
  * Read port for stored Variants. It performs no write and holds no lock.
+ *
+ * @internal Not part of the Public Runtime API.
  */
 interface VariantQueryReaderInterface
 {

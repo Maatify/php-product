@@ -13,22 +13,16 @@ use ReflectionMethod;
 use SplFileInfo;
 
 /**
- * Conformity between the Package Reference "Implemented Public API" table and the code:
- * every listed type exists, every method named for a service or factory exists and every
- * public method of those types is named, and every package type is either listed or internal.
+ * Conformity between the Package Reference and the code, with the code as the second source of
+ * truth rather than a second list: a package type is public exactly when the "Implemented Public
+ * API" table lists it, and internal exactly when its own docblock carries `@internal`. So a new
+ * type must be classified in the code, a listed type may not be tagged internal, every method
+ * named for a service or the factory must exist and every public method of those types must be
+ * named, and every capability row the inventory marks **Implemented** must name existing methods.
  */
 final class PublicApiInventoryTest extends TestCase
 {
     private const string ROOT_NAMESPACE = 'Maatify\\Product\\';
-
-    /** Types the Package Reference treats as internal (adapters, ports, implementations, helpers). */
-    private const array INTERNAL_PATTERNS = [
-        '/\\\\Repository\\\\/',
-        '/\\\\Common\\\\Pdo\\\\/',
-        '/\\\\Common\\\\Exception\\\\ProductStorageFailureFactory$/',
-        '/\\\\Service\\\\(ProductService|VariantService)$/',
-        '/\\\\Variant\\\\ValueObject\\\\/',
-    ];
 
     public function testEveryListedTypeExistsAndEveryServiceMethodIsDeclared(): void
     {
@@ -68,7 +62,7 @@ final class PublicApiInventoryTest extends TestCase
         self::assertSame([], $missing);
     }
 
-    public function testEveryPackageTypeIsListedOrInternal(): void
+    public function testEveryPackageTypeIsListedXorTaggedInternal(): void
     {
         $listed = [];
         foreach ($this->rows() as [$classes]) {
@@ -77,24 +71,67 @@ final class PublicApiInventoryTest extends TestCase
             }
         }
 
-        $unlisted = [];
+        $problems = [];
         foreach ($this->packageTypes() as $type) {
-            if (isset($listed[$type])) {
-                continue;
+            $internal = $this->isInternal($type);
+            if (isset($listed[$type]) && $internal) {
+                $problems[] = $type . ' is listed as public but tagged @internal';
             }
-            $internal = false;
-            foreach (self::INTERNAL_PATTERNS as $pattern) {
-                if (preg_match($pattern, $type) === 1) {
-                    $internal = true;
-                    break;
-                }
-            }
-            if (!$internal) {
-                $unlisted[] = $type;
+            if (!isset($listed[$type]) && !$internal) {
+                $problems[] = $type . ' is neither listed in the Package Reference nor tagged @internal';
             }
         }
 
-        self::assertSame([], $unlisted, 'A public type must be listed in the Package Reference or match an internal pattern.');
+        self::assertSame([], $problems);
+    }
+
+    public function testEveryMethodNamedByAnImplementedInventoryRowExists(): void
+    {
+        $reference = (string) file_get_contents(dirname(__DIR__, 2) . '/PRODUCT_PACKAGE_REFERENCE.md');
+        $start = strpos($reference, '## Approved Contract Inventory');
+        $end = strpos($reference, '## Operational Read / Reporting Classification');
+        self::assertIsInt($start);
+        self::assertIsInt($end);
+
+        $methods = [];
+        foreach ($this->rows() as [$classes]) {
+            foreach ($classes as $class) {
+                if (!class_exists($class) && !interface_exists($class)) {
+                    continue;
+                }
+                foreach ((new ReflectionClass($class))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+                    $methods[$method->getName()] = true;
+                }
+            }
+        }
+
+        $missing = [];
+        $checked = 0;
+        foreach (explode("\n", substr($reference, $start, $end - $start)) as $line) {
+            if (!str_starts_with($line, '| `') || !str_contains($line, '**Implemented')) {
+                continue;
+            }
+            preg_match_all('/`([a-z]\w*)\(/', $line, $names);
+            foreach ($names[1] as $name) {
+                ++$checked;
+                if (!isset($methods[$name])) {
+                    $missing[] = $name;
+                }
+            }
+        }
+
+        self::assertGreaterThan(0, $checked, 'The inventory must name implemented methods.');
+        self::assertSame([], $missing);
+    }
+
+    private function isInternal(string $type): bool
+    {
+        if (!class_exists($type) && !interface_exists($type) && !enum_exists($type)) {
+            self::fail('Package type does not autoload: ' . $type);
+        }
+        $doc = (new ReflectionClass($type))->getDocComment();
+
+        return is_string($doc) && str_contains($doc, '@internal');
     }
 
     /**

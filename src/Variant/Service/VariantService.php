@@ -15,6 +15,8 @@ use Maatify\Product\Variant\Repository\VariantQueryReaderInterface;
 
 /**
  * Orchestrates Variant reads. It writes nothing and opens no transaction.
+ *
+ * @internal Not part of the Public Runtime API.
  */
 final readonly class VariantService implements VariantServiceInterface
 {

@@ -21,6 +21,8 @@ use PDO;
  *
  * It performs no write and holds no lock. The consumer-visibility predicate lives in SQL so
  * that a list is bounded and filtered by the database.
+ *
+ * @internal Not part of the Public Runtime API.
  */
 final readonly class PdoVariantQueryReader implements VariantQueryReaderInterface
 {

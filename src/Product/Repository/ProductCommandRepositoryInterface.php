@@ -13,6 +13,8 @@ use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
  *
  * Implementations never open or commit a transaction; the calling Service owns the
  * transaction boundary.
+ *
+ * @internal Not part of the Public Runtime API.
  */
 interface ProductCommandRepositoryInterface
 {

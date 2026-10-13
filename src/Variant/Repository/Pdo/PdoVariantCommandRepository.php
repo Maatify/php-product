@@ -19,6 +19,8 @@ use PDO;
  * Unclassified {@see \PDOException} failures propagate unchanged. The connection
  * must report errors as exceptions and must be the connection of the transaction
  * the caller owns.
+ *
+ * @internal Not part of the Public Runtime API.
  */
 final readonly class PdoVariantCommandRepository implements VariantCommandRepositoryInterface
 {

@@ -29,6 +29,8 @@ use Maatify\SharedCommon\Contracts\ClockInterface;
  * committed or rolled back here, and the Host can still commit its other work without
  * ever persisting a Product that lacks its Variant. Storage exceptions propagate
  * unchanged; the only conversions are the named exceptions raised by the repositories.
+ *
+ * @internal Not part of the Public Runtime API.
  */
 final readonly class ProductService implements ProductServiceInterface
 {

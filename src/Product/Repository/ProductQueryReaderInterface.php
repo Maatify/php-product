@@ -8,6 +8,8 @@ use Maatify\Product\Product\DTO\ProductDTO;
 
 /**
  * Read port for stored Products.
+ *
+ * @internal Not part of the Public Runtime API.
  */
 interface ProductQueryReaderInterface
 {
