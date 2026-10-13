@@ -26,9 +26,11 @@ final class VariantLifecycleTest extends RuntimeTestCase
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $service->restore($created->variantId), 'A live row cannot be restored.');
         self::assertSame(VariantStatusEnum::ACTIVE, $service->getByIdForManagement($created->variantId)->status);
 
-        $updatedAt = self::scalar('SELECT updated_at FROM maa_product_variants WHERE id = :i', ['i' => $created->variantId]);
-        $service->updateStatus($created->variantId, VariantStatusEnum::ACTIVE);
-        self::assertSame($updatedAt, self::scalar('SELECT updated_at FROM maa_product_variants WHERE id = :i', ['i' => $created->variantId]), 'A same-status request changes nothing.');
+        $this->assertNoWrite(
+            'maa_product_variants',
+            fn() => $this->variantService(self::laterClock())->updateStatus($created->variantId, VariantStatusEnum::ACTIVE),
+            'A same-status request writes nothing.',
+        );
     }
 
     public function testAHistoricalVariantIsReactivatedOnlyWhenItsCompositionIsValidToday(): void

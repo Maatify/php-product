@@ -22,7 +22,10 @@ use Maatify\Product\Product\Service\ProductServiceInterface;
 use Maatify\Product\Tests\Integration\DatabaseTestCase;
 use Maatify\Product\Variant\Service\VariantServiceInterface;
 use Maatify\Product\Variant\ValueObject\OptionValueSelection;
+use Maatify\SharedCommon\Contracts\ClockInterface;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
+use DateTimeImmutable;
+use PDO;
 use Throwable;
 
 /**
@@ -35,6 +38,7 @@ use Throwable;
 abstract class RuntimeTestCase extends DatabaseTestCase
 {
     protected const string SEED_TS = '2026-01-01 00:00:00';
+    public const string LATER_TS = '2099-01-01 00:00:00';
 
     private const array TABLES_CHILD_FIRST = [
         'maa_product_image_assignments',
@@ -61,34 +65,75 @@ abstract class RuntimeTestCase extends DatabaseTestCase
         return new SystemClock(new DateTimeZone('UTC'));
     }
 
-    protected function productService(): ProductServiceInterface
+    /**
+     * A Host Clock fixed at {@see self::LATER_TS}, past every instant the setup can stamp, so any
+     * write made through a service built with it carries a later `updated_at` than the setup left.
+     */
+    protected static function laterClock(): ClockInterface
     {
-        return ProductFactory::createProductService(self::$pdo, self::clock());
+        return new class implements ClockInterface {
+            public function now(): DateTimeImmutable
+            {
+                return new DateTimeImmutable(RuntimeTestCase::LATER_TS, new DateTimeZone('UTC'));
+            }
+
+            public function getTimezone(): DateTimeZone
+            {
+                return new DateTimeZone('UTC');
+            }
+        };
     }
 
-    protected function variantService(): VariantServiceInterface
+    /**
+     * Proves that the call writes nothing to the table: every row, `updated_at` included, is
+     * identical before and after. Run the call through a service built with {@see self::laterClock()}
+     * so that a write landing within the same second as the setup is still detected.
+     */
+    protected function assertNoWrite(string $table, callable $call, string $message): void
     {
-        return ProductFactory::createVariantService(self::$pdo, self::clock());
+        $before = self::tableRows($table);
+        $call();
+        self::assertSame($before, self::tableRows($table), $message);
     }
 
-    protected function optionService(): OptionServiceInterface
+    /** @return list<array<string, mixed>> */
+    private static function tableRows(string $table): array
     {
-        return ProductFactory::createOptionService(self::$pdo, self::clock());
+        $statement = self::$pdo->query('SELECT * FROM `' . $table . '` ORDER BY `id`');
+        self::assertNotFalse($statement);
+
+        /** @var list<array<string, mixed>> */
+        return $statement->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    protected function optionValueService(): OptionValueServiceInterface
+    protected function productService(?ClockInterface $clock = null): ProductServiceInterface
     {
-        return ProductFactory::createOptionValueService(self::$pdo, self::clock());
+        return ProductFactory::createProductService(self::$pdo, $clock ?? self::clock());
     }
 
-    protected function imageRoleService(): ImageRoleServiceInterface
+    protected function variantService(?ClockInterface $clock = null): VariantServiceInterface
     {
-        return ProductFactory::createImageRoleService(self::$pdo, self::clock());
+        return ProductFactory::createVariantService(self::$pdo, $clock ?? self::clock());
     }
 
-    protected function imageAssignmentService(): ImageAssignmentServiceInterface
+    protected function optionService(?ClockInterface $clock = null): OptionServiceInterface
     {
-        return ProductFactory::createImageAssignmentService(self::$pdo, self::clock());
+        return ProductFactory::createOptionService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function optionValueService(?ClockInterface $clock = null): OptionValueServiceInterface
+    {
+        return ProductFactory::createOptionValueService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function imageRoleService(?ClockInterface $clock = null): ImageRoleServiceInterface
+    {
+        return ProductFactory::createImageRoleService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function imageAssignmentService(?ClockInterface $clock = null): ImageAssignmentServiceInterface
+    {
+        return ProductFactory::createImageAssignmentService(self::$pdo, $clock ?? self::clock());
     }
 
     protected static function rowCount(string $table, string $where = '1 = 1'): int

@@ -10,6 +10,7 @@ use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\Common\Pdo\RowHydrator;
 use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\DTO\ImageAssignmentIdentityDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentAlreadyExistsException;
 use Maatify\Product\ImageAssignment\Repository\ImageAssignmentCommandRepositoryInterface;
@@ -87,15 +88,24 @@ final readonly class PdoImageAssignmentCommandRepository implements ImageAssignm
         return (int) $id;
     }
 
-    public function findProductId(int $assignmentId): ?int
+    public function findIdentity(int $assignmentId): ?ImageAssignmentIdentityDTO
     {
-        $statement = $this->pdo->prepare('SELECT `product_id` FROM `' . self::TABLE . '` WHERE `id` = :id LIMIT 1');
+        $statement = $this->pdo->prepare(
+            'SELECT `product_id`, `variant_id`, `role_id` FROM `' . self::TABLE . '` WHERE `id` = :id LIMIT 1',
+        );
         $statement->execute(['id' => $assignmentId]);
 
         /** @var array<string, mixed>|false $row */
         $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return null;
+        }
 
-        return $row === false ? null : RowHydrator::positiveInt($row, 'product_id');
+        return new ImageAssignmentIdentityDTO(
+            productId: RowHydrator::positiveInt($row, 'product_id'),
+            variantId: RowHydrator::nullablePositiveInt($row, 'variant_id'),
+            roleId: RowHydrator::nullablePositiveInt($row, 'role_id'),
+        );
     }
 
     public function lockForUpdate(int $assignmentId): ?ImageAssignmentStateDTO

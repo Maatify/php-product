@@ -31,11 +31,11 @@ final class ProductLifecycleTest extends RuntimeTestCase
         $this->nameProduct($created->productId, 'Named');
         $service->updateStatus($created->productId, ProductStatusEnum::ACTIVE);
         self::assertSame(ProductStatusEnum::ACTIVE, $service->getById($created->productId)->status, 'An activated Product is consumer-visible.');
-        $updatedAt = self::scalar('SELECT updated_at FROM maa_product_products WHERE id = :i', ['i' => $created->productId]);
-        $service->updateStatus($created->productId, ProductStatusEnum::ACTIVE);
-        self::assertSame($updatedAt, self::scalar('SELECT updated_at FROM maa_product_products WHERE id = :i', ['i' => $created->productId]), 'A same-status request changes nothing.');
+        $later = $this->productService(self::laterClock());
+        $this->assertNoWrite('maa_product_products', fn() => $later->updateStatus($created->productId, ProductStatusEnum::ACTIVE), 'A same-status request writes nothing.');
 
-        $service->updateStatus($created->productId, ProductStatusEnum::INACTIVE);
+        $later->updateStatus($created->productId, ProductStatusEnum::INACTIVE);
+        self::assertSame(self::LATER_TS, self::scalar('SELECT updated_at FROM maa_product_products WHERE id = :i', ['i' => $created->productId]), 'A real write carries the later instant.');
         $this->assertThrows(ProductNotFoundException::class, fn() => $service->getById($created->productId));
 
         // A broken graph (only possible through direct SQL) blocks activation but not deactivation.

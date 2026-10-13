@@ -6,6 +6,7 @@ namespace Maatify\Product\ImageAssignment\Repository;
 
 use DateTimeImmutable;
 use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\DTO\ImageAssignmentIdentityDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentAlreadyExistsException;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentScope;
@@ -28,9 +29,10 @@ interface ImageAssignmentCommandRepositoryInterface
     public function create(CreateImageAssignmentCommand $command, ImageAssignmentScope $scope, DateTimeImmutable $occurredAt): int;
 
     /**
-     * The Product an assignment belongs to, whatever its state, or null when none has that identity.
+     * The immutable owner identity (Product, target Variant, Role) of an assignment, whatever its
+     * state, read without a lock; null when none has that identity.
      */
-    public function findProductId(int $assignmentId): ?int;
+    public function findIdentity(int $assignmentId): ?ImageAssignmentIdentityDTO;
 
     /**
      * Locks the assignment row and returns its state, or null when none has that identity.

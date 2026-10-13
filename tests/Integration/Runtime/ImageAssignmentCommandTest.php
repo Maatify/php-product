@@ -38,9 +38,11 @@ final class ImageAssignmentCommandTest extends RuntimeTestCase
 
         $roles->updateStatus($hero, ImageRoleStatusEnum::INACTIVE);
         self::assertSame(ImageRoleStatusEnum::INACTIVE, $roles->getByIdForManagement($hero)->status);
-        $updatedAt = self::scalar('SELECT updated_at FROM maa_product_image_roles WHERE id = :i', ['i' => $hero]);
-        $roles->updateStatus($hero, ImageRoleStatusEnum::INACTIVE);
-        self::assertSame($updatedAt, self::scalar('SELECT updated_at FROM maa_product_image_roles WHERE id = :i', ['i' => $hero]), 'A same-status request changes nothing.');
+        $this->assertNoWrite(
+            'maa_product_image_roles',
+            fn() => $this->imageRoleService(self::laterClock())->updateStatus($hero, ImageRoleStatusEnum::INACTIVE),
+            'A same-status request writes nothing.',
+        );
 
         $roles->softDelete($hero);
         $this->assertThrows(ImageRoleNotFoundException::class, fn() => $roles->getByIdForManagement($hero));
@@ -116,14 +118,14 @@ final class ImageAssignmentCommandTest extends RuntimeTestCase
         self::assertSame([$a2], $this->defaults(), 'The previous default of the scope is cleared in the same operation.');
         $service->setDefault($en);
         self::assertSame([$a2, $en], $this->defaults(), 'Another exact scope keeps its own default.');
-        $updatedAt = self::scalar('SELECT updated_at FROM maa_product_image_assignments WHERE id = :i', ['i' => $a2]);
-        $service->setDefault($a2);
-        self::assertSame($updatedAt, self::scalar('SELECT updated_at FROM maa_product_image_assignments WHERE id = :i', ['i' => $a2]), 'Setting the current default changes nothing.');
+        $later = $this->imageAssignmentService(self::laterClock());
+        $this->assertNoWrite('maa_product_image_assignments', fn() => $later->setDefault($a2), 'Setting the current default writes nothing.');
 
-        $service->clearDefault($a2);
+        $later->clearDefault($a2);
         self::assertSame([$en], $this->defaults(), 'Clearing promotes no other assignment.');
-        $service->clearDefault($a1);
-        self::assertSame([$en], $this->defaults(), 'Clearing a non-default is a no-op.');
+        self::assertSame(self::LATER_TS, self::scalar('SELECT updated_at FROM maa_product_image_assignments WHERE id = :i', ['i' => $a2]), 'A real write carries the later instant.');
+        $this->assertNoWrite('maa_product_image_assignments', fn() => $later->clearDefault($a1), 'Clearing a non-default writes nothing.');
+        self::assertSame([$en], $this->defaults());
 
         $service->setDefault($a1);
         $service->softDelete($a1);

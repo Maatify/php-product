@@ -174,42 +174,44 @@ final readonly class ImageAssignmentService implements ImageAssignmentServiceInt
     }
 
     /**
-     * Locks the owner chain in the stable order and then the assignment row.
+     * Locks the owner chain in the stable order (Product, target Variant, Role) and then the
+     * assignment row, and validates only the locked state.
+     *
+     * The owner identities come from an unlocked read of the assignment's identity columns, which no
+     * write path changes; they only select the rows to lock, so no state is validated before the
+     * Product lock.
      *
      * @param bool $lockRole Also lock the Role and require it to be non-deleted (set-default).
      * @param bool $requireLiveOwners Require the target Product and Variant to be non-deleted.
      */
     private function lockedAssignment(int $assignmentId, bool $lockRole, bool $requireLiveOwners = true): ImageAssignmentStateDTO
     {
-        $productId = $this->assignments->findProductId($assignmentId);
-        if ($productId === null) {
+        $identity = $this->assignments->findIdentity($assignmentId);
+        if ($identity === null) {
             throw ImageAssignmentNotFoundException::withId($assignmentId);
         }
-        $product = $this->products->lockForUpdate($productId);
+        $product = $this->products->lockForUpdate($identity->productId);
         if ($product === null) {
             throw ImageAssignmentNotFoundException::withId($assignmentId);
         }
-        $preview = $this->assignments->lockForUpdate($assignmentId);
-        if ($preview === null) {
+        $variant = $identity->variantId === null ? null : $this->variants->lockForUpdate($identity->variantId);
+        $role = $lockRole && $identity->roleId !== null ? $this->roles->lockForUpdate($identity->roleId) : null;
+        $assignment = $this->assignments->lockForUpdate($assignmentId);
+        if ($assignment === null) {
             throw ImageAssignmentNotFoundException::withId($assignmentId);
         }
+
         if ($requireLiveOwners && $product->deleted) {
-            throw ProductBusinessRuleException::ownerSoftDeleted('Image Assignment', $assignmentId, 'Product', $productId);
+            throw ProductBusinessRuleException::ownerSoftDeleted('Image Assignment', $assignmentId, 'Product', $identity->productId);
         }
-        if ($preview->variantId !== null) {
-            $variant = $this->variants->lockForUpdate($preview->variantId);
-            if ($requireLiveOwners && ($variant === null || $variant->deleted)) {
-                throw ProductBusinessRuleException::ownerSoftDeleted('Image Assignment', $assignmentId, 'Variant', $preview->variantId);
-            }
+        if ($requireLiveOwners && $identity->variantId !== null && ($variant === null || $variant->deleted)) {
+            throw ProductBusinessRuleException::ownerSoftDeleted('Image Assignment', $assignmentId, 'Variant', $identity->variantId);
         }
-        if ($lockRole && $preview->roleId !== null) {
-            $role = $this->roles->lockForUpdate($preview->roleId);
-            if ($role === null || $role->deleted) {
-                throw ProductBusinessRuleException::ownerSoftDeleted('Image Assignment', $assignmentId, 'Image Role', $preview->roleId);
-            }
+        if ($lockRole && $identity->roleId !== null && ($role === null || $role->deleted)) {
+            throw ProductBusinessRuleException::ownerSoftDeleted('Image Assignment', $assignmentId, 'Image Role', $identity->roleId);
         }
 
-        return $preview;
+        return $assignment;
     }
 
     private static function requirePositive(int $assignmentId): void

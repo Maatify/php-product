@@ -90,7 +90,8 @@ $visible = $variants->listByProductId($created->productId); // empty until the P
 
 - **Input:** a transaction you opened on the same PDO connection you gave the factory.
 - **Public call:** any mutation inside it (`create()`, `reconfigure()`, the lifecycle commands, the image-assignment commands).
-- **Result:** the call runs in an operation-local savepoint. If it fails, none of its writes remain in your transaction, which stays active; you decide whether to commit or roll back, and your other work in it is unaffected. A Host that catches the failure and commits can never persist a Product without its Variant.
+- **Result:** the call runs in an operation-local savepoint. If it fails, none of its writes remain in your transaction. After a statement-level failure (for example a duplicate identity) your transaction stays active, you decide whether to commit or roll back, and your other work in it is unaffected. A Host that catches the failure and commits can never persist a Product without its Variant.
+- **Whole-transaction failures:** when MySQL rolls back the whole transaction itself, such as on a deadlock (driver error 1213), your transaction and your earlier work in it are gone on the server. The package propagates that `PDOException` unchanged; treat it as a failure of your whole transaction, not only of the call.
 - **Boundary:** the package never commits or rolls back your transaction. Composition requires every participant to use that one connection.
 
 ```php
