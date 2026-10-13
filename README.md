@@ -42,7 +42,13 @@ No version of this package is published to a Composer distribution source yet, s
 
 ```json
 {
-    "repositories": [{ "type": "path", "url": "/path/to/php-product", "options": { "symlink": false } }],
+    "repositories": [
+        {
+            "type": "path",
+            "url": "/path/to/php-product",
+            "options": { "symlink": false }
+        }
+    ],
     "require": { "maatify/php-product": "*" },
     "minimum-stability": "dev",
     "prefer-stable": true

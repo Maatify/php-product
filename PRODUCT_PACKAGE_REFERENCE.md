@@ -38,7 +38,7 @@ Requirements: PHP `^8.4`, `ext-pdo`, `ext-pdo_mysql`, `ext-mbstring`, MySQL `8.0
 | `Product\Enum\ProductStatusEnum` | `active`, `inactive`. |
 | `Product\Exception\ProductCodeAlreadyExistsException`, `Product\Exception\ProductNotFoundException` | Named failures. |
 | `Common\Exception\ProductInvalidArgumentException` | Input contract violations. |
-| `Common\Exception\ProductPersistenceException` | Storage returned data that does not match the schema contract (see Failure contract). Only the class and the `ProductExceptionInterface` marker are public; its named constructors are internal. |
+| `Common\Exception\ProductPersistenceException` | Storage returned data that does not match the schema contract (see Failure contract). Consumers depend on the class and the `ProductExceptionInterface` marker only. The class exposes no named constructors: the package raises it through an internal factory, which is not part of this inventory. |
 | `Exception\ProductExceptionInterface` | Marker implemented by every package-defined exception. |
 
 Consumer walkthroughs are in the [Usage Guide](docs/guides/USAGE_GUIDE.md) and runnable code is in [`examples/`](examples/); neither creates a contract beyond this file.

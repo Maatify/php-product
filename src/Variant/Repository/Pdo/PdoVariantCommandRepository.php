@@ -7,7 +7,7 @@ namespace Maatify\Product\Variant\Repository\Pdo;
 use DateTimeImmutable;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingConfig;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
-use Maatify\Product\Common\Exception\ProductPersistenceException;
+use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
 use Maatify\Product\Variant\Repository\VariantCommandRepositoryInterface;
 use Maatify\Product\Variant\ValueObject\CompositionFingerprint;
@@ -67,7 +67,7 @@ final readonly class PdoVariantCommandRepository implements VariantCommandReposi
 
         $id = $this->pdo->lastInsertId();
         if (!ctype_digit($id) || (int) $id < 1) {
-            throw ProductPersistenceException::invalidAutoIncrementIdentity('Variant');
+            throw ProductStorageFailureFactory::invalidAutoIncrementIdentity('Variant');
         }
 
         return (int) $id;

@@ -6,7 +6,7 @@ namespace Maatify\Product\Product\Repository\Pdo;
 
 use DateTimeImmutable;
 use Exception;
-use Maatify\Product\Common\Exception\ProductPersistenceException;
+use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\Product\DTO\ProductDTO;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Repository\ProductQueryReaderInterface;
@@ -42,7 +42,7 @@ final readonly class PdoProductQueryReader implements ProductQueryReaderInterfac
         $rowId = $row['id'] ?? null;
         $status = ProductStatusEnum::tryFrom(self::requireString($row, 'status'));
         if ((!is_int($rowId) && !is_string($rowId)) || $status === null) {
-            throw ProductPersistenceException::invalidStorageValue($status === null ? 'status' : 'id');
+            throw ProductStorageFailureFactory::invalidStorageValue($status === null ? 'status' : 'id');
         }
 
         return new ProductDTO(
@@ -63,7 +63,7 @@ final readonly class PdoProductQueryReader implements ProductQueryReaderInterfac
         try {
             return new DateTimeImmutable(self::requireString($row, $column), $this->clock->getTimezone());
         } catch (Exception $exception) {
-            throw ProductPersistenceException::invalidStorageValue($column);
+            throw ProductStorageFailureFactory::invalidStorageValue($column);
         }
     }
 
@@ -82,7 +82,7 @@ final readonly class PdoProductQueryReader implements ProductQueryReaderInterfac
     {
         $value = $row[$column] ?? null;
         if (!is_string($value)) {
-            throw ProductPersistenceException::unexpectedColumnType($column);
+            throw ProductStorageFailureFactory::unexpectedColumnType($column);
         }
 
         return $value;

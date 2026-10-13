@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Maatify\Product\Product\Repository\Pdo;
 
 use DateTimeImmutable;
-use Maatify\Product\Common\Exception\ProductPersistenceException;
+use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
@@ -55,7 +55,7 @@ final readonly class PdoProductCommandRepository implements ProductCommandReposi
 
         $id = $this->pdo->lastInsertId();
         if (!ctype_digit($id) || (int) $id < 1) {
-            throw ProductPersistenceException::invalidAutoIncrementIdentity('Product');
+            throw ProductStorageFailureFactory::invalidAutoIncrementIdentity('Product');
         }
 
         return (int) $id;
