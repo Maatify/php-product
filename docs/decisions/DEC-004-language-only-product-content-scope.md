@@ -72,8 +72,16 @@ The project Owner formally approved the following decision on 2026-10-11:
 
 This decision is strictly confined to the content scoping of core Product, Option, and Option Value entities. The following areas remain explicitly out of scope:
 
-- Image Assignment scoping, which retains platform, language, and role dimensions under its dedicated specification.
+- Media Assignment scoping, which retains platform, language, and role dimensions under its dedicated specification.
 - Design or activation of optional Content Fields extensions.
 - Resolution of the Shared Media Asset identity contract (Gate 5).
 - Resolution of the retention or exclusion of `Product.display_order` in V1 (Gate 6).
 - Authorization of PHP runtime implementation, database migrations, or physical schema creation.
+
+---
+
+## Current-State Reconciliation (2026-10-13)
+
+This section is appended; the decision text above is preserved as approved and is not rewritten. It records only how the current normative sources relate to that text.
+
+- **Terminology.** After the pre-release cross-package alignment with `Maatify/php-category`, the current normative names for what this record calls Product Media Roles and Media Assignments are **Image Roles** and **Image Assignments**, persisted as `maa_product_image_roles` and `maa_product_image_assignments`, with the explicit marker `is_default` (formerly `is_primary`). `media_asset_id` and the Media Asset identity contract are unchanged. The current contract is owned by [`PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](../architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md) (§9, §11); where this record's historical wording differs, the architecture document governs.
