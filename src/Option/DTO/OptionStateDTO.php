@@ -31,4 +31,9 @@ final readonly class OptionStateDTO
     {
         return new self($this->id, $this->productId, $this->active, $deleted, $this->labelled);
     }
+
+    public function withLabelled(bool $labelled): self
+    {
+        return new self($this->id, $this->productId, $this->active, $this->deleted, $labelled);
+    }
 }

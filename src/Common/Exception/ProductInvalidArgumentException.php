@@ -29,6 +29,14 @@ final class ProductInvalidArgumentException extends InvalidArgumentMaatifyExcept
     }
 
     /**
+     * The field is longer than its documented maximum number of bytes.
+     */
+    public static function fieldTooLongInBytes(string $field, int $maxBytes): self
+    {
+        return new self(sprintf('Field "%s" must not exceed %d bytes.', $field, $maxBytes));
+    }
+
+    /**
      * The field is not valid UTF-8 text.
      */
     public static function invalidEncoding(string $field): self

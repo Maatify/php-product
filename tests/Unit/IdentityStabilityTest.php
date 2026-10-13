@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Maatify\Product\Tests\Unit;
 
 use FilesystemIterator;
+use Maatify\Product\Content\Service\OptionContentServiceInterface;
+use Maatify\Product\Content\Service\OptionValueContentServiceInterface;
+use Maatify\Product\Content\Service\ProductContentServiceInterface;
 use Maatify\Product\ImageAssignment\Service\ImageAssignmentServiceInterface;
 use Maatify\Product\ImageRole\Service\ImageRoleServiceInterface;
 use Maatify\Product\Option\Service\OptionServiceInterface;
@@ -32,10 +35,15 @@ final class IdentityStabilityTest extends TestCase
     public function testNoUpdateStatementSetsAnIdentityColumn(): void
     {
         $offences = [];
+        $scanned = [];
         foreach ($this->sourceFiles() as $file) {
             $source = (string) file_get_contents($file);
-            if (preg_match_all('/UPDATE\s+`?maa_product_\w+`?\s+SET\s+(.*?)\s+WHERE/is', $source, $matches) === 0) {
+            // A table name is a literal `maa_product_*` or the Content owner's trusted table constant.
+            if (preg_match_all('/UPDATE\s+`?(?:maa_product_\w+|\'\s*\.\s*\$this->owner->table\(\)\s*\.\s*\')`?\s+SET\s+(.*?)\s+WHERE/is', $source, $matches) === 0) {
                 continue;
+            }
+            if (str_contains($file, '/Content/')) {
+                $scanned['content'] = ($scanned['content'] ?? 0) + count($matches[1]);
             }
             foreach ($matches[1] as $assignments) {
                 foreach (self::IDENTITY_COLUMNS as $column) {
@@ -47,6 +55,7 @@ final class IdentityStabilityTest extends TestCase
         }
 
         self::assertSame([], $offences);
+        self::assertGreaterThanOrEqual(4, $scanned['content'] ?? 0, 'The Content UPDATE statements must be scanned.');
     }
 
     public function testNoPublicServiceMethodCanReplaceAnIdentity(): void
@@ -59,6 +68,9 @@ final class IdentityStabilityTest extends TestCase
             OptionValueServiceInterface::class,
             ImageRoleServiceInterface::class,
             ImageAssignmentServiceInterface::class,
+            ProductContentServiceInterface::class,
+            OptionContentServiceInterface::class,
+            OptionValueContentServiceInterface::class,
         ] as $interface) {
             foreach ((new ReflectionClass($interface))->getMethods() as $method) {
                 $methods[] = $interface . '::' . $method->getName();

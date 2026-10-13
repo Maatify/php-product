@@ -41,6 +41,14 @@ final readonly class ProductConfigurationSnapshotDTO
         return new self($this->productId, $active, $deleted, $this->hasName, $this->options, $this->optionValues, $this->variants);
     }
 
+    /**
+     * The graph with the Product's name state replaced, as after a Product Content change.
+     */
+    public function withHasName(bool $hasName): self
+    {
+        return new self($this->productId, $this->productActive, $this->productDeleted, $hasName, $this->options, $this->optionValues, $this->variants);
+    }
+
     public function withOption(OptionStateDTO $option): self
     {
         $options = $this->options;

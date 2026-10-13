@@ -7,6 +7,16 @@ namespace Maatify\Product\Factory;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
 use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Content\Enum\ContentOwnerEnum;
+use Maatify\Product\Content\Repository\Pdo\PdoContentCommandRepository;
+use Maatify\Product\Content\Repository\Pdo\PdoContentQueryReader;
+use Maatify\Product\Content\Service\ContentLifecycle;
+use Maatify\Product\Content\Service\OptionContentService;
+use Maatify\Product\Content\Service\OptionContentServiceInterface;
+use Maatify\Product\Content\Service\OptionValueContentService;
+use Maatify\Product\Content\Service\OptionValueContentServiceInterface;
+use Maatify\Product\Content\Service\ProductContentService;
+use Maatify\Product\Content\Service\ProductContentServiceInterface;
 use Maatify\Product\ImageAssignment\Repository\Pdo\PdoImageAssignmentCommandRepository;
 use Maatify\Product\ImageAssignment\Repository\Pdo\PdoImageAssignmentQueryReader;
 use Maatify\Product\ImageAssignment\Service\ImageAssignmentService;
@@ -166,6 +176,50 @@ final class ProductFactory
             new PdoProductCommandRepository($pdo),
             new PdoVariantCommandRepository($pdo, $ordering),
             new PdoImageRoleCommandRepository($pdo),
+            new PdoSavepointTransactionRunner($pdo),
+            $clock,
+        );
+    }
+
+    /**
+     * Builds the Product Content service: name and descriptions per language, lifecycle, and reads.
+     *
+     * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
+     */
+    public static function createProductContentService(PDO $pdo, ClockInterface $clock): ProductContentServiceInterface
+    {
+        return new ProductContentService(self::contentLifecycle($pdo, $clock, ContentOwnerEnum::PRODUCT));
+    }
+
+    /**
+     * Builds the Option Content service: labels per language, lifecycle, and reads.
+     *
+     * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
+     */
+    public static function createOptionContentService(PDO $pdo, ClockInterface $clock): OptionContentServiceInterface
+    {
+        return new OptionContentService(self::contentLifecycle($pdo, $clock, ContentOwnerEnum::OPTION));
+    }
+
+    /**
+     * Builds the Option Value Content service: labels per language, lifecycle, and reads.
+     *
+     * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
+     */
+    public static function createOptionValueContentService(PDO $pdo, ClockInterface $clock): OptionValueContentServiceInterface
+    {
+        return new OptionValueContentService(self::contentLifecycle($pdo, $clock, ContentOwnerEnum::OPTION_VALUE));
+    }
+
+    private static function contentLifecycle(PDO $pdo, ClockInterface $clock, ContentOwnerEnum $owner): ContentLifecycle
+    {
+        self::requireExceptionMode($pdo);
+
+        return new ContentLifecycle(
+            $owner,
+            new PdoContentCommandRepository($pdo, $owner),
+            new PdoContentQueryReader($pdo, $owner, $clock),
+            new PdoProductConfigurationRepository($pdo, new ScopedOrderingManager()),
             new PdoSavepointTransactionRunner($pdo),
             $clock,
         );

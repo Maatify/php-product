@@ -18,6 +18,11 @@ declare(strict_types=1);
 use Composer\InstalledVersions;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Content\Command\CreateOptionContentCommand;
+use Maatify\Product\Content\Command\CreateOptionValueContentCommand;
+use Maatify\Product\Content\Command\CreateProductContentCommand;
+use Maatify\Product\Content\Exception\ProductContentAlreadyExistsException;
+use Maatify\Product\Content\ValueObject\ExactContentLanguage;
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageRole\Command\CreateImageRoleCommand;
@@ -153,20 +158,35 @@ try {
     $values = ProductFactory::createOptionValueService($pdo, $clock);
     $variants = ProductFactory::createVariantService($pdo, $clock);
     $productId = $created->productId;
-    $pdo->prepare('INSERT INTO maa_product_product_contents (product_id, language_code, name, created_at, updated_at) VALUES (?, NULL, ?, ?, ?)')
-        ->execute([$productId, 'Simple one', '2026-01-01 00:00:00', '2026-01-01 00:00:00']);
+    $productContent = ProductFactory::createProductContentService($pdo, $clock);
+    $optionContent = ProductFactory::createOptionContentService($pdo, $clock);
+    $valueContent = ProductFactory::createOptionValueContentService($pdo, $clock);
+    $nameId = $productContent->create(new CreateProductContentCommand($productId, null, 'Simple one'))->contentId;
+    check($productContent->listVisible($productId, ExactContentLanguage::unlocalizedOnly())->isEmpty(), 'Content of an inactive Product is not consumer-visible');
     $service->updateStatus($productId, ProductStatusEnum::ACTIVE);
     check($service->getById($productId)->status === ProductStatusEnum::ACTIVE, 'a named Product with a valid configuration can be activated');
+    check(count($productContent->listVisible($productId, ExactContentLanguage::unlocalizedOnly())) === 1, 'the unlocalized name of an active Product is consumer-visible');
+    check($productContent->listVisible($productId, ExactContentLanguage::exactLanguage('en'))->isEmpty(), 'an exact-language read never falls back to the unlocalized name');
+    try {
+        $productContent->softDelete($nameId);
+        check(false, 'the last name of an active Product cannot be soft deleted');
+    } catch (ProductBusinessRuleException) {
+        check(true, 'the last name of an active Product cannot be soft deleted');
+    }
+    try {
+        $productContent->create(new CreateProductContentCommand($productId, null, 'Again'));
+        check(false, 'the unlocalized Content identity is unique');
+    } catch (ProductContentAlreadyExistsException) {
+        check(true, 'the unlocalized Content identity is unique');
+    }
     check($variants->resolveByComposition($productId, new VariantCompositionCriteriaDTO())->id === $created->variantId, 'an empty selection resolves the simple Variant');
 
     $color = $options->create(new CreateOptionCommand($productId, 'color'))->optionId;
     $red = $values->create(new CreateOptionValueCommand($color, 'red'))->optionValueId;
     $blue = $values->create(new CreateOptionValueCommand($color, 'blue'))->optionValueId;
-    $pdo->prepare('INSERT INTO maa_product_option_contents (option_id, language_code, name, created_at, updated_at) VALUES (?, NULL, ?, ?, ?)')
-        ->execute([$color, 'Color', '2026-01-01 00:00:00', '2026-01-01 00:00:00']);
-    $labels = $pdo->prepare('INSERT INTO maa_product_option_value_contents (option_value_id, language_code, name, created_at, updated_at) VALUES (?, NULL, ?, ?, ?)');
-    $labels->execute([$red, 'Red', '2026-01-01 00:00:00', '2026-01-01 00:00:00']);
-    $labels->execute([$blue, 'Blue', '2026-01-01 00:00:00', '2026-01-01 00:00:00']);
+    $optionContent->create(new CreateOptionContentCommand($color, null, 'Color'));
+    $valueContent->create(new CreateOptionValueContentCommand($red, null, 'Red'));
+    $valueContent->create(new CreateOptionValueContentCommand($blue, null, 'Blue'));
     check($options->getByIdForManagement($color)->status->value === 'inactive', 'a new Option is inactive');
 
     $result = $service->reconfigure(new ReconfigureProductCommand($productId, [new ReconfigureOptionTarget($color, [$red, $blue])], [

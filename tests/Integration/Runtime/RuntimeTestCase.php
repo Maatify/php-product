@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Maatify\Product\Tests\Integration\Runtime;
 
 use DateTimeZone;
+use Maatify\Product\Content\Service\OptionContentServiceInterface;
+use Maatify\Product\Content\Service\OptionValueContentServiceInterface;
+use Maatify\Product\Content\Service\ProductContentServiceInterface;
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\ImageAssignment\Service\ImageAssignmentServiceInterface;
 use Maatify\Product\ImageRole\Service\ImageRoleServiceInterface;
@@ -134,6 +137,21 @@ abstract class RuntimeTestCase extends DatabaseTestCase
     protected function imageAssignmentService(?ClockInterface $clock = null): ImageAssignmentServiceInterface
     {
         return ProductFactory::createImageAssignmentService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function productContentService(?ClockInterface $clock = null): ProductContentServiceInterface
+    {
+        return ProductFactory::createProductContentService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function optionContentService(?ClockInterface $clock = null): OptionContentServiceInterface
+    {
+        return ProductFactory::createOptionContentService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function optionValueContentService(?ClockInterface $clock = null): OptionValueContentServiceInterface
+    {
+        return ProductFactory::createOptionValueContentService(self::$pdo, $clock ?? self::clock());
     }
 
     protected static function rowCount(string $table, string $where = '1 = 1'): int

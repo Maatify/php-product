@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Maatify\Product\ImageAssignment\Command;
 
 use JsonSerializable;
+use Maatify\Product\Common\Command\CommandTextRules;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 
 /**
@@ -49,8 +50,8 @@ final readonly class CreateImageAssignmentCommand implements JsonSerializable
             throw ProductInvalidArgumentException::nonPositiveId('roleId');
         }
         $this->mediaAssetId = self::mediaAssetId($mediaAssetId);
-        self::scopeText($languageCode, 'languageCode', self::MAX_LANGUAGE_CODE_LENGTH);
-        self::scopeText($platform, 'platform', self::MAX_PLATFORM_LENGTH);
+        CommandTextRules::nullableRequiredText($languageCode, 'languageCode', self::MAX_LANGUAGE_CODE_LENGTH);
+        CommandTextRules::nullableRequiredText($platform, 'platform', self::MAX_PLATFORM_LENGTH);
     }
 
     private static function mediaAssetId(int|string $value): int
@@ -71,22 +72,6 @@ final readonly class CreateImageAssignmentCommand implements JsonSerializable
         }
 
         return (int) $value;
-    }
-
-    private static function scopeText(?string $value, string $field, int $maxLength): void
-    {
-        if ($value === null) {
-            return;
-        }
-        if (!mb_check_encoding($value, 'UTF-8')) {
-            throw ProductInvalidArgumentException::invalidEncoding($field);
-        }
-        if (preg_match('/^[\s\p{Z}]*$/u', $value) === 1) {
-            throw ProductInvalidArgumentException::emptyField($field);
-        }
-        if (mb_strlen($value, 'UTF-8') > $maxLength) {
-            throw ProductInvalidArgumentException::fieldTooLong($field, $maxLength);
-        }
     }
 
     /** @return array{productId: int, variantId: ?int, mediaAssetId: int, roleId: ?int, languageCode: ?string, platform: ?string} */

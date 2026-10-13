@@ -6,20 +6,28 @@ declare(strict_types=1);
  * Example 4: make a Product configurable, resolve a shopper's choices, and go back to simple.
  *
  * Input -> Public Call -> Result -> Boundary:
- *  - Input:    prepared Options and Values (created inactive), and the combinations the Host offers.
+ *  - Input:    prepared Options and Values (created inactive) with their labels, a Product name, and
+ *              the combinations the Host offers.
  *  - Calls:    OptionServiceInterface::create(), OptionValueServiceInterface::create(),
+ *              ProductContentServiceInterface::create(), OptionContentServiceInterface::create(),
+ *              OptionValueContentServiceInterface::create(), listVisible(),
  *              ProductServiceInterface::reconfigure(), updateStatus(),
  *              VariantServiceInterface::resolveByComposition().
  *  - Result:   a ProductReconfigurationResultDTO with the created and deactivated Variant identities,
  *              and the VariantDTO a complete selection resolves to.
  *  - Boundary: reconfiguration is one atomic Product-local operation over a complete target state; an
- *              existing composition is reused only when the command names its Variant. Content has no
- *              command yet, so this example inserts the labels the configuration needs directly.
+ *              existing composition is reused only when the command names its Variant. Every active
+ *              Option and Value needs a label and an active Product needs a name, all Content records;
+ *              a consumer Content read is exact and never falls back to another language.
  *
  * Environment: see example 01.
  */
 
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Content\Command\CreateOptionContentCommand;
+use Maatify\Product\Content\Command\CreateOptionValueContentCommand;
+use Maatify\Product\Content\Command\CreateProductContentCommand;
+use Maatify\Product\Content\ValueObject\ExactContentLanguage;
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\Option\Command\CreateOptionCommand;
 use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
@@ -57,6 +65,9 @@ $products = ProductFactory::createProductService($pdo, $clock);
 $options = ProductFactory::createOptionService($pdo, $clock);
 $values = ProductFactory::createOptionValueService($pdo, $clock);
 $variants = ProductFactory::createVariantService($pdo, $clock);
+$productContent = ProductFactory::createProductContentService($pdo, $clock);
+$optionContent = ProductFactory::createOptionContentService($pdo, $clock);
+$valueContent = ProductFactory::createOptionValueContentService($pdo, $clock);
 
 $created = $products->create(new CreateProductCommand('SHIRT-' . bin2hex(random_bytes(4))));
 $productId = $created->productId;
@@ -68,15 +79,13 @@ $red = $values->create(new CreateOptionValueCommand($color, 'red'))->optionValue
 $blue = $values->create(new CreateOptionValueCommand($color, 'blue'))->optionValueId;
 $medium = $values->create(new CreateOptionValueCommand($size, 'm'))->optionValueId;
 
-// Labels and the Product name: Content has no command yet, so this example writes them directly.
-$now = $clock->now()->format('Y-m-d H:i:s');
-$pdo->prepare('INSERT INTO maa_product_product_contents (product_id, language_code, name, created_at, updated_at) VALUES (?, NULL, ?, ?, ?)')->execute([$productId, 'Shirt', $now, $now]);
-$optionLabel = $pdo->prepare('INSERT INTO maa_product_option_contents (option_id, language_code, name, created_at, updated_at) VALUES (?, NULL, ?, ?, ?)');
-$optionLabel->execute([$color, 'Color', $now, $now]);
-$optionLabel->execute([$size, 'Size', $now, $now]);
-$valueLabel = $pdo->prepare('INSERT INTO maa_product_option_value_contents (option_value_id, language_code, name, created_at, updated_at) VALUES (?, NULL, ?, ?, ?)');
+// The Product name and the labels are Content records: one per language, `null` is the unlocalized one.
+$productContent->create(new CreateProductContentCommand($productId, null, 'Shirt', 'A plain shirt'));
+$productContent->create(new CreateProductContentCommand($productId, 'ar', 'قميص'));
+$optionContent->create(new CreateOptionContentCommand($color, null, 'Color'));
+$optionContent->create(new CreateOptionContentCommand($size, null, 'Size'));
 foreach ([[$red, 'Red'], [$blue, 'Blue'], [$medium, 'Medium']] as [$valueId, $label]) {
-    $valueLabel->execute([$valueId, $label, $now, $now]);
+    $valueContent->create(new CreateOptionValueContentCommand($valueId, null, $label));
 }
 
 // Simple -> configurable: the complete target state, with only the combinations the Host offers.
@@ -98,6 +107,14 @@ $resolved = $variants->resolveByComposition($productId, new VariantCompositionCr
     new OptionValueSelection($color, $blue),
 ]));
 echo "resolved variant: {$resolved->id}\n";
+
+// Content reads are exact: Arabic exists, English does not, and nothing falls back to the unlocalized name.
+$arabic = $productContent->listVisible($productId, ExactContentLanguage::exactLanguage('ar'));
+$english = $productContent->listVisible($productId, ExactContentLanguage::exactLanguage('en'));
+if (count($arabic) !== 1 || !$english->isEmpty()) {
+    throw new RuntimeException('Content reads must be exact.');
+}
+echo 'name (ar): ' . $arabic->items()[0]->name . "; name (en): none\n";
 
 try {
     $variants->resolveByComposition($productId, new VariantCompositionCriteriaDTO([new OptionValueSelection($color, $red)]));
