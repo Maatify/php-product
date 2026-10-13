@@ -16,4 +16,6 @@ No version has been released.
 - `ProductFactory::createProductService()` as the framework-agnostic construction entry point.
 - Public failures: `ProductCodeAlreadyExistsException`, `ProductNotFoundException`, `ProductInvalidArgumentException`, and `ProductPersistenceException`, all implementing `ProductExceptionInterface`.
 - Consumer documentation: Usage Guide, runnable examples, and `llms.txt`.
+- MIT `LICENSE`, matching the `license` field in `composer.json`.
+- Approved Contract Inventory in the Package Reference: capability IDs, structural invariants, management and consumer behavior, and the open contract gaps for the capabilities not yet implemented.
 - Verification: Unit and real-MySQL Integration suites, a Consumer Verification Harness that smoke-executes the examples, and the CI `Final Gate`.

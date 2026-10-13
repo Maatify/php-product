@@ -9,7 +9,7 @@
     ],
     "homepage": "https://github.com/Maatify/php-product",
     "type": "library",
-    "license": "proprietary",
+    "license": "MIT",
     "authors": [
         {
             "name": "Maatify",

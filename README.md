@@ -10,7 +10,7 @@
 
 [![Status](https://img.shields.io/badge/Status-Development-blue)](README.md)
 [![PHP](https://img.shields.io/badge/PHP-%5E8.4-8892BF)](composer.json)
-[![License](https://img.shields.io/badge/License-proprietary-green)](composer.json)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Maatify Ecosystem](https://img.shields.io/badge/Maatify-Ecosystem-blueviolet)](https://github.com/Maatify)
 
 [![Usage Guide](https://img.shields.io/badge/Docs-Usage%20Guide-informational)](docs/guides/USAGE_GUIDE.md)
@@ -141,7 +141,7 @@ composer verify:consumer    # needs Docker with the Compose plugin
 
 ## License
 
-Proprietary, as declared in [`composer.json`](composer.json). A `LICENSE` file has not been added yet.
+Released under the [MIT License](LICENSE), as declared in [`composer.json`](composer.json).
 
 ## Author
 
