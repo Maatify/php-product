@@ -9,13 +9,16 @@ use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Common\Exception\ProductPersistenceException;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
+use Maatify\Product\Variant\Command\UpdateVariantIdentifiersCommand;
 use Maatify\Product\Variant\DTO\VariantCollectionDTO;
 use Maatify\Product\Variant\DTO\VariantCompositionCriteriaDTO;
 use Maatify\Product\Variant\DTO\VariantDTO;
 use Maatify\Product\Variant\DTO\VariantListCriteriaDTO;
 use Maatify\Product\Variant\DTO\VariantVisibleListCriteriaDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
+use Maatify\Product\Variant\Exception\VariantBarcodeAlreadyExistsException;
 use Maatify\Product\Variant\Exception\VariantNotFoundException;
+use Maatify\Product\Variant\Exception\VariantSkuAlreadyExistsException;
 
 /**
  * Public application contract for Variant reads, composition resolution, and lifecycle.
@@ -104,6 +107,19 @@ interface VariantServiceInterface
      * @throws ProductBusinessRuleException When the Variant or its Product is soft deleted, or the deletion would violate an invariant.
      */
     public function softDelete(int $variantId): void;
+
+    /**
+     * Changes the SKU and barcode of a non-deleted Variant of a non-deleted Product; each is left
+     * unchanged, set, or cleared. An inactive Variant or Product does not block it. A field set to its
+     * exact stored value, or cleared while `NULL`, does not change; when no field changes nothing is
+     * written. Replacing or clearing a value releases it. The Variant identity never changes.
+     *
+     * @throws VariantNotFoundException When no Variant has that identity.
+     * @throws ProductBusinessRuleException When the Variant or its Product is soft deleted.
+     * @throws VariantSkuAlreadyExistsException When another Variant holds the SKU under the collation, including a soft-deleted one.
+     * @throws VariantBarcodeAlreadyExistsException When another Variant holds the barcode under the collation, including a soft-deleted one.
+     */
+    public function updateIdentifiers(UpdateVariantIdentifiersCommand $command): void;
 
     /**
      * Restores a soft-deleted Variant with its saved status, after revalidating the configuration invariants.

@@ -7,6 +7,8 @@ namespace Maatify\Product\Variant\Repository;
 use DateTimeImmutable;
 use Maatify\Product\Variant\DTO\VariantLifecycleStateDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
+use Maatify\Product\Variant\Exception\VariantBarcodeAlreadyExistsException;
+use Maatify\Product\Variant\Exception\VariantSkuAlreadyExistsException;
 
 /**
  * Write port for Variant persistence.
@@ -41,6 +43,14 @@ interface VariantCommandRepositoryInterface
      * Sets the status of a non-deleted Variant. Returns whether a row was changed.
      */
     public function updateStatus(int $variantId, VariantStatusEnum $status, DateTimeImmutable $occurredAt): bool;
+
+    /**
+     * Stores both secondary identifiers of a non-deleted Variant. Returns whether a row was changed.
+     *
+     * @throws VariantSkuAlreadyExistsException When another Variant, including a soft-deleted one, holds the SKU.
+     * @throws VariantBarcodeAlreadyExistsException When another Variant, including a soft-deleted one, holds the barcode.
+     */
+    public function updateIdentifiers(int $variantId, ?string $sku, ?string $barcode, DateTimeImmutable $occurredAt): bool;
 
     /**
      * Soft-deletes a non-deleted Variant. Returns whether a row was changed.

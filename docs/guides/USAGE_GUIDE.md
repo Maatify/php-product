@@ -28,10 +28,11 @@ It does not fit if you need prices, stock, suppliers, Categories, orders, URL sl
 | Activate, deactivate, soft-delete, and restore | [6. Lifecycle](#6-lifecycle) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Prepare Options and Values, then make a Product configurable | [7. Reconfigure a Product](#7-reconfigure-a-product) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Resolve a shopper's choices to one Variant | [8. Resolve a composition](#8-resolve-a-composition) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
+| Set, replace, or clear a Variant's SKU and barcode | [11. Variant SKU and barcode](#11-variant-sku-and-barcode) | [`03-read-variants.php`](../../examples/03-read-variants.php) |
 | Name Products and label Options and Values per language, and read them exactly | [10. Content](#10-content) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Assign Media Assets with roles, scopes, and one default | [9. Image Roles and Assignments](#9-image-roles-and-assignments) | none yet |
 
-Management lists, search, and pagination outside Content, SKU and barcode mutation, ordering commands, and standalone Option and Option Value status changes are not implemented yet and have no walkthrough.
+Management lists, search, and pagination outside Content, ordering commands, and standalone Option and Option Value status changes are not implemented yet and have no walkthrough.
 
 ## Setup
 
@@ -84,7 +85,7 @@ $visible = $variants->listByProductId($created->productId); // empty until the P
 
 - **Input:** any call.
 - **Public call:** catch the named exceptions you care about; all package-defined failures implement `Maatify\Product\Exception\ProductExceptionInterface`.
-- **Result:** a conflict exception for a taken identity (`ProductCodeAlreadyExistsException`, `OptionCodeAlreadyExistsException`, `OptionValueCodeAlreadyExistsException`, `ImageRoleKeyAlreadyExistsException`, `ImageAssignmentAlreadyExistsException`, `ProductContentAlreadyExistsException`, `OptionContentAlreadyExistsException`, `OptionValueContentAlreadyExistsException`, `VariantCompositionConflictException`; identities compare case-insensitively and stay reserved across soft-deleted history); a not-found exception for a missing or not-visible identity (`ProductNotFoundException`, `VariantNotFoundException`, `OptionNotFoundException`, `OptionValueNotFoundException`, `ImageRoleNotFoundException`, `ImageAssignmentNotFoundException`, `ProductContentNotFoundException`, `OptionContentNotFoundException`, `OptionValueContentNotFoundException`); `ProductInvalidArgumentException` for invalid input, including a structurally invalid composition selection; `ProductBusinessRuleException` when the row or its owner is soft deleted or the operation would break a Product invariant; `ProductPersistenceException` when storage returns data the schema contract does not allow.
+- **Result:** a conflict exception for a taken identity (`ProductCodeAlreadyExistsException`, `OptionCodeAlreadyExistsException`, `OptionValueCodeAlreadyExistsException`, `ImageRoleKeyAlreadyExistsException`, `ImageAssignmentAlreadyExistsException`, `ProductContentAlreadyExistsException`, `OptionContentAlreadyExistsException`, `OptionValueContentAlreadyExistsException`, `VariantSkuAlreadyExistsException`, `VariantBarcodeAlreadyExistsException`, `VariantCompositionConflictException`; identities compare case-insensitively and stay reserved across soft-deleted history); a not-found exception for a missing or not-visible identity (`ProductNotFoundException`, `VariantNotFoundException`, `OptionNotFoundException`, `OptionValueNotFoundException`, `ImageRoleNotFoundException`, `ImageAssignmentNotFoundException`, `ProductContentNotFoundException`, `OptionContentNotFoundException`, `OptionValueContentNotFoundException`); `ProductInvalidArgumentException` for invalid input, including a structurally invalid composition selection; `ProductBusinessRuleException` when the row or its owner is soft deleted or the operation would break a Product invariant; `ProductPersistenceException` when storage returns data the schema contract does not allow.
 - **Boundary:** every other `PDOException` or `Throwable` propagates unchanged. See the Package Reference, *Failure contract*.
 
 ## 5. Compose with a Host transaction
@@ -172,6 +173,22 @@ $content->create(new CreateProductContentCommand($productId, 'ar', 'قميص', '
 $arabic = $content->listVisible($productId, ExactContentLanguage::exactLanguage('ar')); // empty until the Product is active
 $all = $content->listForManagement(new ProductContentListCriteriaDTO($productId, ContentLanguageFilter::allLanguages()));
 $page = $content->paginateForManagement(new ProductContentListCriteriaDTO($productId, ContentLanguageFilter::allLanguages()), new PageRequest(1, 20));
+```
+
+## 11. Variant SKU and barcode
+
+- **Input:** an `UpdateVariantIdentifiersCommand` with the Variant identity and one `VariantIdentifierChange` each for the SKU and the barcode: `unchanged()`, `set($value)`, or `clear()`. A set value is not empty or whitespace only, at most 128 characters, and stored exactly as supplied (a barcode keeps its leading zeroes).
+- **Public call:** `VariantServiceInterface::updateIdentifiers($command)`.
+- **Result:** `void`; read the values back through `getByIdForManagement()`.
+- **Boundary:** the Variant identity never changes. A soft-deleted Variant or Product is a `ProductBusinessRuleException`; an inactive one is not. Each value is unique across all Variants under the collation (`SKU-1` and `sku-1` collide), and a soft-deleted Variant keeps its values reserved: a taken value is a `VariantSkuAlreadyExistsException` or `VariantBarcodeAlreadyExistsException`. Replacing or clearing a value releases it. A request that changes nothing writes nothing.
+
+```php
+$variants->updateIdentifiers(new UpdateVariantIdentifiersCommand(
+    $variantId,
+    VariantIdentifierChange::set('SHIRT-RED-M'),
+    VariantIdentifierChange::set('0012345678905'),
+));
+$variants->updateIdentifiers(new UpdateVariantIdentifiersCommand($variantId, VariantIdentifierChange::clear(), VariantIdentifierChange::unchanged()));
 ```
 
 ## Running the examples

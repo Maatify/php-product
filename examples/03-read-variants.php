@@ -3,24 +3,27 @@
 declare(strict_types=1);
 
 /**
- * Example 3: read the Variants of a Product for management and for consumers.
+ * Example 3: read the Variants of a Product for management and for consumers, and set its SKU and barcode.
  *
  * Input -> Public Call -> Result -> Boundary:
  *  - Input:    a Product code supplied by the Host.
  *  - Calls:    ProductServiceInterface::create(), VariantServiceInterface::getByIdForManagement(),
- *              listByProductIdForManagement(), listByProductId().
+ *              listByProductIdForManagement(), listByProductId(), updateIdentifiers().
  *  - Result:   a VariantDTO and VariantCollectionDTO; consumer reads return only visible Variants.
  *  - Boundary: a Variant is consumer-visible only while its Product and the Variant are active
- *              and its composition is valid; activating a Product is the Host's concern here.
+ *              and its composition is valid; activating a Product is the Host's concern here. A SKU or
+ *              barcode is left unchanged, set, or cleared explicitly, and is unique across all Variants.
  *
  * Environment: see example 01.
  */
 
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\Product\Command\CreateProductCommand;
+use Maatify\Product\Variant\Command\UpdateVariantIdentifiersCommand;
 use Maatify\Product\Variant\DTO\VariantListCriteriaDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
 use Maatify\Product\Variant\Exception\VariantNotFoundException;
+use Maatify\Product\Variant\ValueObject\VariantIdentifierChange;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
 
 $autoload = getenv('PRODUCT_EXAMPLE_AUTOLOAD');
@@ -67,5 +70,15 @@ try {
 if (count($list) !== 1 || count($variants->listByProductId($created->productId)) !== 0) {
     throw new RuntimeException('Unexpected Variant read results.');
 }
+
+// Secondary identifiers: set a SKU and a barcode (leading zeroes are kept), then clear the SKU only.
+$suffix = bin2hex(random_bytes(4));
+$variants->updateIdentifiers(new UpdateVariantIdentifiersCommand($created->variantId, VariantIdentifierChange::set('SKU-' . $suffix), VariantIdentifierChange::set('00' . $suffix)));
+$variants->updateIdentifiers(new UpdateVariantIdentifiersCommand($created->variantId, VariantIdentifierChange::clear(), VariantIdentifierChange::unchanged()));
+$identified = $variants->getByIdForManagement($created->variantId);
+if ($identified->sku !== null || $identified->barcode !== '00' . $suffix) {
+    throw new RuntimeException('Unexpected Variant identifiers.');
+}
+echo "identifiers: sku cleared, barcode {$identified->barcode}\n";
 
 echo "OK: example 03 completed\n";

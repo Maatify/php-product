@@ -342,6 +342,11 @@ final class ImageAssignmentServiceTest extends TestCase
                 throw new LogicException('updateStatus is not expected in this test.');
             }
 
+            public function updateIdentifiers(int $variantId, ?string $sku, ?string $barcode, DateTimeImmutable $occurredAt): bool
+            {
+                throw new LogicException('updateIdentifiers is not expected in this test.');
+            }
+
             public function softDelete(int $variantId, DateTimeImmutable $occurredAt): bool
             {
                 throw new LogicException('softDelete is not expected in this test.');

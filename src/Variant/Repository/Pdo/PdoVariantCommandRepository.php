@@ -11,14 +11,20 @@ use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\Common\Pdo\RowHydrator;
 use Maatify\Product\Variant\DTO\VariantLifecycleStateDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
+use Maatify\Product\Variant\Exception\VariantBarcodeAlreadyExistsException;
+use Maatify\Product\Variant\Exception\VariantSkuAlreadyExistsException;
 use Maatify\Product\Variant\Repository\VariantCommandRepositoryInterface;
 use Maatify\Product\Variant\ValueObject\CompositionFingerprint;
 use PDO;
+use PDOException;
 
 /**
  * PDO write adapter for Variant persistence on MySQL 8.0.16 or later.
  *
- * Unclassified {@see \PDOException} failures propagate unchanged. The connection
+ * Only a duplicate-key error (MySQL driver code 1062) naming `uq_maa_product_variants_sku` or
+ * `uq_maa_product_variants_barcode` is converted, to {@see VariantSkuAlreadyExistsException} or
+ * {@see VariantBarcodeAlreadyExistsException} with the original exception as `previous`. Every other
+ * {@see PDOException} propagates unchanged. The connection
  * must report errors as exceptions and must be the connection of the transaction
  * the caller owns.
  *
@@ -28,6 +34,7 @@ final readonly class PdoVariantCommandRepository implements VariantCommandReposi
 {
     private const string PRODUCT_TABLE = 'maa_product_products';
     private const string VARIANT_TABLE = 'maa_product_variants';
+    private const int MYSQL_DUPLICATE_KEY = 1062;
 
     public function __construct(
         private PDO $pdo,
@@ -80,7 +87,7 @@ final readonly class PdoVariantCommandRepository implements VariantCommandReposi
     public function lockForUpdate(int $variantId): ?VariantLifecycleStateDTO
     {
         $statement = $this->pdo->prepare(
-            'SELECT `id`, `product_id`, `status`, (`deleted_at` IS NOT NULL) AS `deleted` FROM `' . self::VARIANT_TABLE . '` WHERE `id` = :id FOR UPDATE',
+            'SELECT `id`, `product_id`, `status`, `sku`, `barcode`, (`deleted_at` IS NOT NULL) AS `deleted` FROM `' . self::VARIANT_TABLE . '` WHERE `id` = :id FOR UPDATE',
         );
         $statement->execute(['id' => $variantId]);
 
@@ -95,6 +102,8 @@ final readonly class PdoVariantCommandRepository implements VariantCommandReposi
             productId: RowHydrator::positiveInt($row, 'product_id'),
             active: RowHydrator::isActive($row),
             deleted: RowHydrator::flag($row, 'deleted'),
+            sku: RowHydrator::nullableString($row, 'sku'),
+            barcode: RowHydrator::nullableString($row, 'barcode'),
         );
     }
 
@@ -109,6 +118,32 @@ final readonly class PdoVariantCommandRepository implements VariantCommandReposi
             'updated_at' => $occurredAt->format('Y-m-d H:i:s'),
             'id' => $variantId,
         ]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function updateIdentifiers(int $variantId, ?string $sku, ?string $barcode, DateTimeImmutable $occurredAt): bool
+    {
+        $statement = $this->pdo->prepare(
+            'UPDATE `' . self::VARIANT_TABLE . '` SET `sku` = :sku, `barcode` = :barcode, `updated_at` = :updated_at WHERE '
+            . '`id` = :id AND `deleted_at` IS NULL',
+        );
+        try {
+            $statement->execute(['sku' => $sku, 'barcode' => $barcode, 'updated_at' => $occurredAt->format('Y-m-d H:i:s'), 'id' => $variantId]);
+        } catch (PDOException $exception) {
+            $driverCode = $exception->errorInfo[1] ?? null;
+            $message = $exception->errorInfo[2] ?? null;
+            if ((is_int($driverCode) || is_string($driverCode)) && (int) $driverCode === self::MYSQL_DUPLICATE_KEY && is_string($message)) {
+                if ($sku !== null && str_contains($message, 'uq_maa_product_variants_sku')) {
+                    throw VariantSkuAlreadyExistsException::withSku($sku, $exception);
+                }
+                if ($barcode !== null && str_contains($message, 'uq_maa_product_variants_barcode')) {
+                    throw VariantBarcodeAlreadyExistsException::withBarcode($barcode, $exception);
+                }
+            }
+
+            throw $exception;
+        }
 
         return $statement->rowCount() > 0;
     }

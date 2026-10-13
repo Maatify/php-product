@@ -79,7 +79,8 @@ final class IdentityStabilityTest extends TestCase
 
         $forbidden = array_filter(
             $methods,
-            static fn(string $name): bool => preg_match('/::(update|rename|change|replace|set)(Code|Identity|Id|Key)/i', $name) === 1,
+            // The secondary SKU and barcode are not identities, so `updateIdentifiers` is allowed.
+            static fn(string $name): bool => preg_match('/::(update|rename|change|replace|set)(Code|Identity|Id|Key)s?$/i', $name) === 1,
         );
 
         self::assertSame([], array_values($forbidden));

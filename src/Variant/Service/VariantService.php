@@ -13,6 +13,7 @@ use Maatify\Product\Product\DTO\ProductConfigurationSnapshotDTO;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
 use Maatify\Product\Product\Repository\ProductConfigurationRepositoryInterface;
 use Maatify\Product\Product\Service\ProductConfigurationValidator;
+use Maatify\Product\Variant\Command\UpdateVariantIdentifiersCommand;
 use Maatify\Product\Variant\DTO\VariantCollectionDTO;
 use Maatify\Product\Variant\DTO\VariantCompositionCriteriaDTO;
 use Maatify\Product\Variant\DTO\VariantDTO;
@@ -175,6 +176,29 @@ final readonly class VariantService implements VariantServiceInterface
             $this->assertMutable($snapshot, $variant);
             self::assertValid($snapshot->withVariant($variant->withDeleted(true)));
             if (!$this->variants->softDelete($variantId, $occurredAt)) {
+                throw ProductStorageFailureFactory::lockedRowVanished('Variant', $variantId);
+            }
+        });
+    }
+
+    public function updateIdentifiers(UpdateVariantIdentifiersCommand $command): void
+    {
+        $variantId = $command->variantId;
+        $occurredAt = $this->clock->now();
+
+        $this->transactions->run(function () use ($command, $variantId, $occurredAt): void {
+            [$snapshot, $variant] = $this->lockedVariant($variantId);
+            $this->assertMutable($snapshot, $variant);
+            $stored = $this->variants->lockForUpdate($variantId);
+            if ($stored === null) {
+                throw ProductStorageFailureFactory::lockedRowVanished('Variant', $variantId);
+            }
+            $sku = $command->sku->resolve($stored->sku);
+            $barcode = $command->barcode->resolve($stored->barcode);
+            if ($sku === $stored->sku && $barcode === $stored->barcode) {
+                return;
+            }
+            if (!$this->variants->updateIdentifiers($variantId, $sku, $barcode, $occurredAt)) {
                 throw ProductStorageFailureFactory::lockedRowVanished('Variant', $variantId);
             }
         });

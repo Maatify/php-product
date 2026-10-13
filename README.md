@@ -36,7 +36,7 @@ Framework-agnostic PHP library for Product and Variant identity on MySQL: a stab
 - **Host-owned boundaries.** The Host supplies the PDO connection and the Clock. The package performs no Pricing, Inventory, Supplier, Category, or media storage work.
 - **Database-enforced invariants.** `schema/product.sql` defines ten tables with foreign keys, case-sensitive status checks, and exact-scope uniqueness, verified against real MySQL, including concurrent writers.
 
-The package is in development. Management lists, search, and pagination outside Content, SKU and barcode mutation, ordering commands, and standalone Option and Option Value status changes are specified by the architecture but not yet implemented. See [Not yet implemented](PRODUCT_PACKAGE_REFERENCE.md#not-yet-implemented).
+The package is in development. Management lists, search, and pagination outside Content, ordering commands, and standalone Option and Option Value status changes are specified by the architecture but not yet implemented. See [Not yet implemented](PRODUCT_PACKAGE_REFERENCE.md#not-yet-implemented).
 
 ## Requirements
 
@@ -93,12 +93,12 @@ This is an overview; the complete inventory and the stable contract are in the [
 |---|---|
 | `Factory\ProductFactory` | The only construction entry point: `createProductService()`, `createVariantService()`, `createOptionService()`, `createOptionValueService()`, `createImageRoleService()`, `createImageAssignmentService()`, `createProductContentService()`, `createOptionContentService()`, and `createOptionValueContentService()`. |
 | `Product\Service\ProductServiceInterface` | `create()`, `getById()`, `getByIdForManagement()`, `updateStatus()`, `softDelete()`, `restore()`, `reconfigure()`. |
-| `Variant\Service\VariantServiceInterface` | `getById()`, `getByIdForManagement()`, `listByProductId()`, `listByProductIdForManagement()`, `resolveByComposition()`, `updateStatus()`, `softDelete()`, `restore()`. |
+| `Variant\Service\VariantServiceInterface` | `getById()`, `getByIdForManagement()`, `listByProductId()`, `listByProductIdForManagement()`, `resolveByComposition()`, `updateStatus()`, `updateIdentifiers()`, `softDelete()`, `restore()`. |
 | `Option\Service\OptionServiceInterface`, `OptionValue\Service\OptionValueServiceInterface` | `create()`, `softDelete()`, `restore()`, `getByIdForManagement()`. |
 | `ImageRole\Service\ImageRoleServiceInterface` | `create()`, `updateStatus()`, `softDelete()`, `restore()`, `getByIdForManagement()`. |
 | `ImageAssignment\Service\ImageAssignmentServiceInterface` | `create()`, `setDefault()`, `clearDefault()`, `softDelete()`, `restore()`, `getByIdForManagement()`. |
 | `Content\Service\ProductContentServiceInterface`, `Content\Service\OptionContentServiceInterface`, `Content\Service\OptionValueContentServiceInterface` | `create()`, `update()`, `softDelete()`, `restore()`, `getByIdForManagement()`, `listForManagement()`, `paginateForManagement()`, `listVisible()`. |
-| Commands | `CreateProductCommand`, `ReconfigureProductCommand` (with `ReconfigureOptionTarget`, `ReconfigureVariantTarget`), `CreateOptionCommand`, `CreateOptionValueCommand`, `CreateImageRoleCommand`, `CreateImageAssignmentCommand`, the `Create*ContentCommand` and `Update*ContentCommand` of each Content owner; `Content\ValueObject\ContentLanguageFilter` and `Content\ValueObject\ExactContentLanguage` for language selection; `Variant\ValueObject\OptionValueSelection` and `Variant\DTO\VariantCompositionCriteriaDTO` for compositions. |
+| Commands | `CreateProductCommand`, `ReconfigureProductCommand` (with `ReconfigureOptionTarget`, `ReconfigureVariantTarget`), `CreateOptionCommand`, `CreateOptionValueCommand`, `CreateImageRoleCommand`, `CreateImageAssignmentCommand`, `UpdateVariantIdentifiersCommand` (with `Variant\ValueObject\VariantIdentifierChange`), the `Create*ContentCommand` and `Update*ContentCommand` of each Content owner; `Content\ValueObject\ContentLanguageFilter` and `Content\ValueObject\ExactContentLanguage` for language selection; `Variant\ValueObject\OptionValueSelection` and `Variant\DTO\VariantCompositionCriteriaDTO` for compositions. |
 | DTOs and enums | Typed results (`CreatedProductDTO`, `ProductDTO`, `ProductReconfigurationResultDTO`, `VariantDTO` and its collection and criteria types, `OptionDTO`, `OptionValueDTO`, `ImageRoleDTO`, `ImageAssignmentDTO`, the Content DTOs with their collection and criteria types, and the `Created*DTO` identities), the status enums of each family, and `Common\Enum\ProductDeletedStateEnum`. |
 | Exceptions | Named failures for not-found, conflict, validation (`ProductInvalidArgumentException`), business-rule (`ProductBusinessRuleException`), and storage-contract (`ProductPersistenceException`) conditions; all implement `Exception\ProductExceptionInterface`. |
 
@@ -113,7 +113,7 @@ Everything under `Maatify\Product\` that the Package Reference does not list is 
 
 ## Exception and Error Propagation
 
-A taken identity becomes the family's conflict exception (`ProductCodeAlreadyExistsException`, `OptionCodeAlreadyExistsException`, `OptionValueCodeAlreadyExistsException`, `ImageRoleKeyAlreadyExistsException`, `ImageAssignmentAlreadyExistsException`, the `*ContentAlreadyExistsException` of each Content owner, `VariantCompositionConflictException`); a missing or not-visible identity becomes its not-found exception; invalid input, including a structurally invalid composition selection, becomes `ProductInvalidArgumentException`; a soft-deleted row or owner, or an operation that would break a Product invariant, becomes `ProductBusinessRuleException`; data the schema contract does not allow becomes `ProductPersistenceException`. Every other `PDOException` or `Throwable` propagates unchanged. Details: [Failure contract](PRODUCT_PACKAGE_REFERENCE.md#behavior-and-guarantees).
+A taken identity becomes the family's conflict exception (`ProductCodeAlreadyExistsException`, `OptionCodeAlreadyExistsException`, `OptionValueCodeAlreadyExistsException`, `ImageRoleKeyAlreadyExistsException`, `ImageAssignmentAlreadyExistsException`, `VariantSkuAlreadyExistsException`, `VariantBarcodeAlreadyExistsException`, the `*ContentAlreadyExistsException` of each Content owner, `VariantCompositionConflictException`); a missing or not-visible identity becomes its not-found exception; invalid input, including a structurally invalid composition selection, becomes `ProductInvalidArgumentException`; a soft-deleted row or owner, or an operation that would break a Product invariant, becomes `ProductBusinessRuleException`; data the schema contract does not allow becomes `ProductPersistenceException`. Every other `PDOException` or `Throwable` propagates unchanged. Details: [Failure contract](PRODUCT_PACKAGE_REFERENCE.md#behavior-and-guarantees).
 
 ## Schema
 
@@ -123,7 +123,7 @@ A taken identity becomes the family's conflict exception (`ProductCodeAlreadyExi
 
 - [`01-create-and-read-product.php`](examples/01-create-and-read-product.php): create, read, consumer visibility, duplicate handling.
 - [`02-host-transaction.php`](examples/02-host-transaction.php): composing `create()` inside a Host-owned transaction.
-- [`03-read-variants.php`](examples/03-read-variants.php): management and consumer Variant reads.
+- [`03-read-variants.php`](examples/03-read-variants.php): management and consumer Variant reads, and the SKU and barcode update.
 - [`04-reconfigure-and-resolve.php`](examples/04-reconfigure-and-resolve.php): prepare Options and Values, name and label them with Content commands, make the Product configurable, resolve a shopper's choices, read exact Content, and go back to simple.
 
 ## Documentation
