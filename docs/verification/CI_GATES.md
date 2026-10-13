@@ -109,7 +109,8 @@ Not applicable or not yet provable, and not claimed:
 - Release Artifact Verification and Published Artifact Verification: release-time gates, not
   applicable before a release target exists.
 
-**Branch protection: not verified, and currently not in force.** The workflow exposes the stable
-`Final Gate` job, but GitHub reports `main` as not protected and no repository ruleset exists, so
-no check is required before merge. Requiring `Final Gate` is a repository-settings change for an
-administrator or the Owner.
+**Branch protection: in force.** The repository ruleset `main-final-gate` (enforcement `active`, no bypass actors) targets
+the default branch `main`. GitHub reports it through `GET /repos/Maatify/php-product/rules/branches/main`: pull request
+required, the stable `Final Gate` job (GitHub Actions) required with the branch up to date, no force push, and no deletion.
+This was read back from GitHub after creation; it is repository configuration, not part of the checked-out tree, so it is
+re-verified with that command rather than by a CI job.
