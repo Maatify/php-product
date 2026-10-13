@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
 use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
+use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\Product\Command\CreateProductCommand;
@@ -31,12 +32,12 @@ final class ProductCreationTest extends RuntimeTestCase
 
         $created = $service->create(new CreateProductCommand('SIMPLE-1'));
 
-        $product = $service->getById($created->productId);
+        $product = $service->getByIdForManagement($created->productId);
         self::assertSame('SIMPLE-1', $product->code);
         self::assertSame(ProductStatusEnum::INACTIVE, $product->status);
         self::assertNull($product->deletedAt);
-        self::assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $product->createdAt);
-        self::assertSame($product->createdAt, $product->updatedAt);
+        self::assertSame('UTC', $product->createdAt->getTimezone()->getName());
+        self::assertEquals($product->createdAt, $product->updatedAt);
 
         self::assertSame(1, self::rowCount('maa_product_variants'));
         $statement = self::$pdo->query(
@@ -97,22 +98,66 @@ final class ProductCreationTest extends RuntimeTestCase
         $service->create(new CreateProductCommand('P-DEL'));
     }
 
-    public function testGetByIdReturnsSoftDeletedProductsWithTheirDeletionTime(): void
+    public function testManagementReadReturnsSoftDeletedProductsOnlyWhenAskedToAndHydratesInTheHostTimezone(): void
     {
         $service = $this->productService();
         $created = $service->create(new CreateProductCommand('P-DEL'));
         $this->execute('UPDATE maa_product_products SET deleted_at = :t WHERE id = :i', ['t' => '2026-02-03 04:05:06', 'i' => $created->productId]);
 
-        $product = $service->getById($created->productId);
+        $product = $service->getByIdForManagement($created->productId, ProductDeletedStateEnum::INCLUDE_DELETED);
 
-        self::assertSame('2026-02-03 04:05:06', $product->deletedAt);
-        self::assertSame(ProductStatusEnum::INACTIVE, $product->status);
+        self::assertNotNull($product->deletedAt);
+        self::assertSame('2026-02-03 04:05:06', $product->deletedAt->format('Y-m-d H:i:s'));
+        self::assertSame('UTC', $product->deletedAt->getTimezone()->getName());
+        self::assertSame($product->id, $service->getByIdForManagement($created->productId, ProductDeletedStateEnum::DELETED_ONLY)->id);
+
+        $this->expectException(ProductNotFoundException::class);
+        $service->getByIdForManagement($created->productId);
     }
 
-    public function testGetByIdThrowsNotFoundForAnUnknownIdentity(): void
+    public function testManagementReadExcludesDeletedOnlyWhenNotDeleted(): void
     {
+        $service = $this->productService();
+        $created = $service->create(new CreateProductCommand('P-LIVE'));
+
+        self::assertSame($created->productId, $service->getByIdForManagement($created->productId)->id);
+        self::assertSame($created->productId, $service->getByIdForManagement($created->productId, ProductDeletedStateEnum::INCLUDE_DELETED)->id);
+
         $this->expectException(ProductNotFoundException::class);
-        $this->productService()->getById(999999);
+        $service->getByIdForManagement($created->productId, ProductDeletedStateEnum::DELETED_ONLY);
+    }
+
+    public function testConsumerReadRequiresAnActiveNonDeletedProduct(): void
+    {
+        $service = $this->productService();
+        $created = $service->create(new CreateProductCommand('P-VIS'));
+
+        try {
+            $service->getById($created->productId);
+            self::fail('A new inactive Product is not consumer-visible.');
+        } catch (ProductNotFoundException) {
+        }
+
+        $this->execute("UPDATE maa_product_products SET status = 'active' WHERE id = :i", ['i' => $created->productId]);
+        self::assertSame($created->productId, $service->getById($created->productId)->id);
+
+        $this->execute('UPDATE maa_product_products SET deleted_at = :t WHERE id = :i', ['t' => '2026-02-03 04:05:06', 'i' => $created->productId]);
+        $this->expectException(ProductNotFoundException::class);
+        $service->getById($created->productId);
+    }
+
+    public function testReadsThrowNotFoundForAnUnknownIdentity(): void
+    {
+        $service = $this->productService();
+
+        foreach ([static fn() => $service->getById(999999), static fn() => $service->getByIdForManagement(999999, ProductDeletedStateEnum::INCLUDE_DELETED)] as $read) {
+            try {
+                $read();
+                self::fail('An unknown identity must not be found.');
+            } catch (ProductNotFoundException) {
+            }
+        }
+        $this->addToAssertionCount(1);
     }
 
     public function testAFailureAfterTheProductWriteRollsTheWholeOperationBack(): void
@@ -129,7 +174,7 @@ final class ProductCreationTest extends RuntimeTestCase
         $service = new ProductService(
             new PdoProductCommandRepository(self::$pdo),
             $failingVariants,
-            new PdoProductQueryReader(self::$pdo),
+            new PdoProductQueryReader(self::$pdo, new SystemClock(new DateTimeZone('UTC'))),
             new PdoSavepointTransactionRunner(self::$pdo),
             new SystemClock(new DateTimeZone('UTC')),
         );

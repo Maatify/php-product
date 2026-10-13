@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Maatify\Product\Product\Service;
 
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
+use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\DTO\CreatedProductDTO;
 use Maatify\Product\Product\DTO\ProductDTO;
+use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
 use Maatify\Product\Product\Repository\ProductCommandRepositoryInterface;
 use Maatify\Product\Product\Repository\ProductQueryReaderInterface;
@@ -51,11 +53,28 @@ final readonly class ProductService implements ProductServiceInterface
         );
     }
 
-    public function getById(int $id): ProductDTO
+    public function getById(int $productId): ProductDTO
     {
-        $product = $this->reader->findById($id);
-        if ($product === null) {
-            throw ProductNotFoundException::withId($id);
+        $product = $this->reader->findById($productId);
+        if ($product === null || $product->deletedAt !== null || $product->status !== ProductStatusEnum::ACTIVE) {
+            throw ProductNotFoundException::withId($productId);
+        }
+
+        return $product;
+    }
+
+    public function getByIdForManagement(
+        int $productId,
+        ProductDeletedStateEnum $deletedState = ProductDeletedStateEnum::NON_DELETED,
+    ): ProductDTO {
+        $product = $this->reader->findById($productId);
+        $matches = $product !== null && match ($deletedState) {
+            ProductDeletedStateEnum::NON_DELETED => $product->deletedAt === null,
+            ProductDeletedStateEnum::DELETED_ONLY => $product->deletedAt !== null,
+            ProductDeletedStateEnum::INCLUDE_DELETED => true,
+        };
+        if ($product === null || !$matches) {
+            throw ProductNotFoundException::withId($productId);
         }
 
         return $product;

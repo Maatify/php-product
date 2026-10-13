@@ -35,7 +35,7 @@ final class TextConstraintTest extends SchemaTestCase
         $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_products', ['code' => $blank], 'products.code');
         $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_options', ['product_id' => $this->p1, 'code' => $blank, 'display_order' => 50], 'options.code');
         $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_option_values', ['option_id' => $this->colorOption, 'code' => $blank, 'display_order' => 50], 'option_values.code');
-        $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_media_roles', ['role_key' => $blank], 'media_roles.role_key');
+        $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_image_roles', ['role_key' => $blank], 'image_roles.role_key');
         $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_variants', [
             'product_id' => $this->p1, 'composition_fingerprint' => self::fingerprint('ws-sku'), 'sku' => $blank, 'status' => 'inactive', 'display_order' => 50,
         ], 'variants.sku');
@@ -58,12 +58,12 @@ final class TextConstraintTest extends SchemaTestCase
         $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_product_contents', ['product_id' => $this->p1, 'language_code' => $blank, 'name' => 'N'], 'product_contents.language_code');
         $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_option_contents', ['option_id' => $this->colorOption, 'language_code' => $blank, 'name' => 'N'], 'option_contents.language_code');
         $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_option_value_contents', ['option_value_id' => $this->red, 'language_code' => $blank, 'name' => 'N'], 'option_value_contents.language_code');
-        $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_media_assignments', [
-            'product_id' => $this->p1, 'media_asset_id' => 900, 'language_code' => $blank, 'is_primary' => 0, 'display_order' => 50,
-        ], 'media_assignments.language_code');
-        $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_media_assignments', [
-            'product_id' => $this->p1, 'media_asset_id' => 900, 'platform' => $blank, 'is_primary' => 0, 'display_order' => 50,
-        ], 'media_assignments.platform');
+        $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_image_assignments', [
+            'product_id' => $this->p1, 'media_asset_id' => 900, 'language_code' => $blank, 'is_default' => 0, 'display_order' => 50,
+        ], 'image_assignments.language_code');
+        $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_image_assignments', [
+            'product_id' => $this->p1, 'media_asset_id' => 900, 'platform' => $blank, 'is_default' => 0, 'display_order' => 50,
+        ], 'image_assignments.platform');
     }
 
     #[DataProvider('blankValues')]
@@ -98,8 +98,8 @@ final class TextConstraintTest extends SchemaTestCase
     public function testLengthLimitsAreEnforced(): void
     {
         $this->assertInsertRejected(self::DATA_TOO_LONG, 'maa_product_product_contents', ['product_id' => $this->p1, 'language_code' => str_repeat('a', 17), 'name' => 'N']);
-        $this->assertInsertRejected(self::DATA_TOO_LONG, 'maa_product_media_assignments', [
-            'product_id' => $this->p1, 'media_asset_id' => 904, 'platform' => str_repeat('a', 256), 'is_primary' => 0, 'display_order' => 50,
+        $this->assertInsertRejected(self::DATA_TOO_LONG, 'maa_product_image_assignments', [
+            'product_id' => $this->p1, 'media_asset_id' => 904, 'platform' => str_repeat('a', 256), 'is_default' => 0, 'display_order' => 50,
         ]);
         $this->assertInsertRejected(self::DATA_TOO_LONG, 'maa_product_variants', [
             'product_id' => $this->p1, 'composition_fingerprint' => self::fingerprint('long'), 'sku' => str_repeat('a', 129), 'status' => 'inactive', 'display_order' => 62,

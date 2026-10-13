@@ -66,8 +66,8 @@ encoding cases, the composition fingerprint vector, and Service orchestration wi
 **Integration** (`tests/Integration`, real MySQL, exact MySQL error numbers):
 - `Schema/`: install shape; status casing; code, SKU, barcode, language, platform, and role-key
   uniqueness including soft-deleted history; whitespace-only rejection (space, tab, LF, CR, VT,
-  FF, NBSP, U+3000); composite ownership foreign keys; NULL-safe Content and media identity;
-  media target, scope, and primary rules.
+  FF, NBSP, U+3000); composite ownership foreign keys; NULL-safe Content and image-assignment identity;
+  image-assignment target, scope, and default rules.
 - `Runtime/`: the Product creation use case through the public factory: inactive Product plus
   one active empty-composition Variant, case-insensitive and soft-delete-reserved conflicts,
   rollback of a failed operation the package started, and, inside a caller-owned transaction, savepoint rollback of a failed
@@ -81,7 +81,7 @@ encoding cases, the composition fingerprint vector, and Service orchestration wi
 repository, copied, not symlinked), loads it only through the production PSR-4 autoloader
 (asserting that the public classes resolve from the installed package and that test namespaces
 are not autoloadable), installs the delivered `schema/product.sql`, and runs the workflow
-`ProductFactory` -> `ProductService::create` -> `getById` against a real MySQL service. It runs
+`ProductFactory` -> `ProductService::create` -> `getByIdForManagement` and the hidden consumer `getById` against a real MySQL service. It runs
 twice from clean consumer roots, uses the same Compose lifecycle as Integration, and is part of
 the stable `Final Gate`.
 
@@ -104,7 +104,7 @@ Not applicable or not yet provable, and not claimed:
 
 - Regression suite and `test:regression`: no resolved regression exists yet.
 - Concurrency proof for operations that do not exist yet (aggregate locking across
-  reconfiguration, atomic primary replacement) and structural validity of a full Product
+  reconfiguration, atomic default replacement) and structural validity of a full Product
   configuration.
 - Release Artifact Verification and Published Artifact Verification: release-time gates, not
   applicable before a release target exists.

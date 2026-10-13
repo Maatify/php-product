@@ -10,7 +10,7 @@ use PDOException;
 /**
  * Base for schema tests. Each test runs inside a transaction that is rolled back
  * and starts from a small fixture of two Products, their Options, Values, Variants,
- * and one Media Role.
+ * and one Image Role.
  */
 abstract class SchemaTestCase extends DatabaseTestCase
 {
@@ -111,14 +111,14 @@ abstract class SchemaTestCase extends DatabaseTestCase
     /** @param array<string, int|string|null> $overrides */
     protected function assignment(array $overrides): int
     {
-        return $this->insert('maa_product_media_assignments', $overrides + [
+        return $this->insert('maa_product_image_assignments', $overrides + [
             'product_id' => $this->p1,
             'variant_id' => null,
             'media_asset_id' => 10,
             'role_id' => null,
             'language_code' => null,
             'platform' => null,
-            'is_primary' => 0,
+            'is_default' => 0,
             'display_order' => 1,
         ]);
     }
@@ -137,6 +137,6 @@ abstract class SchemaTestCase extends DatabaseTestCase
         $this->emptyVariant1 = $this->variant($this->p1, 'v1', ['sku' => 'SKU-1', 'barcode' => '0001', 'status' => 'active', 'display_order' => 1]);
         $this->compositionVariant1 = $this->variant($this->p1, 'v1|1=1', ['display_order' => 2]);
         $this->emptyVariant2 = $this->variant($this->p2, 'v1', ['status' => 'active', 'display_order' => 1]);
-        $this->role = $this->insert('maa_product_media_roles', ['role_key' => 'hero']);
+        $this->role = $this->insert('maa_product_image_roles', ['role_key' => 'hero']);
     }
 }

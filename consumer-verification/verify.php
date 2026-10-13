@@ -96,7 +96,7 @@ try {
     $created = $service->create(new CreateProductCommand('SIMPLE-1'));
     check($created->productId > 0 && $created->variantId > 0, 'creating a Product returns its Product and Variant identities');
 
-    $product = $service->getById($created->productId);
+    $product = $service->getByIdForManagement($created->productId);
     check($product->code === 'SIMPLE-1', 'the stored Product is readable through the public API');
     check($product->status === ProductStatusEnum::INACTIVE, 'a new Product is inactive');
     check($product->deletedAt === null, 'a new Product is not soft deleted');
@@ -117,6 +117,13 @@ try {
     }
     $count = $pdo->query('SELECT COUNT(*) FROM maa_product_products');
     check($count !== false && (int) $count->fetchColumn() === 2, 'the conflicting create left no extra Product behind');
+
+    try {
+        $service->getById($created->productId);
+        check(false, 'an inactive Product must not be consumer-visible');
+    } catch (ProductNotFoundException) {
+        check(true, 'an inactive Product is hidden from the consumer read');
+    }
 
     try {
         $service->getById(999999);

@@ -22,7 +22,7 @@ final class StatusAndIdentityTest extends SchemaTestCase
         $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_products', ['code' => 'S-1', 'status' => $status]);
         $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_options', ['product_id' => $this->p1, 'code' => 'x', 'status' => $status, 'display_order' => 9]);
         $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_option_values', ['option_id' => $this->colorOption, 'code' => 'x', 'status' => $status, 'display_order' => 9]);
-        $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_media_roles', ['role_key' => 'r-x', 'status' => $status]);
+        $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_image_roles', ['role_key' => 'r-x', 'status' => $status]);
         $this->assertRejected(self::CHECK_VIOLATED, 'UPDATE maa_product_variants SET status = :s WHERE id = :id', ['s' => $status, 'id' => $this->emptyVariant1]);
     }
 
@@ -31,7 +31,7 @@ final class StatusAndIdentityTest extends SchemaTestCase
         self::assertSame('inactive', self::scalar('SELECT status FROM maa_product_products WHERE id = :i', ['i' => $this->p1]));
         self::assertSame('inactive', self::scalar('SELECT status FROM maa_product_options WHERE id = :i', ['i' => $this->colorOption]));
         self::assertSame('inactive', self::scalar('SELECT status FROM maa_product_option_values WHERE id = :i', ['i' => $this->red]));
-        self::assertSame('active', self::scalar('SELECT status FROM maa_product_media_roles WHERE id = :i', ['i' => $this->role]));
+        self::assertSame('active', self::scalar('SELECT status FROM maa_product_image_roles WHERE id = :i', ['i' => $this->role]));
         $this->assertInsertRejected(self::NO_DEFAULT, 'maa_product_variants', [
             'product_id' => $this->p1,
             'composition_fingerprint' => self::fingerprint('v1|none'),
@@ -53,7 +53,7 @@ final class StatusAndIdentityTest extends SchemaTestCase
         $this->assertInsertRejected(self::DUPLICATE_KEY, 'maa_product_products', ['code' => 'P-2']);
         $this->assertInsertRejected(self::DUPLICATE_KEY, 'maa_product_options', ['product_id' => $this->p1, 'code' => 'COLOR', 'display_order' => 9]);
         $this->assertInsertRejected(self::DUPLICATE_KEY, 'maa_product_option_values', ['option_id' => $this->colorOption, 'code' => 'RED', 'display_order' => 9]);
-        $this->assertInsertRejected(self::DUPLICATE_KEY, 'maa_product_media_roles', ['role_key' => 'HERO']);
+        $this->assertInsertRejected(self::DUPLICATE_KEY, 'maa_product_image_roles', ['role_key' => 'HERO']);
 
         self::assertGreaterThan(0, $this->insert('maa_product_options', ['product_id' => $this->p2, 'code' => 'size', 'display_order' => 2]), 'Same Option code in another Product is accepted.');
         self::assertGreaterThan(0, $this->insert('maa_product_option_values', ['option_id' => $this->sizeOption, 'code' => 'red', 'display_order' => 5]), 'Same Value code under another Option is accepted.');
@@ -73,8 +73,8 @@ final class StatusAndIdentityTest extends SchemaTestCase
             $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_variants', [
                 'product_id' => $this->p1, 'composition_fingerprint' => self::fingerprint('o' . $order), 'status' => 'inactive', 'display_order' => $order,
             ]);
-            $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_media_assignments', [
-                'product_id' => $this->p1, 'media_asset_id' => 5, 'is_primary' => 0, 'display_order' => $order,
+            $this->assertInsertRejected(self::CHECK_VIOLATED, 'maa_product_image_assignments', [
+                'product_id' => $this->p1, 'media_asset_id' => 5, 'is_default' => 0, 'display_order' => $order,
             ]);
         }
         $this->assertRejected(self::NO_DEFAULT, 'INSERT INTO maa_product_options (product_id, code, created_at, updated_at) VALUES (:p, :c, :t, :t2)', [

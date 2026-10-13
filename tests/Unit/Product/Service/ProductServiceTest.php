@@ -7,6 +7,7 @@ namespace Maatify\Product\Tests\Unit\Product\Service;
 use DateTimeImmutable;
 use DateTimeZone;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
+use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\DTO\ProductDTO;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
@@ -113,19 +114,61 @@ final class ProductServiceTest extends TestCase
         }
     }
 
-    public function testGetByIdReturnsTheStoredProduct(): void
+    public function testGetByIdReturnsAnActiveNonDeletedProduct(): void
     {
-        $dto = new ProductDTO(5, 'P-5', ProductStatusEnum::INACTIVE, '2026-01-01 00:00:00', '2026-01-01 00:00:00', null);
-        $reader = new class ($dto) implements ProductQueryReaderInterface {
+        $dto = $this->dto(ProductStatusEnum::ACTIVE, null);
+
+        self::assertSame($dto, $this->service(reader: $this->readerOf($dto))->getById(5));
+    }
+
+    public function testGetByIdHidesInactiveAndSoftDeletedProducts(): void
+    {
+        foreach ([$this->dto(ProductStatusEnum::INACTIVE, null), $this->dto(ProductStatusEnum::ACTIVE, new \DateTimeImmutable('2026-01-02'))] as $dto) {
+            try {
+                $this->service(reader: $this->readerOf($dto))->getById(5);
+                self::fail('A non-visible Product must not be returned.');
+            } catch (ProductNotFoundException) {
+            }
+        }
+        $this->addToAssertionCount(1);
+    }
+
+    public function testManagementReadFiltersOnlyByDeletedState(): void
+    {
+        $live = $this->dto(ProductStatusEnum::INACTIVE, null);
+        $deleted = $this->dto(ProductStatusEnum::INACTIVE, new \DateTimeImmutable('2026-01-02'));
+
+        self::assertSame($live, $this->service(reader: $this->readerOf($live))->getByIdForManagement(5));
+        self::assertSame($live, $this->service(reader: $this->readerOf($live))->getByIdForManagement(5, ProductDeletedStateEnum::INCLUDE_DELETED));
+        self::assertSame($deleted, $this->service(reader: $this->readerOf($deleted))->getByIdForManagement(5, ProductDeletedStateEnum::DELETED_ONLY));
+        self::assertSame($deleted, $this->service(reader: $this->readerOf($deleted))->getByIdForManagement(5, ProductDeletedStateEnum::INCLUDE_DELETED));
+
+        foreach ([[$deleted, ProductDeletedStateEnum::NON_DELETED], [$live, ProductDeletedStateEnum::DELETED_ONLY]] as [$dto, $state]) {
+            try {
+                $this->service(reader: $this->readerOf($dto))->getByIdForManagement(5, $state);
+                self::fail('The deleted-state filter must exclude the Product.');
+            } catch (ProductNotFoundException) {
+            }
+        }
+    }
+
+    private function dto(ProductStatusEnum $status, ?\DateTimeImmutable $deletedAt): ProductDTO
+    {
+        $at = new \DateTimeImmutable('2026-01-01 00:00:00', new DateTimeZone('UTC'));
+
+        return new ProductDTO(5, 'P-5', $status, $at, $at, $deletedAt);
+    }
+
+    private function readerOf(ProductDTO $dto): ProductQueryReaderInterface
+    {
+        return new class ($dto) implements ProductQueryReaderInterface {
             public function __construct(private ProductDTO $dto) {}
 
-            public function findById(int $id): ?ProductDTO
+            public function findById(int $productId): ?ProductDTO
             {
-                return $id === $this->dto->id ? $this->dto : null;
+                return $productId === $this->dto->id ? $this->dto : null;
             }
         };
-
-        self::assertSame($dto, $this->service(reader: $reader)->getById(5));
     }
 
     public function testGetByIdThrowsNotFoundForAnUnknownIdentity(): void
@@ -162,7 +205,7 @@ final class ProductServiceTest extends TestCase
             }
         };
         $reader ??= new class implements ProductQueryReaderInterface {
-            public function findById(int $id): ?ProductDTO
+            public function findById(int $productId): ?ProductDTO
             {
                 return null;
             }

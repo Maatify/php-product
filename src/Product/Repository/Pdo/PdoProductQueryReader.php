@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Product\Repository\Pdo;
 
+use DateTimeImmutable;
+use Exception;
 use Maatify\Product\Common\Exception\ProductPersistenceException;
 use Maatify\Product\Product\DTO\ProductDTO;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Repository\ProductQueryReaderInterface;
+use Maatify\SharedCommon\Contracts\ClockInterface;
 use PDO;
 
 /**
@@ -17,15 +20,18 @@ final readonly class PdoProductQueryReader implements ProductQueryReaderInterfac
 {
     private const string TABLE = 'maa_product_products';
 
-    public function __construct(private PDO $pdo) {}
+    public function __construct(
+        private PDO $pdo,
+        private ClockInterface $clock,
+    ) {}
 
-    public function findById(int $id): ?ProductDTO
+    public function findById(int $productId): ?ProductDTO
     {
         $statement = $this->pdo->prepare(
             'SELECT `id`, `code`, `status`, `created_at`, `updated_at`, `deleted_at` '
             . 'FROM `' . self::TABLE . '` WHERE `id` = :id LIMIT 1',
         );
-        $statement->execute(['id' => $id]);
+        $statement->execute(['id' => $productId]);
 
         /** @var array<string, mixed>|false $row */
         $row = $statement->fetch(PDO::FETCH_ASSOC);
@@ -39,19 +45,34 @@ final readonly class PdoProductQueryReader implements ProductQueryReaderInterfac
             throw ProductPersistenceException::invalidStorageValue($status === null ? 'status' : 'id');
         }
 
-        $deletedAt = $row['deleted_at'] ?? null;
-        if ($deletedAt !== null && !is_string($deletedAt)) {
-            throw ProductPersistenceException::unexpectedColumnType('deleted_at');
-        }
-
         return new ProductDTO(
             id: (int) $rowId,
             code: self::requireString($row, 'code'),
             status: $status,
-            createdAt: self::requireString($row, 'created_at'),
-            updatedAt: self::requireString($row, 'updated_at'),
-            deletedAt: $deletedAt,
+            createdAt: $this->timestamp($row, 'created_at'),
+            updatedAt: $this->timestamp($row, 'updated_at'),
+            deletedAt: $this->nullableTimestamp($row, 'deleted_at'),
         );
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function timestamp(array $row, string $column): DateTimeImmutable
+    {
+        try {
+            return new DateTimeImmutable(self::requireString($row, $column), $this->clock->getTimezone());
+        } catch (Exception $exception) {
+            throw ProductPersistenceException::invalidStorageValue($column);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function nullableTimestamp(array $row, string $column): ?DateTimeImmutable
+    {
+        return ($row[$column] ?? null) === null ? null : $this->timestamp($row, $column);
     }
 
     /**

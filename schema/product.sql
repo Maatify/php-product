@@ -1,5 +1,5 @@
 -- =============================================================================
--- Product V1 schema: Product, Variant, Option, Option Value, Content, and Media
+-- Product V1 schema: Product, Variant, Option, Option Value, Content, Image Role, and Image Assignment
 -- Package: maatify/php-product
 -- =============================================================================
 --
@@ -15,12 +15,12 @@
 --     maa_product_options, maa_product_option_contents,
 --     maa_product_option_values, maa_product_option_value_contents,
 --     maa_product_variants, maa_product_variant_option_values,
---     maa_product_media_roles, and maa_product_media_assignments.
+--     maa_product_image_roles, and maa_product_image_assignments.
 --   - It defines no Pricing, Inventory, Supplier, Category, Order, Customer,
 --     Catalog/Tenant, Host, or Media Storage table, and no foreign key or JOIN
 --     to any of them. One Product identity namespace exists per deployed set
 --     of these tables; no catalog_id, tenant_id, or store scope is stored.
---   - No data is seeded. Product Media Roles are created by the Host.
+--   - No data is seeded. Product Image Roles are created by the Host.
 --
 -- Timestamp contract:
 --   - created_at, updated_at, and deleted_at are assigned by the Product
@@ -34,7 +34,7 @@
 --   - status and deleted_at are independent dimensions. Soft deletion never
 --     changes status, and restoration preserves the saved status.
 --   - Defaults follow the architecture: Product, Option, and Option Value are
---     created inactive; Product Media Role is created active. Variant status
+--     created inactive; Product Image Role is created active. Variant status
 --     has no database default because the application assigns it explicitly.
 --
 -- Deletion contract:
@@ -52,7 +52,7 @@
 --     invariant rather than a PHP-only check.
 --
 -- Ordering contract:
---   - display_order exists only on options, option values, variants, and media
+--   - display_order exists only on options, option values, variants, and image
 --     assignments (Product has none, DEC-006). It is a positive position within
 --     its scope (product_id, option_id, product_id, and the generated
 --     ordering_scope respectively), assigned by the application through the
@@ -86,9 +86,9 @@
 --     independent update, delete, or soft-delete lifecycle; they follow the
 --     Variant. UNIQUE (variant_id, option_id) allows one value per Option.
 --
--- Media Assignment contract:
+-- Image Assignment contract:
 --   - media_asset_id is a Host-owned external identity (BIGINT UNSIGNED > 0)
---     with deliberately no foreign key. Product Media Role ids are a separate
+--     with deliberately no foreign key. Product Image Role ids are a separate
 --     namespace from any Category role id.
 --   - A target is the Product itself (variant_id IS NULL) or one Variant of
 --     that Product. product_id always has an independent foreign key, and the
@@ -102,11 +102,11 @@
 --     generated NULL-safe identity columns; their sentinels (0 and '') are
 --     made unreachable by CHECK constraints.
 --   - ordering_scope is a generated, length-prefixed exact scope
---     (target, language, platform, role) shared by ordering and by the primary
---     rule. primary_scope_identity is NULL unless the row is an active primary,
---     so its unique key allows at most one active primary per exact scope while
---     any number of non-primary or soft-deleted rows remain allowed. A soft
---     deleted row can never be primary (CHECK); no row is promoted
+--     (target, language, platform, role) shared by ordering and by the default
+--     rule. default_scope_identity is NULL unless the row is an active default,
+--     so its unique key allows at most one active default per exact scope while
+--     any number of non-default or soft-deleted rows remain allowed. A soft
+--     deleted row can never be default (CHECK); no row is promoted
 --     automatically.
 --
 -- Boundaries of this DDL:
@@ -114,7 +114,7 @@
 --     transactions, locking, or PHP logic: structural validity of a Product
 --     configuration, exact active-Option coverage per Variant, the fingerprint
 --     value, usable Content names for activation, immutability of identity
---     columns, atomic primary replacement, or active-Role requirements on new
+--     columns, atomic default replacement, or active-Role requirements on new
 --     assignments. The application enforces those under the Product aggregate
 --     lock; the unique keys here are the final concurrency guard for identity.
 -- =============================================================================
@@ -366,9 +366,9 @@ DEFAULT CHARSET = utf8mb4
 COLLATE = utf8mb4_unicode_ci
 COMMENT = 'Immutable Variant composition pairs with composite foreign keys enforcing same-Product and same-Option ownership';
 
-CREATE TABLE `maa_product_media_roles`
+CREATE TABLE `maa_product_image_roles`
 (
-    `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Internal immutable Product Media Role identity generated by the database; separate namespace from any Category role',
+    `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Internal immutable Product Image Role identity generated by the database; separate namespace from any Category role',
     `role_key`   VARCHAR(100) NOT NULL COMMENT 'Host-created immutable Role key; unique in the Product role namespace and permanently reserved after soft deletion',
     `status`     VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT 'active' COMMENT 'Role lifecycle status; exact lowercase active or inactive; independent of deleted_at',
     `created_at` DATETIME NOT NULL COMMENT 'Host Clock timestamp assigned by the Product application when the Role is created',
@@ -376,27 +376,27 @@ CREATE TABLE `maa_product_media_roles`
     `deleted_at` DATETIME NULL COMMENT 'Host Clock timestamp assigned by the Product application on soft delete; NULL means not deleted',
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uq_maa_product_media_roles_role_key` (`role_key`),
-    KEY `idx_maa_product_media_roles_status_deleted_key` (`status`, `deleted_at`, `role_key`, `id`),
-    CONSTRAINT `chk_maa_product_media_roles_role_key` CHECK (
+    UNIQUE KEY `uq_maa_product_image_roles_role_key` (`role_key`),
+    KEY `idx_maa_product_image_roles_status_deleted_key` (`status`, `deleted_at`, `role_key`, `id`),
+    CONSTRAINT `chk_maa_product_image_roles_role_key` CHECK (
         `role_key` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`role_key`) <= 100
     ),
-    CONSTRAINT `chk_maa_product_media_roles_status` CHECK (
+    CONSTRAINT `chk_maa_product_image_roles_status` CHECK (
         BINARY `status` IN (BINARY 'active', BINARY 'inactive')
     )
 )
 ENGINE = InnoDB
 DEFAULT CHARSET = utf8mb4
 COLLATE = utf8mb4_unicode_ci
-COMMENT = 'Package-owned immutable Product Media Role registry with lifecycle state; no roles are seeded';
+COMMENT = 'Package-owned immutable Product Image Role registry with lifecycle state; no roles are seeded';
 
-CREATE TABLE `maa_product_media_assignments`
+CREATE TABLE `maa_product_image_assignments`
 (
-    `id`                     BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Internal immutable Product Media Assignment identity generated by the database',
+    `id`                     BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Internal immutable Product Image Assignment identity generated by the database',
     `product_id`             BIGINT UNSIGNED NOT NULL COMMENT 'Internal Product identity anchoring this assignment; always validated by an independent foreign key, including Product-level targets',
     `variant_id`             BIGINT UNSIGNED NULL COMMENT 'Nullable internal Variant target; NULL is the Product-level target; non-NULL must belong to product_id through a composite foreign key',
     `media_asset_id`         BIGINT UNSIGNED NOT NULL COMMENT 'Host-provided external Media Asset identity; positive; deliberately has no foreign key',
-    `role_id`                BIGINT UNSIGNED NULL COMMENT 'Nullable internal Product Media Role identity; NULL is the exact generic/unclassified scope, not a fallback',
+    `role_id`                BIGINT UNSIGNED NULL COMMENT 'Nullable internal Product Image Role identity; NULL is the exact generic/unclassified scope, not a fallback',
     `language_code`          VARCHAR(16) NULL COMMENT 'Nullable exact language scope; NULL is a distinct unlocalized scope; Host owns semantic language support and fallback',
     `platform`               VARCHAR(255) NULL COMMENT 'Nullable exact platform scope; NULL is a distinct exact NULL scope; no hardcoded platform enum; Host owns platform semantics',
     `variant_id_identity`    BIGINT UNSIGNED GENERATED ALWAYS AS (COALESCE(`variant_id`, 0)) STORED COMMENT 'Generated uniqueness key mapping the Product-level NULL target to one database value',
@@ -426,51 +426,51 @@ CREATE TABLE `maa_product_media_assignments`
                 ELSE CONCAT('R', CAST(`role_id` AS CHAR))
             END
         )
-    ) STORED COMMENT 'Generated exact Product/Variant target plus language/platform/role scope for maatify/persistence ordering and primary uniqueness',
-    `is_primary`             TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Explicit primary marker within the exact target and scope; zero or one active primary is allowed; never auto-promoted',
+    ) STORED COMMENT 'Generated exact Product/Variant target plus language/platform/role scope for maatify/persistence ordering and default uniqueness',
+    `is_default`             TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Explicit default marker within the exact target and scope; zero or one active default is allowed; never auto-promoted',
     `display_order`          INT NOT NULL COMMENT 'Business-controlled positive order within the exact target and scope; assigned by the Product application through maatify/persistence',
     `created_at`             DATETIME NOT NULL COMMENT 'Host Clock timestamp assigned by the Product application when the assignment is created',
-    `updated_at`             DATETIME NOT NULL COMMENT 'Host Clock timestamp assigned by the Product application on ordering, primary mutation, soft delete, or restore',
+    `updated_at`             DATETIME NOT NULL COMMENT 'Host Clock timestamp assigned by the Product application on ordering, default mutation, soft delete, or restore',
     `deleted_at`             DATETIME NULL COMMENT 'Host Clock timestamp assigned by the Product application on soft delete; NULL means not deleted',
-    `primary_scope_identity` VARCHAR(512) GENERATED ALWAYS AS (
+    `default_scope_identity` VARCHAR(512) GENERATED ALWAYS AS (
         CASE
-            WHEN `is_primary` = 1 AND `deleted_at` IS NULL THEN `ordering_scope`
+            WHEN `is_default` = 1 AND `deleted_at` IS NULL THEN `ordering_scope`
             ELSE NULL
         END
-    ) STORED COMMENT 'Conditional generated exact-scope identity; only an active primary row participates in the unique key',
+    ) STORED COMMENT 'Conditional generated exact-scope identity; only an active default row participates in the unique key',
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uq_maa_product_media_assignments_identity` (
+    UNIQUE KEY `uq_maa_product_image_assignments_identity` (
         `product_id`, `variant_id_identity`, `media_asset_id`, `role_id_identity`, `language_code_identity`, `platform_identity`
     ),
-    UNIQUE KEY `uq_maa_product_media_assignments_primary_scope` (`primary_scope_identity`),
-    KEY `idx_maa_product_media_assignments_variant_product` (`variant_id`, `product_id`),
-    KEY `idx_maa_product_media_assignments_role` (`role_id`),
-    KEY `idx_maa_product_media_assignments_ordering` (`ordering_scope`, `deleted_at`, `display_order`, `id`),
-    CONSTRAINT `chk_maa_product_media_assignments_variant_id` CHECK (`variant_id` IS NULL OR `variant_id` > 0),
-    CONSTRAINT `chk_maa_product_media_assignments_media_asset_id` CHECK (`media_asset_id` > 0),
-    CONSTRAINT `chk_maa_product_media_assignments_role_id` CHECK (`role_id` IS NULL OR `role_id` > 0),
-    CONSTRAINT `chk_maa_product_media_assignments_language_code` CHECK (
+    UNIQUE KEY `uq_maa_product_image_assignments_default_scope` (`default_scope_identity`),
+    KEY `idx_maa_product_image_assignments_variant_product` (`variant_id`, `product_id`),
+    KEY `idx_maa_product_image_assignments_role` (`role_id`),
+    KEY `idx_maa_product_image_assignments_ordering` (`ordering_scope`, `deleted_at`, `display_order`, `id`),
+    CONSTRAINT `chk_maa_product_image_assignments_variant_id` CHECK (`variant_id` IS NULL OR `variant_id` > 0),
+    CONSTRAINT `chk_maa_product_image_assignments_media_asset_id` CHECK (`media_asset_id` > 0),
+    CONSTRAINT `chk_maa_product_image_assignments_role_id` CHECK (`role_id` IS NULL OR `role_id` > 0),
+    CONSTRAINT `chk_maa_product_image_assignments_language_code` CHECK (
         `language_code` IS NULL
         OR (`language_code` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`language_code`) <= 16)
     ),
-    CONSTRAINT `chk_maa_product_media_assignments_platform` CHECK (
+    CONSTRAINT `chk_maa_product_image_assignments_platform` CHECK (
         `platform` IS NULL
         OR (`platform` REGEXP '[^[:space:]]' AND CHAR_LENGTH(`platform`) <= 255)
     ),
-    CONSTRAINT `chk_maa_product_media_assignments_is_primary` CHECK (`is_primary` IN (0, 1)),
-    CONSTRAINT `chk_maa_product_media_assignments_primary_not_deleted` CHECK (`deleted_at` IS NULL OR `is_primary` = 0),
-    CONSTRAINT `chk_maa_product_media_assignments_display_order` CHECK (`display_order` > 0),
-    CONSTRAINT `fk_maa_product_media_assignments_product` FOREIGN KEY (`product_id`)
+    CONSTRAINT `chk_maa_product_image_assignments_is_default` CHECK (`is_default` IN (0, 1)),
+    CONSTRAINT `chk_maa_product_image_assignments_default_not_deleted` CHECK (`deleted_at` IS NULL OR `is_default` = 0),
+    CONSTRAINT `chk_maa_product_image_assignments_display_order` CHECK (`display_order` > 0),
+    CONSTRAINT `fk_maa_product_image_assignments_product` FOREIGN KEY (`product_id`)
         REFERENCES `maa_product_products` (`id`)
         ON DELETE RESTRICT
         ON UPDATE RESTRICT,
-    CONSTRAINT `fk_maa_product_media_assignments_variant_product` FOREIGN KEY (`variant_id`, `product_id`)
+    CONSTRAINT `fk_maa_product_image_assignments_variant_product` FOREIGN KEY (`variant_id`, `product_id`)
         REFERENCES `maa_product_variants` (`id`, `product_id`)
         ON DELETE RESTRICT
         ON UPDATE RESTRICT,
-    CONSTRAINT `fk_maa_product_media_assignments_role` FOREIGN KEY (`role_id`)
-        REFERENCES `maa_product_media_roles` (`id`)
+    CONSTRAINT `fk_maa_product_image_assignments_role` FOREIGN KEY (`role_id`)
+        REFERENCES `maa_product_image_roles` (`id`)
         ON DELETE RESTRICT
         ON UPDATE RESTRICT
 )

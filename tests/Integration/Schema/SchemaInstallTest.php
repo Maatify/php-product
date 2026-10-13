@@ -9,8 +9,8 @@ use PDO;
 final class SchemaInstallTest extends SchemaTestCase
 {
     private const array TABLES = [
-        'maa_product_media_assignments',
-        'maa_product_media_roles',
+        'maa_product_image_assignments',
+        'maa_product_image_roles',
         'maa_product_option_contents',
         'maa_product_option_value_contents',
         'maa_product_option_values',
@@ -41,6 +41,30 @@ final class SchemaInstallTest extends SchemaTestCase
             "SELECT COUNT(*) FROM information_schema.tables t WHERE t.table_schema = DATABASE() AND NOT EXISTS (
                 SELECT 1 FROM information_schema.statistics s WHERE s.table_schema = t.table_schema
                 AND s.table_name = t.table_name AND s.index_name = 'PRIMARY' AND s.column_name = 'id' AND s.seq_in_index = 1)",
+        ));
+    }
+
+    public function testTheAssignmentDefaultInvariantUsesTheCanonicalCategoryCompatibleNames(): void
+    {
+        $columns = self::$pdo->query(
+            "SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE()
+             AND table_name = 'maa_product_image_assignments' AND column_name IN ('is_default', 'default_scope_identity')
+             ORDER BY column_name",
+        );
+        self::assertNotFalse($columns);
+        self::assertSame(['default_scope_identity', 'is_default'], $columns->fetchAll(PDO::FETCH_COLUMN));
+
+        self::assertSame(1, (int) self::scalar(
+            "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE()
+             AND index_name = 'uq_maa_product_image_assignments_default_scope' AND non_unique = 0",
+        ));
+        self::assertSame(2, (int) self::scalar(
+            "SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema = DATABASE()
+             AND constraint_name IN ('chk_maa_product_image_assignments_is_default', 'chk_maa_product_image_assignments_default_not_deleted')",
+        ));
+        self::assertSame(0, (int) self::scalar(
+            "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE()
+             AND (column_name LIKE '%primary%' OR column_name LIKE 'media\\_role%' OR column_name LIKE 'media\\_assignment%')",
         ));
     }
 
@@ -81,7 +105,7 @@ final class SchemaInstallTest extends SchemaTestCase
         self::assertSame(1, (int) self::scalar(
             "SELECT COUNT(*) FROM (
                 SELECT constraint_name FROM information_schema.key_column_usage
-                WHERE table_schema = DATABASE() AND table_name = 'maa_product_media_assignments'
+                WHERE table_schema = DATABASE() AND table_name = 'maa_product_image_assignments'
                   AND referenced_table_name = 'maa_product_variants' GROUP BY constraint_name HAVING COUNT(*) = 2) c",
         ));
     }

@@ -72,7 +72,7 @@ The project Owner formally approved the following decision on 2026-10-11:
 
 This decision is strictly confined to the content scoping of core Product, Option, and Option Value entities. The following areas remain explicitly out of scope:
 
-- Media Assignment scoping, which retains platform, language, and role dimensions under its dedicated specification.
+- Image Assignment scoping, which retains platform, language, and role dimensions under its dedicated specification.
 - Design or activation of optional Content Fields extensions.
 - Resolution of the Shared Media Asset identity contract (Gate 5).
 - Resolution of the retention or exclusion of `Product.display_order` in V1 (Gate 6).

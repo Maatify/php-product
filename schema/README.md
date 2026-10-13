@@ -31,7 +31,7 @@ mysql --user=<user> --password --database=<empty_database> < schema/product.sql
 ```
 
 The script creates tables only. It defines no triggers, routines, seed data, or
-default Product Media Roles, and it never touches tables it does not own. Install
+default Product Image Roles, and it never touches tables it does not own. Install
 it once per deployed set of Product tables: V1 supports one Product identity
 namespace per table set, so there is no `catalog_id`, tenant, or store column.
 
@@ -49,8 +49,8 @@ Creation order follows foreign-key dependency.
 | `maa_product_option_value_contents` | Option Value labels, nullable language |
 | `maa_product_variants` | Sellable-unit identity, composition fingerprint, optional SKU and barcode |
 | `maa_product_variant_option_values` | Immutable Variant composition pairs |
-| `maa_product_media_roles` | Product-owned Media Role registry |
-| `maa_product_media_assignments` | Product- and Variant-level links to external Media Asset identities |
+| `maa_product_image_roles` | Product-owned Image Role registry |
+| `maa_product_image_assignments` | Product- and Variant-level links to external Media Asset identities |
 
 ## Database-enforced rules
 
@@ -60,32 +60,32 @@ Creation order follows foreign-key dependency.
 - **Ownership.** Composite foreign keys, backed by the candidate keys
   `UNIQUE (id, product_id)` on Options and Variants and `UNIQUE (id, option_id)`
   on Option Values, make it impossible to compose a Variant from an Option or
-  Value of another Product, or to pair a Value with the wrong Option. A media
+  Value of another Product, or to pair a Value with the wrong Option. An image
   assignment always has an independent `product_id` foreign key; a non-NULL
   `variant_id` must additionally belong to that same Product.
 - **Status.** `status` is exactly lowercase `active` or `inactive`, enforced by a
   `utf8mb4_bin` column and a binary `CHECK`. It is independent of `deleted_at`.
-  Defaults: Product, Option, and Option Value are `inactive`; Media Role is
+  Defaults: Product, Option, and Option Value are `inactive`; Image Role is
   `active`; Variant has no default.
 - **Identity across soft deletion.** No identity unique key includes
-  `deleted_at`: Product, Option, Option Value, Media Role, Content, composition
-  fingerprint, and media assignment identities stay reserved after soft deletion
+  `deleted_at`: Product, Option, Option Value, Image Role, Content, composition
+  fingerprint, and image assignment identities stay reserved after soft deletion
   and are restored rather than re-inserted. A Variant keeps its current SKU and
   barcode reserved until the value is cleared or replaced.
 - **Nullable scope.** `NULL` is an exact scope, never a wildcard or fallback.
-  Content and media identities use generated NULL-safe columns (`NULL` maps to
+  Content and image-assignment identities use generated NULL-safe columns (`NULL` maps to
   `''` or `0`), and `CHECK` constraints make those sentinels impossible as real
   values.
 - **Media.** `media_asset_id` is `BIGINT UNSIGNED` with `CHECK (> 0)` and no
-  foreign key. At most one active primary exists per exact target and
-  role/language/platform scope; a soft-deleted row can never be primary.
+  foreign key. At most one active default exists per exact target and
+  role/language/platform scope; a soft-deleted row can never be default.
 - **Text.** Codes, role keys, Content names, language codes, platforms, SKU, and
   barcode reject empty and whitespace-only values (spaces, tabs, newlines, and other
   characters matching `[[:space:]]`) through `REGEXP '[^[:space:]]'`, and enforce their
   length limits.
   Comparison follows `utf8mb4_unicode_ci`, so it is case-insensitive.
 - **Ordering.** `display_order` exists only on Options, Option Values, Variants,
-  and media assignments, is positive, has no database default, and is assigned by
+  and image assignments, is positive, has no database default, and is assigned by
   the application through `maatify/persistence`. `Product` has none (`DEC-006`).
 - **Timestamps.** `created_at`, `updated_at`, and `deleted_at` come from the Host
   Clock; the schema has no `CURRENT_TIMESTAMP` default or `ON UPDATE` clause.
@@ -103,7 +103,7 @@ logic. The application owns them, serialized on the Product aggregate lock:
   language;
 - a usable Content name before activation, and the active-Role requirement for
   new assignments;
-- atomic primary replacement and positive, gap-managed ordering.
+- atomic default replacement and positive, gap-managed ordering.
 
 Pricing, Inventory, Supplier, Category mapping, and Media storage are outside the
 package and have no table here.

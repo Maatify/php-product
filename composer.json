@@ -1,6 +1,6 @@
 {
     "name": "maatify/php-product",
-    "description": "PHP library for Product, Variant, Option, and Product media identity, with a MySQL-backed schema.",
+    "description": "PHP library for Product, Variant, Option, and Product image-assignment identity, with a MySQL-backed schema.",
     "keywords": [
         "product",
         "variant",

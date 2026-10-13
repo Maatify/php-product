@@ -17,8 +17,8 @@ use Maatify\SharedCommon\Infrastructure\SystemClock;
 abstract class RuntimeTestCase extends DatabaseTestCase
 {
     private const array TABLES_CHILD_FIRST = [
-        'maa_product_media_assignments',
-        'maa_product_media_roles',
+        'maa_product_image_assignments',
+        'maa_product_image_roles',
         'maa_product_variant_option_values',
         'maa_product_variants',
         'maa_product_option_value_contents',

@@ -12,8 +12,8 @@ use Maatify\Product\Exception\ProductExceptionInterface;
  */
 final class ProductNotFoundException extends ResourceNotFoundMaatifyException implements ProductExceptionInterface
 {
-    public static function withId(int $id): self
+    public static function withId(int $productId): self
     {
-        return new self(sprintf('Product [%d] was not found.', $id));
+        return new self(sprintf('Product [%d] was not found.', $productId));
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Product\Service;
 
+use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\DTO\CreatedProductDTO;
 use Maatify\Product\Product\DTO\ProductDTO;
@@ -32,9 +33,19 @@ interface ProductServiceInterface
     public function create(CreateProductCommand $command): CreatedProductDTO;
 
     /**
-     * Returns a Product by identity, including inactive and soft-deleted ones.
+     * Returns a consumer-visible Product: one that is active and not soft deleted.
      *
-     * @throws ProductNotFoundException When no Product has that identity.
+     * @throws ProductNotFoundException When no visible Product has that identity.
      */
-    public function getById(int $id): ProductDTO;
+    public function getById(int $productId): ProductDTO;
+
+    /**
+     * Returns a Product for management, whatever its status, filtered only by soft-deletion state.
+     *
+     * @throws ProductNotFoundException When no Product with that identity matches the deleted state.
+     */
+    public function getByIdForManagement(
+        int $productId,
+        ProductDeletedStateEnum $deletedState = ProductDeletedStateEnum::NON_DELETED,
+    ): ProductDTO;
 }

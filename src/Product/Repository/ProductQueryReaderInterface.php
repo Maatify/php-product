@@ -19,5 +19,5 @@ interface ProductQueryReaderInterface
      *
      * @return ProductDTO|null Null when no Product has that identity.
      */
-    public function findById(int $id): ?ProductDTO;
+    public function findById(int $productId): ?ProductDTO;
 }

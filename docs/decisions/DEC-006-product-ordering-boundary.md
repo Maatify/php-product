@@ -53,7 +53,7 @@ This was given in direct approval of the Lead recommendation governing the Produ
    - `maa_product_options`: ordered within owning `product_id`.
    - `maa_product_option_values`: ordered within owning `option_id`.
    - `maa_product_variants`: ordered within owning `product_id`.
-   - `maa_product_media_assignments`: ordered within exact target and media role/language/platform scope.
+   - `maa_product_image_assignments`: ordered within exact target and image role/language/platform scope.
    These entities continue to use positive `display_order` values managed via the shared `maatify/persistence` scoped-ordering API where applicable.
 
 ---
@@ -102,7 +102,7 @@ This decision is strictly bounded to the ordering boundary for Product V1. The f
 
 - Implementing Category-to-Product mapping schema, tables, or APIs.
 - Creating a new Catalog or integration package.
-- Altering scoped ordering on `Option`, `Option Value`, `Variant`, or `Media Assignment`.
+- Altering scoped ordering on `Option`, `Option Value`, `Variant`, or `Image Assignment`.
 - Implementing runtime PHP code, classes, interfaces, traits, or exceptions.
 - Creating SQL DDL files, database migrations, or schema tables.
 - Modifying `STANDARDS_MANIFEST.md` or activating conditional persistence standards.

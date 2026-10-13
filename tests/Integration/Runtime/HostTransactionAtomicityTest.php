@@ -257,7 +257,7 @@ final class HostTransactionAtomicityTest extends RuntimeTestCase
         return new ProductService(
             new PdoProductCommandRepository(self::$pdo),
             $variants,
-            new PdoProductQueryReader(self::$pdo),
+            new PdoProductQueryReader(self::$pdo, new SystemClock(new DateTimeZone('UTC'))),
             new PdoSavepointTransactionRunner(self::$pdo),
             new SystemClock(new DateTimeZone('UTC')),
         );

@@ -37,6 +37,14 @@ final class ProductInvalidArgumentException extends InvalidArgumentMaatifyExcept
     }
 
     /**
+     * The field is not a positive integer.
+     */
+    public static function nonPositiveId(string $field): self
+    {
+        return new self(sprintf('Field "%s" must be a positive integer.', $field));
+    }
+
+    /**
      * The PDO connection does not report errors as exceptions.
      */
     public static function pdoMustThrowExceptions(): self

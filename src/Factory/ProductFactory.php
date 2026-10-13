@@ -46,7 +46,7 @@ final class ProductFactory
         return new ProductService(
             new PdoProductCommandRepository($pdo),
             new PdoVariantCommandRepository($pdo, new ScopedOrderingManager()),
-            new PdoProductQueryReader($pdo),
+            new PdoProductQueryReader($pdo, $clock),
             new PdoSavepointTransactionRunner($pdo),
             $clock,
         );
