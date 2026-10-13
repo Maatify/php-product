@@ -25,8 +25,8 @@ use PDO;
 /**
  * PDO read adapter for stored Variants on MySQL 8.0.16 or later.
  *
- * It performs no write and holds no lock. The consumer-visibility predicate lives in SQL so
- * that a list is bounded and filtered by the database.
+ * It performs no write and holds no lock. The consumer-visibility predicate lives in SQL, in
+ * {@see VariantVisibilitySql}, so that a list is bounded and filtered by the database.
  *
  * @internal Not part of the Public Runtime API.
  */
@@ -58,7 +58,7 @@ final readonly class PdoVariantQueryReader implements VariantQueryReaderInterfac
     {
         $variants = $this->fetch(
             'SELECT ' . self::COLUMNS . ' FROM `maa_product_variants` v WHERE '
-            . 'v.`id` = :variant_id AND ' . self::visiblePredicate('v') . ' LIMIT 1',
+            . 'v.`id` = :variant_id AND ' . VariantVisibilitySql::visiblePredicate('v') . ' LIMIT 1',
             ['variant_id' => $variantId],
         );
 
@@ -117,7 +117,7 @@ final readonly class PdoVariantQueryReader implements VariantQueryReaderInterfac
         return $this->hydrate(ManagementListQuery::fetchBounded(
             $this->pdo,
             'SELECT ' . self::COLUMNS . ' FROM `maa_product_variants` v WHERE '
-            . 'v.`product_id` = :product_id AND ' . self::visiblePredicate('v')
+            . 'v.`product_id` = :product_id AND ' . VariantVisibilitySql::visiblePredicate('v')
             . ' ORDER BY v.`display_order` ASC, v.`id` ASC LIMIT :list_limit',
             ['product_id' => $productId],
             $criteria->maxResults,
@@ -155,7 +155,7 @@ final readonly class PdoVariantQueryReader implements VariantQueryReaderInterfac
     {
         $statement = $this->pdo->prepare(
             'SELECT o.`id`, o.`product_id`, o.`status`, (o.`deleted_at` IS NOT NULL) AS `deleted`, '
-            . self::labelled('maa_product_option_contents', 'option_id', 'o') . ' AS `labelled` '
+            . VariantVisibilitySql::labelled('maa_product_option_contents', 'option_id', 'o') . ' AS `labelled` '
             . 'FROM `maa_product_options` o WHERE o.`product_id` = :product_id ORDER BY o.`id` ASC',
         );
         $statement->execute(['product_id' => $productId]);
@@ -180,7 +180,7 @@ final readonly class PdoVariantQueryReader implements VariantQueryReaderInterfac
     {
         $statement = $this->pdo->prepare(
             'SELECT ov.`id`, ov.`option_id`, ov.`status`, (ov.`deleted_at` IS NOT NULL) AS `deleted`, '
-            . self::labelled('maa_product_option_value_contents', 'option_value_id', 'ov') . ' AS `labelled` '
+            . VariantVisibilitySql::labelled('maa_product_option_value_contents', 'option_value_id', 'ov') . ' AS `labelled` '
             . 'FROM `maa_product_option_values` ov JOIN `maa_product_options` o ON o.`id` = ov.`option_id` WHERE '
             . 'o.`product_id` = :product_id ORDER BY ov.`id` ASC',
         );
@@ -230,60 +230,6 @@ final readonly class PdoVariantQueryReader implements VariantQueryReaderInterfac
                 $pairs,
             ),
         );
-    }
-
-    /**
-     * Consumer visibility of the Variant aliased `$v`: its Product and the Variant itself are
-     * active and not deleted, its own composition is valid, and the Product's configuration is
-     * valid as a whole: no active Value of an active Option is left unrepresented by an active,
-     * valid Variant. The product-wide rule fails closed, so a broken configuration hides every
-     * Variant of the Product from the single get and from the list alike.
-     */
-    private static function visiblePredicate(string $v): string
-    {
-        return $v . '.`deleted_at` IS NULL AND ' . $v . '.`status` = \'active\' '
-            . 'AND EXISTS (SELECT 1 FROM `maa_product_products` p WHERE p.`id` = ' . $v . '.`product_id` '
-            . 'AND p.`deleted_at` IS NULL AND p.`status` = \'active\') '
-            . 'AND ' . self::validCompositionPredicate($v, 'a')
-            . ' AND NOT EXISTS (SELECT 1 FROM `maa_product_option_values` uv '
-            . 'JOIN `maa_product_options` uo ON uo.`id` = uv.`option_id` WHERE '
-            . 'uo.`product_id` = ' . $v . '.`product_id` AND uo.`deleted_at` IS NULL AND uo.`status` = \'active\' '
-            . 'AND uv.`deleted_at` IS NULL AND uv.`status` = \'active\' '
-            . 'AND NOT EXISTS (SELECT 1 FROM `maa_product_variants` rv '
-            . 'JOIN `maa_product_variant_option_values` rp ON rp.`variant_id` = rv.`id` WHERE '
-            . 'rp.`option_value_id` = uv.`id` AND rv.`product_id` = ' . $v . '.`product_id` '
-            . 'AND rv.`deleted_at` IS NULL AND rv.`status` = \'active\' '
-            . 'AND ' . self::validCompositionPredicate('rv', 'b') . '))';
-    }
-
-    /**
-     * Structural validity of the composition of the Variant aliased `$v`: every selected Option
-     * and Value is active, not deleted, and labelled, and the composition covers exactly the
-     * Product's active Options. A pair per Option is unique, so equal counts over active
-     * Options mean exact coverage. `$s` makes the inner aliases unique per nesting level.
-     */
-    private static function validCompositionPredicate(string $v, string $s): string
-    {
-        return 'NOT EXISTS (SELECT 1 FROM `maa_product_variant_option_values` cv' . $s . ' '
-            . 'JOIN `maa_product_options` o' . $s . ' ON o' . $s . '.`id` = cv' . $s . '.`option_id` '
-            . 'JOIN `maa_product_option_values` ov' . $s . ' ON ov' . $s . '.`id` = cv' . $s . '.`option_value_id` WHERE '
-            . 'cv' . $s . '.`variant_id` = ' . $v . '.`id` AND ('
-            . 'o' . $s . '.`deleted_at` IS NOT NULL OR o' . $s . '.`status` <> \'active\' '
-            . 'OR ov' . $s . '.`deleted_at` IS NOT NULL OR ov' . $s . '.`status` <> \'active\' '
-            . 'OR NOT ' . self::labelled('maa_product_option_contents', 'option_id', 'o' . $s) . ' '
-            . 'OR NOT ' . self::labelled('maa_product_option_value_contents', 'option_value_id', 'ov' . $s) . ')) '
-            . 'AND (SELECT COUNT(*) FROM `maa_product_variant_option_values` cp' . $s . ' WHERE cp' . $s . '.`variant_id` = ' . $v . '.`id`) = '
-            . '(SELECT COUNT(*) FROM `maa_product_options` ao' . $s . ' WHERE ao' . $s . '.`product_id` = ' . $v . '.`product_id` '
-            . 'AND ao' . $s . '.`deleted_at` IS NULL AND ao' . $s . '.`status` = \'active\')';
-    }
-
-    /**
-     * `EXISTS` predicate: the owner aliased `$alias` has a non-deleted Content record with a non-empty label.
-     */
-    private static function labelled(string $table, string $key, string $alias): string
-    {
-        return 'EXISTS (SELECT 1 FROM `' . $table . '` c_' . $alias . ' WHERE c_' . $alias . '.`' . $key . '` = ' . $alias . '.`id` '
-            . 'AND c_' . $alias . '.`deleted_at` IS NULL AND c_' . $alias . '.`name` REGEXP \'[^[:space:]]\')';
     }
 
     /**

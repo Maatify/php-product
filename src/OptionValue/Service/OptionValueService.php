@@ -20,6 +20,7 @@ use Maatify\Product\OptionValue\DTO\OptionValueCollectionDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueListCriteriaDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueStateDTO;
+use Maatify\Product\OptionValue\DTO\OptionValueVisibleListCriteriaDTO;
 use Maatify\Product\OptionValue\Exception\OptionValueNotFoundException;
 use Maatify\Product\OptionValue\Repository\OptionValueCommandRepositoryInterface;
 use Maatify\Product\OptionValue\Repository\OptionValueQueryReaderInterface;
@@ -158,6 +159,17 @@ final readonly class OptionValueService implements OptionValueServiceInterface
         }
 
         return $this->reader->paginateForManagement($optionId, $criteria, $request);
+    }
+
+    public function listVisibleByOptionId(
+        int $optionId,
+        OptionValueVisibleListCriteriaDTO $criteria = new OptionValueVisibleListCriteriaDTO(),
+    ): OptionValueCollectionDTO {
+        if ($optionId < 1) {
+            throw ProductInvalidArgumentException::nonPositiveId('optionId');
+        }
+
+        return new OptionValueCollectionDTO($this->reader->listVisible($optionId, $criteria->maxResults));
     }
 
     /**

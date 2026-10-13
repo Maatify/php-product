@@ -15,6 +15,7 @@ use Maatify\Product\Option\DTO\CreatedOptionDTO;
 use Maatify\Product\Option\DTO\OptionCollectionDTO;
 use Maatify\Product\Option\DTO\OptionDTO;
 use Maatify\Product\Option\DTO\OptionListCriteriaDTO;
+use Maatify\Product\Option\DTO\OptionVisibleListCriteriaDTO;
 use Maatify\Product\Option\Exception\OptionCodeAlreadyExistsException;
 use Maatify\Product\Option\Exception\OptionNotFoundException;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
@@ -97,4 +98,17 @@ interface OptionServiceInterface
      * @throws ProductInvalidArgumentException When the Product identity is not a positive integer.
      */
     public function paginateByProductIdForManagement(int $productId, OptionListCriteriaDTO $criteria, PageRequest $request): PageResult;
+
+    /**
+     * Consumer read of the selectable Options of a Product: active, not deleted, and labelled Options of a
+     * Product that has at least one consumer-visible Variant (the Variant visibility rule, including the
+     * product-wide rule of `GAP-26`), ordered by display order then identity, at most `maxResults`. A
+     * missing, inactive, deleted, simple, or invalidly configured Product yields an empty collection.
+     *
+     * @throws ProductInvalidArgumentException When the Product identity is not a positive integer.
+     */
+    public function listVisibleByProductId(
+        int $productId,
+        OptionVisibleListCriteriaDTO $criteria = new OptionVisibleListCriteriaDTO(),
+    ): OptionCollectionDTO;
 }

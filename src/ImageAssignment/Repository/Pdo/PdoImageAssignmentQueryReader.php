@@ -9,6 +9,7 @@ use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Pdo\ManagementListQuery;
 use Maatify\Product\Common\Pdo\RowHydrator;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
+use Maatify\Product\ImageAssignment\DTO\ImageAssignmentExactScopeCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentListCriteriaDTO;
 use Maatify\Product\ImageAssignment\Repository\ImageAssignmentQueryReaderInterface;
 use Maatify\SharedCommon\Contracts\ClockInterface;
@@ -83,6 +84,42 @@ final readonly class PdoImageAssignmentQueryReader implements ImageAssignmentQue
             ),
             $this->hydrate(...),
         );
+    }
+
+    public function listVisibleByExactScope(ImageAssignmentExactScopeCriteriaDTO $criteria): array
+    {
+        $where = 'a.`product_id` = :product_id AND a.`deleted_at` IS NULL '
+            . 'AND EXISTS (SELECT 1 FROM `maa_product_products` p WHERE p.`id` = a.`product_id` AND p.`deleted_at` IS NULL AND p.`status` = \'active\')';
+        $params = ['product_id' => $criteria->productId];
+        if ($criteria->variantId === null) {
+            $where .= ' AND a.`variant_id` IS NULL';
+        } else {
+            $where .= ' AND a.`variant_id` = :variant_id AND EXISTS (SELECT 1 FROM `maa_product_variants` v WHERE v.`id` = a.`variant_id` '
+                . 'AND v.`product_id` = a.`product_id` AND v.`deleted_at` IS NULL AND v.`status` = \'active\')';
+            $params['variant_id'] = $criteria->variantId;
+        }
+        if ($criteria->roleId === null) {
+            $where .= ' AND a.`role_id` IS NULL';
+        } else {
+            $where .= ' AND a.`role_id` = :role_id AND EXISTS (SELECT 1 FROM `maa_product_image_roles` r WHERE r.`id` = a.`role_id` '
+                . 'AND r.`deleted_at` IS NULL AND r.`status` = \'active\')';
+            $params['role_id'] = $criteria->roleId;
+        }
+        foreach (['language_code' => $criteria->languageCode, 'platform' => $criteria->platform] as $column => $value) {
+            if ($value === null) {
+                $where .= ' AND a.`' . $column . '` IS NULL';
+            } else {
+                $where .= ' AND a.`' . $column . '` = :' . $column;
+                $params[$column] = $value;
+            }
+        }
+
+        return array_map($this->hydrate(...), ManagementListQuery::fetchBounded(
+            $this->pdo,
+            'SELECT ' . self::COLUMNS . ' FROM `' . self::TABLE . '` a WHERE ' . $where . ' ORDER BY a.`display_order` ASC, a.`id` ASC LIMIT :list_limit',
+            $params,
+            $criteria->maxResults,
+        ));
     }
 
     /**

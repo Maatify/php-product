@@ -16,6 +16,7 @@ use Maatify\Product\ImageAssignment\Command\UpdateImageAssignmentDisplayOrderCom
 use Maatify\Product\ImageAssignment\DTO\CreatedImageAssignmentDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentCollectionDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
+use Maatify\Product\ImageAssignment\DTO\ImageAssignmentExactScopeCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentListCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentNotFoundException;
@@ -202,6 +203,11 @@ final readonly class ImageAssignmentService implements ImageAssignmentServiceInt
     public function paginateForManagement(ImageAssignmentListCriteriaDTO $criteria, PageRequest $request): PageResult
     {
         return $this->reader->paginateForManagement($criteria, $request);
+    }
+
+    public function listVisibleByExactScope(ImageAssignmentExactScopeCriteriaDTO $criteria): ImageAssignmentCollectionDTO
+    {
+        return new ImageAssignmentCollectionDTO($this->reader->listVisibleByExactScope($criteria));
     }
 
     /**

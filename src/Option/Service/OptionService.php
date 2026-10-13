@@ -18,6 +18,7 @@ use Maatify\Product\Option\DTO\OptionCollectionDTO;
 use Maatify\Product\Option\DTO\OptionDTO;
 use Maatify\Product\Option\DTO\OptionListCriteriaDTO;
 use Maatify\Product\Option\DTO\OptionStateDTO;
+use Maatify\Product\Option\DTO\OptionVisibleListCriteriaDTO;
 use Maatify\Product\Option\Exception\OptionNotFoundException;
 use Maatify\Product\Option\Repository\OptionCommandRepositoryInterface;
 use Maatify\Product\Option\Repository\OptionQueryReaderInterface;
@@ -154,6 +155,17 @@ final readonly class OptionService implements OptionServiceInterface
         }
 
         return $this->reader->paginateForManagement($productId, $criteria, $request);
+    }
+
+    public function listVisibleByProductId(
+        int $productId,
+        OptionVisibleListCriteriaDTO $criteria = new OptionVisibleListCriteriaDTO(),
+    ): OptionCollectionDTO {
+        if ($productId < 1) {
+            throw ProductInvalidArgumentException::nonPositiveId('productId');
+        }
+
+        return new OptionCollectionDTO($this->reader->listVisible($productId, $criteria->maxResults));
     }
 
     /**

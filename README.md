@@ -36,7 +36,7 @@ Framework-agnostic PHP library for Product and Variant identity on MySQL: a stab
 - **Host-owned boundaries.** The Host supplies the PDO connection and the Clock. The package performs no Pricing, Inventory, Supplier, Category, or media storage work.
 - **Database-enforced invariants.** `schema/product.sql` defines ten tables with foreign keys, case-sensitive status checks, and exact-scope uniqueness, verified against real MySQL, including concurrent writers.
 
-The package is in development. Standalone Option and Option Value status changes and the consumer reads of Options, Option Values, and Image Assignments are specified by the architecture but not yet implemented. See [Not yet implemented](PRODUCT_PACKAGE_REFERENCE.md#not-yet-implemented).
+The package is in development. Standalone Option and Option Value status changes are specified by the architecture but not yet implemented. See [Not yet implemented](PRODUCT_PACKAGE_REFERENCE.md#not-yet-implemented).
 
 ## Requirements
 
@@ -94,9 +94,9 @@ This is an overview; the complete inventory and the stable contract are in the [
 | `Factory\ProductFactory` | The only construction entry point: `createProductService()`, `createVariantService()`, `createOptionService()`, `createOptionValueService()`, `createImageRoleService()`, `createImageAssignmentService()`, `createProductContentService()`, `createOptionContentService()`, and `createOptionValueContentService()`. |
 | `Product\Service\ProductServiceInterface` | `create()`, `getById()`, `getByIdForManagement()`, `getByCodeForManagement()`, `listForManagement()`, `paginateForManagement()`, `updateStatus()`, `softDelete()`, `restore()`, `reconfigure()`. |
 | `Variant\Service\VariantServiceInterface` | `getById()`, `getByIdForManagement()`, `listByProductId()`, `listByProductIdForManagement()`, `paginateByProductIdForManagement()`, `resolveByComposition()`, `updateStatus()`, `updateIdentifiers()`, `updateDisplayOrder()`, `softDelete()`, `restore()`. |
-| `Option\Service\OptionServiceInterface`, `OptionValue\Service\OptionValueServiceInterface` | `create()`, `updateDisplayOrder()`, `softDelete()`, `restore()`, `getByIdForManagement()`, and the owner-scoped `list…ForManagement()` and `paginate…ForManagement()`. |
+| `Option\Service\OptionServiceInterface`, `OptionValue\Service\OptionValueServiceInterface` | `create()`, `updateDisplayOrder()`, `softDelete()`, `restore()`, `getByIdForManagement()`, the owner-scoped `list…ForManagement()` and `paginate…ForManagement()`, and the consumer `listVisibleByProductId()` / `listVisibleByOptionId()`. |
 | `ImageRole\Service\ImageRoleServiceInterface` | `create()`, `updateStatus()`, `softDelete()`, `restore()`, `getByIdForManagement()`, `getByKeyForManagement()`, `listForManagement()`, `paginateForManagement()`. |
-| `ImageAssignment\Service\ImageAssignmentServiceInterface` | `create()`, `setDefault()`, `clearDefault()`, `updateDisplayOrder()`, `softDelete()`, `restore()`, `getByIdForManagement()`, `listForManagement()`, `paginateForManagement()`. |
+| `ImageAssignment\Service\ImageAssignmentServiceInterface` | `create()`, `setDefault()`, `clearDefault()`, `updateDisplayOrder()`, `softDelete()`, `restore()`, `getByIdForManagement()`, `listForManagement()`, `paginateForManagement()`, `listVisibleByExactScope()`. |
 | `Content\Service\ProductContentServiceInterface`, `Content\Service\OptionContentServiceInterface`, `Content\Service\OptionValueContentServiceInterface` | `create()`, `update()`, `softDelete()`, `restore()`, `getByIdForManagement()`, `listForManagement()`, `paginateForManagement()`, `listVisible()`. |
 | Commands | `CreateProductCommand`, `ReconfigureProductCommand` (with `ReconfigureOptionTarget`, `ReconfigureVariantTarget`), `CreateOptionCommand`, `CreateOptionValueCommand`, `CreateImageRoleCommand`, `CreateImageAssignmentCommand`, `UpdateVariantIdentifiersCommand` (with `Variant\ValueObject\VariantIdentifierChange`), the `Update*DisplayOrderCommand` of Variants, Options, Option Values, and Image Assignments, the `Create*ContentCommand` and `Update*ContentCommand` of each Content owner; `Content\ValueObject\ContentLanguageFilter` and `Content\ValueObject\ExactContentLanguage` for language selection; `Variant\ValueObject\OptionValueSelection` and `Variant\DTO\VariantCompositionCriteriaDTO` for compositions. |
 | DTOs and enums | Typed results (`CreatedProductDTO`, `ProductDTO`, `ProductReconfigurationResultDTO`, `VariantDTO` and its collection and criteria types, the list criteria and collection types of every family, the exact image-assignment selectors (`ImageAssignmentTargetFilter`, `ImageAssignmentRoleFilter`, `ImageAssignmentLanguageFilter`, `ImageAssignmentPlatformFilter`), `OptionDTO`, `OptionValueDTO`, `ImageRoleDTO`, `ImageAssignmentDTO`, the Content DTOs with their collection and criteria types, and the `Created*DTO` identities), the status enums of each family, and `Common\Enum\ProductDeletedStateEnum`. |
@@ -125,6 +125,7 @@ A taken identity becomes the family's conflict exception (`ProductCodeAlreadyExi
 - [`02-host-transaction.php`](examples/02-host-transaction.php): composing `create()` inside a Host-owned transaction.
 - [`03-read-variants.php`](examples/03-read-variants.php): management and consumer Variant reads, and the SKU and barcode update.
 - [`04-reconfigure-and-resolve.php`](examples/04-reconfigure-and-resolve.php): prepare Options and Values, name and label them with Content commands, make the Product configurable, resolve a shopper's choices, read exact Content, and go back to simple.
+- [`05-consumer-presentation.php`](examples/05-consumer-presentation.php): the storefront reads of selectable Options and Values, exact Content, and exact-scope images.
 
 ## Documentation
 

@@ -7,6 +7,7 @@ namespace Maatify\Product\ImageAssignment\Repository;
 use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
+use Maatify\Product\ImageAssignment\DTO\ImageAssignmentExactScopeCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentListCriteriaDTO;
 
 /**
@@ -36,4 +37,14 @@ interface ImageAssignmentQueryReaderInterface
      * @return PageResult<ImageAssignmentDTO>
      */
     public function paginateForManagement(ImageAssignmentListCriteriaDTO $criteria, PageRequest $request): PageResult;
+
+    /**
+     * The consumer-visible assignments of one exact scope: every dimension matched exactly (`null` is
+     * `NULL`), the assignment not deleted, the Product active and not deleted, a target Variant of that
+     * Product active and not deleted, and a set Role active and not deleted; ordered by display order
+     * then identity, at most `maxResults`.
+     *
+     * @return list<ImageAssignmentDTO>
+     */
+    public function listVisibleByExactScope(ImageAssignmentExactScopeCriteriaDTO $criteria): array;
 }

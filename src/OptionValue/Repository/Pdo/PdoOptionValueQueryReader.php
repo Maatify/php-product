@@ -13,6 +13,7 @@ use Maatify\Product\OptionValue\DTO\OptionValueDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueListCriteriaDTO;
 use Maatify\Product\OptionValue\Enum\OptionValueStatusEnum;
 use Maatify\Product\OptionValue\Repository\OptionValueQueryReaderInterface;
+use Maatify\Product\Variant\Repository\Pdo\VariantVisibilitySql;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 use PDO;
 
@@ -77,6 +78,25 @@ final readonly class PdoOptionValueQueryReader implements OptionValueQueryReader
             ),
             $this->hydrate(...),
         );
+    }
+
+    public function listVisible(int $optionId, int $maxResults): array
+    {
+        return array_map($this->hydrate(...), ManagementListQuery::fetchBounded(
+            $this->pdo,
+            'SELECT ' . self::COLUMNS . ' FROM `' . self::TABLE . '` ov WHERE ov.`option_id` = :option_id '
+            . 'AND ov.`deleted_at` IS NULL AND ov.`status` = \'active\' '
+            . 'AND ' . VariantVisibilitySql::labelled('maa_product_option_value_contents', 'option_value_id', 'ov') . ' '
+            . 'AND EXISTS (SELECT 1 FROM `maa_product_options` o WHERE o.`id` = ov.`option_id` '
+            . 'AND o.`deleted_at` IS NULL AND o.`status` = \'active\' '
+            . 'AND ' . VariantVisibilitySql::labelled('maa_product_option_contents', 'option_id', 'o') . ') '
+            . 'AND EXISTS (SELECT 1 FROM `maa_product_variant_option_values` vp '
+            . 'JOIN `maa_product_variants` vv ON vv.`id` = vp.`variant_id` WHERE vp.`option_value_id` = ov.`id` AND '
+            . VariantVisibilitySql::visiblePredicate('vv') . ') '
+            . 'ORDER BY ov.`display_order` ASC, ov.`id` ASC LIMIT :list_limit',
+            ['option_id' => $optionId],
+            $maxResults,
+        ));
     }
 
     /**

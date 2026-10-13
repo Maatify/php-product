@@ -35,4 +35,13 @@ interface OptionQueryReaderInterface
      * @return PageResult<OptionDTO>
      */
     public function paginateForManagement(int $productId, OptionListCriteriaDTO $criteria, PageRequest $request): PageResult;
+
+    /**
+     * The consumer-visible Options of a Product: active, not deleted, and labelled, of a Product that
+     * has at least one consumer-visible Variant (see {@see \Maatify\Product\Variant\Repository\Pdo\VariantVisibilitySql}),
+     * ordered by display order then identity, at most `$maxResults`.
+     *
+     * @return list<OptionDTO>
+     */
+    public function listVisible(int $productId, int $maxResults): array;
 }

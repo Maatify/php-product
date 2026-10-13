@@ -14,6 +14,7 @@ use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\Command\UpdateImageAssignmentDisplayOrderCommand;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
+use Maatify\Product\ImageAssignment\DTO\ImageAssignmentExactScopeCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentIdentityDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentListCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
@@ -313,6 +314,11 @@ final class ImageAssignmentServiceTest extends TestCase
             public function paginateForManagement(ImageAssignmentListCriteriaDTO $criteria, PageRequest $request): PageResult
             {
                 throw new LogicException('paginateForManagement is not expected in this test.');
+            }
+
+            public function listVisibleByExactScope(ImageAssignmentExactScopeCriteriaDTO $criteria): array
+            {
+                throw new LogicException('listVisibleByExactScope is not expected in this test.');
             }
         };
 

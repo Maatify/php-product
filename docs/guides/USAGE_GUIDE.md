@@ -29,12 +29,13 @@ It does not fit if you need prices, stock, suppliers, Categories, orders, URL sl
 | Prepare Options and Values, then make a Product configurable | [7. Reconfigure a Product](#7-reconfigure-a-product) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Resolve a shopper's choices to one Variant | [8. Resolve a composition](#8-resolve-a-composition) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Set, replace, or clear a Variant's SKU and barcode | [11. Variant SKU and barcode](#11-variant-sku-and-barcode) | [`03-read-variants.php`](../../examples/03-read-variants.php) |
+| Present a Product to shoppers: selectable Options and Values and exact-scope images | [14. Consumer reads](#14-consumer-reads) | [`05-consumer-presentation.php`](../../examples/05-consumer-presentation.php) |
 | List, search, and page through Products, Variants, Options, Values, Image Roles, and Image Assignments | [13. Management lists](#13-management-lists) | none yet |
 | Reorder Variants, Options, Values, and Image Assignments | [12. Ordering](#12-ordering) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Name Products and label Options and Values per language, and read them exactly | [10. Content](#10-content) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Assign Media Assets with roles, scopes, and one default | [9. Image Roles and Assignments](#9-image-roles-and-assignments) | none yet |
 
-Standalone Option and Option Value status changes and the consumer reads of Options, Option Values, and Image Assignments are not implemented yet and have no walkthrough.
+Standalone Option and Option Value status changes are not implemented yet and have no walkthrough.
 
 ## Setup
 
@@ -222,6 +223,20 @@ $heroImages = $assignments->listForManagement(new ImageAssignmentListCriteriaDTO
     ImageAssignmentLanguageFilter::exactNull(),
     ImageAssignmentPlatformFilter::omitted(),
 ));
+```
+
+## 14. Consumer reads
+
+- **Input:** a Product identity (Options), an Option identity (Values), or an `ImageAssignmentExactScopeCriteriaDTO` (Product, `variantId` or `null` for the Product level, `roleId`, `languageCode`, `platform`, each `null` meaning exactly `NULL`); optional `OptionVisibleListCriteriaDTO` / `OptionValueVisibleListCriteriaDTO` for `maxResults`.
+- **Public call:** `OptionServiceInterface::listVisibleByProductId()`, `OptionValueServiceInterface::listVisibleByOptionId()`, `ImageAssignmentServiceInterface::listVisibleByExactScope()`.
+- **Result:** an `OptionCollectionDTO`, `OptionValueCollectionDTO`, or `ImageAssignmentCollectionDTO`, ordered by `display_order` then `id`, at most `maxResults` (default 100). Labels come from the exact Content reads (section 10).
+- **Boundary:** Options and Values appear only while the Product has a consumer-visible Variant, under the same rule as the Variant reads: an inactive, deleted, simple, or invalidly configured Product shows none. A Value appears only when it is represented by a visible Variant. Images are read in one exact scope only: there is no fallback from a Variant to the Product level or back, no "any" value, and no default selection (`isDefault` is returned as stored); an inactive or deleted Product, Variant, or Role hides them. Empty results are normal; only invalid input raises `ProductInvalidArgumentException`. Fallback chains belong to the Host.
+
+```php
+foreach ($options->listVisibleByProductId($productId) as $option) {
+    $choices = $values->listVisibleByOptionId($option->id);
+}
+$hero = $images->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($productId, $variantId, $heroRoleId, 'en', null));
 ```
 
 ## Running the examples
