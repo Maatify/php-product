@@ -2,7 +2,7 @@
 
 This guide shows how a Host application consumes `maatify/php-product`. The technical contract (the complete Public Runtime API and its guarantees) is owned by the [Package Reference](../../PRODUCT_PACKAGE_REFERENCE.md); this guide does not redefine it. Runnable code is in [`examples/`](../../examples/).
 
-The package is in development and no version is published. This guide covers exactly what is implemented today: Product creation, lifecycle, and reconfiguration; Variant reads, composition resolution, and lifecycle; Options and Option Values; Product, Option, and Option Value Content; Image Roles and Image Assignments.
+The package is in development and no version is published. This guide covers exactly what is implemented today: Product creation, lifecycle, and reconfiguration; Variant reads, composition resolution, identifiers, and lifecycle; Options and Option Values; Product, Option, and Option Value Content; Image Roles and Image Assignments; ordering; management lists, search, and pagination; and the consumer reads.
 
 ## Fit
 
@@ -35,7 +35,7 @@ It does not fit if you need prices, stock, suppliers, Categories, orders, URL sl
 | Name Products and label Options and Values per language, and read them exactly | [10. Content](#10-content) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Assign Media Assets with roles, scopes, and one default | [9. Image Roles and Assignments](#9-image-roles-and-assignments) | none yet |
 
-Standalone Option and Option Value status changes are not implemented yet and have no walkthrough.
+Option and Option Value status changes only through `reconfigure()` (section 7); there is no standalone status command by design.
 
 ## Setup
 

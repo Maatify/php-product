@@ -36,7 +36,7 @@ Framework-agnostic PHP library for Product and Variant identity on MySQL: a stab
 - **Host-owned boundaries.** The Host supplies the PDO connection and the Clock. The package performs no Pricing, Inventory, Supplier, Category, or media storage work.
 - **Database-enforced invariants.** `schema/product.sql` defines ten tables with foreign keys, case-sensitive status checks, and exact-scope uniqueness, verified against real MySQL, including concurrent writers.
 
-The package is in development. Standalone Option and Option Value status changes are specified by the architecture but not yet implemented. See [Not yet implemented](PRODUCT_PACKAGE_REFERENCE.md#not-yet-implemented).
+The package is in development and no version is released. Every capability of the approved contract is implemented; Option and Option Value status changes only through `reconfigure()` by design. See [Not yet implemented](PRODUCT_PACKAGE_REFERENCE.md#not-yet-implemented).
 
 ## Requirements
 

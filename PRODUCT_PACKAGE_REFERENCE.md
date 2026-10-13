@@ -1,7 +1,7 @@
 # Product Package Reference
 
 **Package:** `maatify/php-product`
-**Status:** Implementation in progress, nothing released. This file is the canonical root Package Reference path required by the Package Building Standard (`/{PACKAGE_NAME}_PACKAGE_REFERENCE.md`). The implemented runtime is recorded under [Implemented Public API](#implemented-public-api): Product creation, reads, lifecycle, and reconfiguration; Variant reads, composition resolution, and lifecycle; Option and Option Value creation and lifecycle; Product, Option, and Option Value Content; Image Roles and Image Assignments. The remaining capabilities are added in place by later Work Units, and nothing here is a released contract.
+**Status:** Implementation in progress, nothing released. This file is the canonical root Package Reference path required by the Package Building Standard (`/{PACKAGE_NAME}_PACKAGE_REFERENCE.md`). The implemented runtime is recorded under [Implemented Public API](#implemented-public-api): Product creation, reads, lifecycle, and reconfiguration; Variant reads, composition resolution, and lifecycle; Option and Option Value creation, lifecycle, ordering, and reads; Product, Option, and Option Value Content; Image Roles and Image Assignments; management lists, search, and pagination. Every capability of the approved contract is implemented (`OPT-02` and `OVL-02` are superseded by reconfiguration, see `GAP-16`), and nothing is released.
 **Architecture contract:** [`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md), Owner-approved under [`DEC-007`](docs/decisions/DEC-007-product-v1-implementation-start-authorization.md)
 
 ## Source Topology
@@ -106,13 +106,13 @@ Consumer walkthroughs are in the [Usage Guide](docs/guides/USAGE_GUIDE.md) and r
 
 ### Not yet implemented
 
-Standalone Option and Option Value status changes (`OPT-02`, `OVL-02`). They follow the architecture contract in later Work Units; their approved contract is inventoried in [Approved Contract Inventory](#approved-contract-inventory).
+Nothing. Every capability of the [Approved Contract Inventory](#approved-contract-inventory) is implemented; `OPT-02` and `OVL-02` are superseded by `CFG-01` (Lead decision on `GAP-16`).
 
 ## Approved Contract Inventory
 
 This section inventories the approved Public API contract for every capability the Owner-approved architecture specifies, so that the Host and the implementing Work Units have one contract reference. It is derived from [`PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md) (`A§`) and the decisions `DEC-001` to `DEC-007`.
 
-- **Implemented versus approved.** Only the types in [Implemented Public API](#implemented-public-api) exist. A row or rule marked **Implemented** describes that behavior; every other row is an approved contract awaiting implementation, not a released API.
+- **Implemented versus approved.** Only the types in [Implemented Public API](#implemented-public-api) exist. A row or rule marked **Implemented** describes that behavior; `OPT-02` and `OVL-02` are marked superseded. Nothing here is a released API.
 - **Basis.** Every rule cites the architecture section or decision that establishes it. A rule marked **(derived)** follows from the cited invariants and should be confirmed by a reviewer.
 - **Names.** Contracts are identified by a **Capability ID** (`PRD-01`, `VAR-03`, and so on). Final PHP names follow the suffix rules of Package Building §4 and the sibling convention of `php-category` (`create`, `updateStatus`, `softDelete`, `restore`, `updateDisplayOrder`, `getById`, `getByIdForManagement`). Exact signatures are recorded in the Implemented Public API when they exist.
 - **Gaps.** Anything the governing sources leave open is a `GAP-nn` in [§6](#6-open-contract-gaps). A gap is not an approved decision, and an affected contract must not be implemented on an assumption.
@@ -152,7 +152,7 @@ These appear in A§5.5, A§12, and A§13 as examples only. They are not binding 
 | Option and Option Value Content `name` | The only field. Same rules as the Product Content `name`. **Implemented.** | A§5.4, A§11.2, `GAP-13` decision |
 | `display_order` | Positive. Never accepted by Create or Update Commands. Changed only by a dedicated typed ordering command (see [§1.4](#14-ordering)). | A§11.3, Package Building §16 |
 
-For Product, Option, and Option Value codes and for the Image Role key, the collation behavior, the definition of whitespace, and the length unit are settled and implemented (the Option and Value codes and the role key follow the Product code rules); for `language_code` and `platform` the blank and length rules are implemented at the `CreateImageAssignmentCommand` boundary. Package-owned identities are `int` at every command boundary and `media_asset_id` is `int|string` as DEC-005 requires (settled by implementation). The Content field rules are settled by the Lead decision on `GAP-13` and implemented at the Content Command boundary, where the `language_code` rule is the same as for Image Assignments. Collation evidence beyond these identifiers is `GAP-23`.
+For Product, Option, and Option Value codes and for the Image Role key, the collation behavior, the definition of whitespace, and the length unit are settled and implemented (the Option and Value codes and the role key follow the Product code rules); for `language_code` and `platform` the blank and length rules are implemented at the `CreateImageAssignmentCommand` boundary. Package-owned identities are `int` at every command boundary and `media_asset_id` is `int|string` as DEC-005 requires (settled by implementation). The Content field rules are settled by the Lead decision on `GAP-13` and implemented at the Content Command boundary, where the `language_code` rule is the same as for Image Assignments. **Collation (evidence closes `GAP-23`).** Every text identity is compared by MySQL under `utf8mb4_unicode_ci`, which in MySQL 8.0 is accent-insensitive, case-insensitive, and PAD SPACE (trailing spaces are ignored in comparison). Proven on 8.0.16 and 8.0.46 by `tests/Integration/Runtime/CollationIdentityTest.php` for the Product code, Option and Option Value codes, Image Role key, Variant SKU and barcode, Content language identity, and the Image Assignment language and platform: `Café` and `Cafe` are one identity, and `TEA ` (stored with its trailing space) and `TEA` are one identity. The package performs no PHP pre-check; the database unique key decides, and the collision is the family's typed conflict with the MySQL driver error 1062 as `previous`. `getByCodeForManagement()` and `getByKeyForManagement()` match the same way (`CAFE` finds `Café`, `tea` finds `TEA `). Values are stored exactly as supplied, accents and trailing spaces included.
 
 #### 1.2 Status, soft deletion, and restore
 
@@ -298,7 +298,7 @@ Rules and edge cases:
 
 - The initial Variant is the only Variant that may exist outside reconfiguration (A§4.5). Creating a Product never activates it, even though its Variant is active.
 - `code` is never silently trimmed or rewritten. Case-only differences are not a new code. Equality follows `utf8mb4_unicode_ci`, proven for the Product code by Integration tests. Surrounding whitespace on an otherwise valid code is kept verbatim.
-- A Product has no mutable business field other than `status` and lifecycle. There is no slug, price, or `display_order` (A§4.1, DEC-006). So no generic "update Product" command exists in V1 **(derived, `GAP-17`)**.
+- A Product has no mutable business field other than `status` and lifecycle. There is no slug, price, or `display_order` (A§4.1, DEC-006). So no generic "update Product" command exists in V1 (Lead decision on `GAP-17`): the only mutable fields of the model are Content (`CNT-02`) and the Variant identifiers (`VAR-01`), each with its own command.
 - Deactivating or soft-deleting a Product never changes its Variants, Options, Values, Content, or Image Assignments (A§6.1, A§17).
 - Activating an already active Product, or deactivating an inactive one, changes nothing (implemented as a no-op without a write; the command shapes are settled, including the `VAR-01` identifier changes).
 
@@ -331,7 +331,7 @@ Rules and edge cases:
 | ID | Kind | Contract | Input | Output | Fails |
 |---|---|---|---|---|---|
 | `OPT-01` | Command | **Implemented** (`create(CreateOptionCommand)`). Create an Option under a non-deleted Product. Created `inactive`. Position comes from the Ordering API. | product id, `code` | `CreatedOptionDTO` | `FC-NF`, `FC-VAL`, `FC-CONF`, `FC-INV` (deleted Product) |
-| `OPT-02` | Command | Change Option status. Rejected if the result would break an active configuration unless done by reconfiguration. Not implemented (`GAP-16`); reconfiguration changes Option status. | option id, status enum | none | `FC-NF`, `FC-INV` |
+| `OPT-02` | Command | Superseded by `CFG-01` (Lead decision on `GAP-16`). Option status changes only through `reconfigure()`; there is no standalone status command. | option id, status enum | none | `FC-NF`, `FC-INV` |
 | `OPT-03` | Command | **Implemented** (`softDelete(int $optionId)`). Soft-delete an Option of a non-deleted Product. Rejected while the Option is part of the active configuration. | option id | none | `FC-NF`, `FC-INV` |
 | `OPT-04` | Command | **Implemented** (`restore(int $optionId)`). Restore an Option. Saved status is preserved and invariants are revalidated. | option id | none | `FC-NF`, `FC-INV` |
 | `OPT-05` | Command | **Implemented** (`updateDisplayOrder(UpdateOptionDisplayOrderCommand $command)`). Move a non-deleted Option within its Product's ordering scope. | option id, positive position | none | `FC-NF`, `FC-VAL`, `FC-INV` |
@@ -340,9 +340,9 @@ Rules and edge cases:
 
 Rules and edge cases:
 
-- The Option `code` is immutable and stays reserved after soft deletion. An Option has no mutable business field besides `status` and lifecycle, so no generic update command exists **(derived, `GAP-17`)**.
+- The Option `code` is immutable and stays reserved after soft deletion. An Option has no mutable business field besides `status` and lifecycle, so no generic update command exists (Lead decision on `GAP-17`); its label is Content (`CNT-02`).
 - V1 Options are always Variant-defining and required for every active Variant while active. Optional per-Variant Options are not supported (A§5.1). Descriptive attributes are not Options.
-- **Effective status behavior (derived, `GAP-16`).** `INV-01`, `INV-02`, and `INV-07` together mean any standalone change of an Option between `active` and `inactive` leaves an invalid configuration. This is because an active Product configuration always has at least one active Variant. So such a change succeeds only inside reconfiguration. A same-status request is a no-op, and its handling is unspecified.
+- **Effective status behavior (Lead decision on `GAP-16`).** `INV-01`, `INV-02`, and `INV-07` together mean any standalone change of an Option between `active` and `inactive` leaves an invalid configuration, because an active configuration always has at least one active Variant. A§5.4 and A§6.4 require every change of the active set to be one atomic reconfiguration. So Option status changes only through `CFG-01`, and no standalone status command exists.
 - An Option can be activated only if it has at least one active, non-deleted Value (`INV-04`) and a label (`INV-05`).
 
 #### 3.4 Option Value
@@ -350,7 +350,7 @@ Rules and edge cases:
 | ID | Kind | Contract | Input | Output | Fails |
 |---|---|---|---|---|---|
 | `OVL-01` | Command | **Implemented** (`create(CreateOptionValueCommand)`). Create a Value under a non-deleted Option of a non-deleted Product. Created `inactive`. Position within the Option scope. | option id, `code` | `CreatedOptionValueDTO` | `FC-NF`, `FC-VAL`, `FC-CONF`, `FC-INV` (deleted owner) |
-| `OVL-02` | Command | Change Value status. Same constraint as `OPT-02`. Not implemented (`GAP-16`); reconfiguration changes Value status. | value id, status enum | none | `FC-NF`, `FC-INV` |
+| `OVL-02` | Command | Superseded by `CFG-01` (Lead decision on `GAP-16`). Value status changes only through `reconfigure()`; there is no standalone status command. | value id, status enum | none | `FC-NF`, `FC-INV` |
 | `OVL-03` | Command | **Implemented** (`softDelete(int $optionValueId)`). Soft-delete a Value whose owner chain is not deleted. Rejected while an active Variant needs it. | value id | none | `FC-NF`, `FC-INV` |
 | `OVL-04` | Command | **Implemented** (`restore(int $optionValueId)`). Restore a Value. Saved status is preserved and invariants are revalidated. | value id | none | `FC-NF`, `FC-INV` |
 | `OVL-05` | Command | **Implemented** (`updateDisplayOrder(UpdateOptionValueDisplayOrderCommand $command)`). Move a non-deleted Value within its Option's ordering scope. | value id, positive position | none | `FC-NF`, `FC-VAL`, `FC-INV` |
@@ -361,7 +361,7 @@ Rules and edge cases:
 
 - The Value `code` is immutable, unique within its Option across history. The Value belongs to the Product through its Option.
 - New Values are created `inactive` so codes and labels can be prepared without changing the current configuration (A§5.4).
-- **Effective status behavior (derived, `GAP-16`).** A standalone status change is meaningful only for a Value of an **inactive** Option. For an active Option, `INV-04` and `INV-02` make a change invalid. Deactivating a used Value strands an active Variant, and activating an unused Value leaves it in no Variant.
+- **Effective status behavior (Lead decision on `GAP-16`).** A standalone status change would be meaningful only for a Value of an **inactive** Option; for an active Option, `INV-04` and `INV-02` make a change invalid (deactivating a used Value strands an active Variant, and activating an unused Value leaves it in no Variant). `reconfigure()` sets the Values of an Option when it becomes part of the target, so Value status changes only through `CFG-01`, and no standalone status command exists.
 - A Value is not selectable while its Option is inactive (A§4.5).
 
 #### 3.5 Content (Product, Option, Option Value)
@@ -402,7 +402,7 @@ Rules and edge cases:
 Rules and edge cases:
 
 - Role IDs are Product-owned. They are never Category Image Role IDs, and the two namespaces are never mixed (A§9, DEC-005).
-- A Role has no mutable business field besides `status`. The Host defines what a role means. There is no `hero` or `gallery` meaning in the package **(A§9.2; no update command, derived, `GAP-17`)**.
+- A Role has no mutable business field besides `status`. The Host defines what a role means. There is no `hero` or `gallery` meaning in the package (A§9.2). No update command exists (Lead decision on `GAP-17`).
 - A new role-scoped assignment needs an active, non-deleted Role. Existing assignments are not changed when the Role becomes inactive or deleted. They disappear from consumer reads and stay in management reads (A§9.2).
 - `role_id = NULL` on an assignment is the exact generic/unclassified scope, not a "no role requested" fallback.
 - No consumer read of the Role registry is enumerated. Consumers read assignments, not roles (see 3.9).
@@ -552,15 +552,33 @@ Typical flows:
 
 ### 6. Open Contract Gaps
 
-Each gap is open until a decision or evidence closes it, and the closing change updates this file in place; a closed gap is removed (the source topology, the timestamp representation, infrastructure-exception propagation, the status filter, absence semantics, the consumer read surface, the resolution failure classes, the lifecycle rules under soft deletion, the default operations under a deleted target, the reconfiguration contract, the lock order, the image-assignment scope key, the identity input type, and the read-time treatment of an unrepresented Value, the Content fields and value limits (`GAP-13`), the command shapes including the `VAR-01` identifier changes (`GAP-14`), the restore position of ordered rows (`GAP-11`), management search and business-key reads (`GAP-04`), list bounding and pagination (`GAP-05`), and the image-assignment management criteria (`GAP-19`) are closed and appear above as settled contracts). "Needs" names the kind of resolution. It is advisory, and authority follows `std-ai-collaboration-workflow` §3.2.1: a public-contract choice belongs to the Lead and, where it changes the approved contract, the Owner. An implementer must not guess on any of these.
+No open contract gaps. A gap closes when a decision or evidence settles it, and the closing change updates this file in place. Closed and recorded above as settled contracts: the source topology, the timestamp representation, infrastructure-exception propagation, the status filter, absence semantics, the consumer read surface, the resolution failure classes, the lifecycle rules under soft deletion, the default operations under a deleted target, the reconfiguration contract, the lock order, the image-assignment scope key, the identity input type, the read-time treatment of an unrepresented Value, the Content fields and value limits (`GAP-13`), the command shapes including the `VAR-01` identifier changes (`GAP-14`), the restore position of ordered rows (`GAP-11`), management search and business-key reads (`GAP-04`), list bounding and pagination (`GAP-05`), the image-assignment management criteria (`GAP-19`), the exact PHP type names (`GAP-02`), standalone Option and Value status changes (`GAP-16`), generic update commands (`GAP-17`), collation evidence (`GAP-23`), and compatibility with `maatify/php-category` (`GAP-25`). A new gap found later is added here with its sources, impact, and the kind of resolution it needs; authority follows `std-ai-collaboration-workflow` §3.2.1, and an implementer must not guess on one.
 
-| ID | Gap | Sources and what is missing | Impact | Needs |
-|---|---|---|---|---|
-| `GAP-02` | Exact PHP type names for the unimplemented capabilities (any standalone Option or Value status command). The root namespace `Maatify\Product\` is fixed by Package Building §4 and the production autoload in `composer.json`; the implemented types are listed in the Public API table. | Illustrative names only (the illustrative-names table above). | Each new contract signature. | Technical decision when each type is written |
-| `GAP-16` | Standalone Option and Value status changes. Derived: an Option status change always breaks an invariant outside reconfiguration, and a Value status change is valid only under an inactive Option. Whether these are public commands or only reconfiguration internals is not stated; today reconfiguration is the only status change and `OPT-02`/`OVL-02` are not implemented. | A§5.4, A§6.2, A§6.4, A§6.5 (derivation in §3.3, §3.4). | `OPT-02`, `OVL-02`. | Lead confirmation |
-| `GAP-17` | No generic update commands. Derived: Product, Option, Option Value, and Role have no mutable business field. Confirm no `Update*` command is intended. | A§4.1, A§5.2, A§9.2, DEC-006. | Command inventory. | Lead confirmation |
-| `GAP-23` | Collation consequences for identity beyond case folding. Case-insensitive equality under `utf8mb4_unicode_ci` is proven for the Product, Option, and Value codes, the role key, and the image-assignment scope strings; accent-insensitive and trailing-space behavior versus the PHP pre-check is not. | A§4.1, A§5.2, A§9.2. | Identifier Commands and conflicts. | Evidence (MySQL integration) |
-| `GAP-25` | Compatibility with `maatify/php-category`. The naming, default invariant, read pair, DTO timestamp, and Media Asset ID contracts were compared with the released `v1.0.0-rc.1` during the cross-package alignment. Content semantics and the remaining families were not. | A§9.1, A§10, DEC-005. | Cross-package alignment claim. | Evidence |
+### 7. Compatibility with `maatify/php-category`
+
+Compared with `maatify/php-category` at commit `b8f6042` (after `v1.0.0-rc.1`); paths are in that repository. "Deliberate difference" names a Product decision recorded in this file.
+
+| Concern | `php-category` (`b8f6042`) | `php-product` |
+|---|---|---|
+| Content identity | `(category_id, language_code_identity)` unique, `NULL` is one unlocalized row (`schema/category.sql:105-114`). | **Aligned**: `(owner, language_code_identity)` for Product, Option, and Option Value Content. |
+| Content fields | `name` at most 255, language at most 16 (`src/Content/Mutation/Command/CreateCategoryContentCommand.php:29,37`); `description TEXT` without a PHP limit (`schema/category.sql:108`). | **Deliberate difference**: Product fields `name` (255), `shortDescription` (500), `description` (65535 bytes, checked in PHP); Option and Value Content have `name` only (`GAP-13`). |
+| Management Content language selector | None: lists return every language ordered by `language_code, id` (`src/Content/Query/DTO/CategoryContentListCriteriaDTO.php:16-20`, `src/Content/Query/Infrastructure/PdoCategoryContentManagementReadQuery.php:71`). | **Deliberate difference**: typed `ContentLanguageFilter` with three states (exact, unlocalized, all), as A§12 requires; same `language_code, id` order. |
+| Consumer Content read | All visible languages of the owner, bounded list (`src/Content/Query/Infrastructure/PdoCategoryContentReadQuery.php:56`). | **Deliberate difference**: `listVisible()` takes `ExactContentLanguage` (exact or unlocalized, two states) and returns zero or one record; no all-languages consumer read (A§12, DEC-004). |
+| Media Asset ID | `int\|string`, digit string `^[1-9][0-9]*\z`, checked against `PHP_INT_MAX` (`src/Common/DTO/CategoryIdDTO.php:32`, `src/ImageAssignment/Assignment/Command/CreateCategoryImageAssignmentCommand.php:22`). | **Aligned** (DEC-005). |
+| Timestamps | Hydrated in the Clock timezone (`src/Common/Infrastructure/PdoReadQuerySupport.php:97`), serialized as `DATE_ATOM` (`src/Content/Query/DTO/CategoryContentDTO.php:67`). | **Aligned**. |
+| Read pair | `getById()` consumer and `getByIdForManagement()` (`src/Category/Api/CategoryApiInterface.php:41,45`). | **Aligned**. |
+| Deleted-state enum | `NON_DELETED`, `INCLUDE_DELETED`, `DELETED_ONLY` (`src/Common/Enum/CategoryDeletedStateEnum.php:10-12`). | **Aligned** (`ProductDeletedStateEnum`). |
+| Management list bounds and pagination | `maxResults` 1 to 100, default 100 (`src/Category/Query/DTO/CategoryListCriteriaDTO.php:15`); `PdoPaginator` with 20 default, 100 maximum, `id` tie-breaker (`src/Category/Query/Infrastructure/PdoCategoryManagementReadQuery.php:252,254`). | **Aligned**. |
+| Search | `code` only, trimmed, at most 100; `total` without the search, `filtered` with it (`src/Category/Query/Infrastructure/PdoCategoryManagementReadQuery.php:168,170`); `LIKE ... ESCAPE` with a backslash (`:218`). | **Aligned** on field, bounds, and counts; **Deliberate difference** on escaping: `ESCAPE '!'`, which works under any Host `sql_mode` including `NO_BACKSLASH_ESCAPES`. |
+| Ordering commands | `updateDisplayOrder()` for Categories (`src/Category/Api/CategoryApiInterface.php:38`), `reorder()` for Image Assignments (`src/ImageAssignment/Api/Contract/ImageAssignmentApiInterface.php:27`), both through `moveWithinScope()`. | **Aligned** on the shared Ordering API; **Deliberate difference** in naming: `updateDisplayOrder()` for every ordered family, including Image Assignments. |
+| Restore position | Restore keeps the old `display_order` (`src/Category/Infrastructure/PdoCategoryCommandRepository.php:110`, `src/ImageAssignment/Infrastructure/PdoCategoryImageAssignmentCommandRepository.php:206`). | **Deliberate difference**: a restored row takes the end of its live scope (`GAP-11`), because a newer row may hold the old position. |
+| Default set and clear | `setDefault()` clears the previous default of the exact scope, `clearDefault()` promotes nothing (`src/ImageAssignment/Api/Contract/ImageAssignmentApiInterface.php:29,31`). | **Aligned**. |
+| Same-status request | `updateStatus()` always writes (`src/Category/Service/CategoryService.php:109-117`). | **Deliberate difference**: a request for the current status writes nothing, for every family with a status, proven with an advancing test clock. |
+| Content update with equal values | Always writes (`src/Content/Service/ContentService.php:54-62`). | **Deliberate difference**: an update equal to the stored fields writes nothing. |
+| Business-key reads | `getByCode()` (`src/Category/Api/CategoryApiInterface.php:59`) and `getByKeyForManagement()` for roles (`src/ImageRole/Api/Contract/ImageRoleApiInterface.php:36`). | **Aligned** in behavior; the Product read is named `getByCodeForManagement()` because it ignores status. |
+| Image Assignment management criteria | Role filter `OMITTED`, `EXACT_NULL`, `CONCRETE` by role id (`src/ImageAssignment/Query/Enum/CategoryImageAssignmentRoleFilterModeEnum.php:10-12`, `src/ImageAssignment/Query/DTO/CategoryImageAssignmentRoleFilterDTO.php:28`); language and platform only together through a scope (`src/ImageAssignment/Query/Infrastructure/PdoCategoryImageAssignmentManagementReadQuery.php:69-77`). | **Aligned** on the role filter by identity; **Deliberate difference**: language and platform each have their own omitted, exact-`NULL`, or value selector, and the target has its own selector (`GAP-19`). |
+| Image Assignment management order | `ROW_NUMBER() OVER (ORDER BY category_id, ordering_scope, display_order, id)` as the `business_order` sort key (`src/ImageAssignment/Query/Infrastructure/PdoCategoryImageAssignmentManagementReadQuery.php:247-249`). | **Aligned** (one Product per list, so the order is `ordering_scope, display_order, id`). |
+| Image Role order | `BINARY role_key, id` (`src/ImageRole/Query/Infrastructure/PdoCategoryImageRoleManagementReadQuery.php:89`). | **Aligned** (`CAST(role_key AS BINARY)`, the non-deprecated form). |
 
 ## Operational Read / Reporting Classification
 

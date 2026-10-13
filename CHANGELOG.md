@@ -28,5 +28,5 @@ No version has been released.
 - Public failures: `ProductCodeAlreadyExistsException`, `ProductNotFoundException`, `ProductInvalidArgumentException`, and `ProductPersistenceException`, all implementing `ProductExceptionInterface`.
 - Consumer documentation: Usage Guide, runnable examples, and `llms.txt`.
 - MIT `LICENSE`, matching the `license` field in `composer.json`.
-- Approved Contract Inventory in the Package Reference: capability IDs, structural invariants, management and consumer behavior, and the open contract gaps for the capabilities not yet implemented.
+- Approved Contract Inventory in the Package Reference: capability IDs, structural invariants, management and consumer behavior, the settled contract gaps, collation evidence for every text identity, and the compatibility record with `maatify/php-category`.
 - Verification: Unit and real-MySQL Integration suites, including concurrent reconfiguration and concurrent default replacement with separate processes, a Consumer Verification Harness that smoke-executes the examples, and the CI `Final Gate`.
