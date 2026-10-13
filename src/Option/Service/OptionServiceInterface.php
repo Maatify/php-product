@@ -8,6 +8,7 @@ use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Option\Command\CreateOptionCommand;
+use Maatify\Product\Option\Command\UpdateOptionDisplayOrderCommand;
 use Maatify\Product\Option\DTO\CreatedOptionDTO;
 use Maatify\Product\Option\DTO\OptionDTO;
 use Maatify\Product\Option\Exception\OptionCodeAlreadyExistsException;
@@ -43,7 +44,18 @@ interface OptionServiceInterface
     public function softDelete(int $optionId): void;
 
     /**
-     * Restores a soft-deleted Option with its saved status, after revalidating the configuration invariants.
+     * Moves a non-deleted Option to a position within its Product's order through the shared Ordering API: a
+     * position above the current maximum is clamped to it, the current position changes nothing, and the
+     * other rows of the scope shift to keep the positions contiguous. The moved row's `updated_at` is stamped.
+     * Ordering never changes the configuration's validity, so no invariant is revalidated.
+     *
+     * @throws OptionNotFoundException When no Option has that identity.
+     * @throws ProductBusinessRuleException When the Option or its Product is soft deleted.
+     */
+    public function updateDisplayOrder(UpdateOptionDisplayOrderCommand $command): void;
+
+    /**
+     * Restores a soft-deleted Option with its saved status at the end of its Product's order, after revalidating the configuration invariants.
      *
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws OptionNotFoundException When no Option has that identity.

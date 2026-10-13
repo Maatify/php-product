@@ -53,7 +53,16 @@ interface ImageAssignmentCommandRepositoryInterface
     public function softDelete(int $assignmentId, DateTimeImmutable $occurredAt): bool;
 
     /**
-     * Restores the assignment as non-default.
+     * Restores the assignment as non-default, at the end of its exact scope's live order (the next
+     * position of the shared Ordering API), in the same write.
      */
-    public function restore(int $assignmentId, DateTimeImmutable $occurredAt): bool;
+    public function restore(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool;
+
+    /**
+     * Moves a non-deleted assignment within its exact scope through the shared Ordering API
+     * (`moveWithinScope()`), which locks the scope, clamps a position above the maximum to it, leaves
+     * a row already at the position unchanged, and stamps the moved row's `updated_at`. Returns false
+     * when the assignment is not a live member of that scope.
+     */
+    public function updateDisplayOrder(int $assignmentId, string $scope, int $displayOrder, DateTimeImmutable $occurredAt): bool;
 }

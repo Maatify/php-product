@@ -169,13 +169,17 @@ final readonly class PdoProductConfigurationRepository implements ProductConfigu
         $this->updateStatusOf('maa_product_variants', $variantIds, $active, $occurredAt);
     }
 
-    public function restoreVariantAsActive(int $variantId, DateTimeImmutable $occurredAt): bool
+    public function restoreVariantAsActive(int $variantId, int $productId, DateTimeImmutable $occurredAt): bool
     {
         $statement = $this->pdo->prepare(
-            'UPDATE `maa_product_variants` SET `deleted_at` = NULL, `status` = \'active\', `updated_at` = :updated_at WHERE '
-            . '`id` = :id AND `deleted_at` IS NOT NULL',
+            'UPDATE `maa_product_variants` SET `deleted_at` = NULL, `status` = \'active\', `display_order` = :display_order, '
+            . '`updated_at` = :updated_at WHERE `id` = :id AND `deleted_at` IS NOT NULL',
         );
-        $statement->execute(['updated_at' => $occurredAt->format('Y-m-d H:i:s'), 'id' => $variantId]);
+        $statement->execute([
+            'display_order' => $this->orderingManager->getNextPosition($this->pdo, self::variantOrderingConfig(), $productId),
+            'updated_at' => $occurredAt->format('Y-m-d H:i:s'),
+            'id' => $variantId,
+        ]);
 
         return $statement->rowCount() > 0;
     }
@@ -188,15 +192,7 @@ final readonly class PdoProductConfigurationRepository implements ProductConfigu
     ): int {
         $displayOrder = $this->orderingManager->getNextPosition(
             $this->pdo,
-            new ScopedOrderingConfig(
-                table: 'maa_product_variants',
-                scopeColumn: 'product_id',
-                idColumn: 'id',
-                orderColumn: 'display_order',
-                deletedAtColumn: 'deleted_at',
-                nullableScope: false,
-                updatedAtColumn: 'updated_at',
-            ),
+            self::variantOrderingConfig(),
             $productId,
         );
         $timestamp = $occurredAt->format('Y-m-d H:i:s');
@@ -234,6 +230,22 @@ final readonly class PdoProductConfigurationRepository implements ProductConfigu
         }
 
         return $variantId;
+    }
+
+    /**
+     * Variants are ordered within their Product; soft-deleted Variants are outside the live order.
+     */
+    private static function variantOrderingConfig(): ScopedOrderingConfig
+    {
+        return new ScopedOrderingConfig(
+            table: 'maa_product_variants',
+            scopeColumn: 'product_id',
+            idColumn: 'id',
+            orderColumn: 'display_order',
+            deletedAtColumn: 'deleted_at',
+            nullableScope: false,
+            updatedAtColumn: 'updated_at',
+        );
     }
 
     /**

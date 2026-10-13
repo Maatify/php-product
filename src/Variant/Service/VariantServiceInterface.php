@@ -9,6 +9,7 @@ use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Common\Exception\ProductPersistenceException;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
+use Maatify\Product\Variant\Command\UpdateVariantDisplayOrderCommand;
 use Maatify\Product\Variant\Command\UpdateVariantIdentifiersCommand;
 use Maatify\Product\Variant\DTO\VariantCollectionDTO;
 use Maatify\Product\Variant\DTO\VariantCompositionCriteriaDTO;
@@ -122,7 +123,18 @@ interface VariantServiceInterface
     public function updateIdentifiers(UpdateVariantIdentifiersCommand $command): void;
 
     /**
-     * Restores a soft-deleted Variant with its saved status, after revalidating the configuration invariants.
+     * Moves a non-deleted Variant to a position within its Product's order through the shared Ordering API: a
+     * position above the current maximum is clamped to it, the current position changes nothing, and the
+     * other rows of the scope shift to keep the positions contiguous. The moved row's `updated_at` is stamped.
+     * Ordering never changes the configuration's validity, so no invariant is revalidated.
+     *
+     * @throws VariantNotFoundException When no Variant has that identity.
+     * @throws ProductBusinessRuleException When the Variant or its Product is soft deleted.
+     */
+    public function updateDisplayOrder(UpdateVariantDisplayOrderCommand $command): void;
+
+    /**
+     * Restores a soft-deleted Variant with its saved status at the end of its Product's order, after revalidating the configuration invariants.
      *
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws VariantNotFoundException When no Variant has that identity.

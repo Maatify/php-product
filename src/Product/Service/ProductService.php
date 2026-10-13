@@ -319,7 +319,7 @@ final readonly class ProductService implements ProductServiceInterface
         $this->configuration->updateVariantStatus($deactivateVariants, false, $occurredAt);
         $this->configuration->updateVariantStatus($reactivate, true, $occurredAt);
         foreach ($restore as $variantId) {
-            if (!$this->configuration->restoreVariantAsActive($variantId, $occurredAt)) {
+            if (!$this->configuration->restoreVariantAsActive($variantId, $productId, $occurredAt)) {
                 throw ProductStorageFailureFactory::lockedRowVanished('Variant', $variantId);
             }
         }

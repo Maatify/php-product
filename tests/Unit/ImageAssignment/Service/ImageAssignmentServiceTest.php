@@ -10,6 +10,7 @@ use LogicException;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\Command\UpdateImageAssignmentDisplayOrderCommand;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentIdentityDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
@@ -80,6 +81,10 @@ final class ImageAssignmentServiceTest extends TestCase
         $this->assignment = $this->assignmentState(isDefault: false, deleted: true);
         $this->service()->restore(self::ASSIGNMENT);
         self::assertSame([...$lead, 'assignment:lock:7', 'assignment:restore:7', 'transaction:end'], $this->takeCalls());
+
+        $this->assignment = $this->assignmentState(isDefault: false, deleted: false);
+        $this->service()->updateDisplayOrder(new UpdateImageAssignmentDisplayOrderCommand(self::ASSIGNMENT, 2));
+        self::assertSame([...$lead, 'assignment:lock:7', 'assignment:move:7:2', 'transaction:end'], $this->takeCalls());
     }
 
     public function testAProductTargetWithoutARoleLocksOnlyTheProductBeforeTheAssignmentRow(): void
@@ -276,9 +281,16 @@ final class ImageAssignmentServiceTest extends TestCase
                 return true;
             }
 
-            public function restore(int $assignmentId, DateTimeImmutable $occurredAt): bool
+            public function restore(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool
             {
                 $this->calls->record('assignment:restore:' . $assignmentId);
+
+                return true;
+            }
+
+            public function updateDisplayOrder(int $assignmentId, string $scope, int $displayOrder, DateTimeImmutable $occurredAt): bool
+            {
+                $this->calls->record('assignment:move:' . $assignmentId . ':' . $displayOrder);
 
                 return true;
             }
@@ -352,9 +364,14 @@ final class ImageAssignmentServiceTest extends TestCase
                 throw new LogicException('softDelete is not expected in this test.');
             }
 
-            public function restore(int $variantId, DateTimeImmutable $occurredAt): bool
+            public function restore(int $variantId, int $productId, DateTimeImmutable $occurredAt): bool
             {
                 throw new LogicException('restore is not expected in this test.');
+            }
+
+            public function updateDisplayOrder(int $variantId, int $productId, int $displayOrder, DateTimeImmutable $occurredAt): bool
+            {
+                throw new LogicException('updateDisplayOrder is not expected in this test.');
             }
         };
 

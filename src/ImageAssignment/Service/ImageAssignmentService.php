@@ -10,6 +10,7 @@ use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\Command\UpdateImageAssignmentDisplayOrderCommand;
 use Maatify\Product\ImageAssignment\DTO\CreatedImageAssignmentDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
@@ -139,6 +140,22 @@ final readonly class ImageAssignmentService implements ImageAssignmentServiceInt
         });
     }
 
+    public function updateDisplayOrder(UpdateImageAssignmentDisplayOrderCommand $command): void
+    {
+        $assignmentId = $command->assignmentId;
+        $occurredAt = $this->clock->now();
+
+        $this->transactions->run(function () use ($command, $assignmentId, $occurredAt): void {
+            $assignment = $this->lockedAssignment($assignmentId, lockRole: false);
+            if ($assignment->deleted) {
+                throw ProductBusinessRuleException::softDeleted('Image Assignment', $assignmentId);
+            }
+            if (!$this->assignments->updateDisplayOrder($assignmentId, $assignment->scope, $command->displayOrder, $occurredAt)) {
+                throw ImageAssignmentNotFoundException::withId($assignmentId);
+            }
+        });
+    }
+
     public function restore(int $assignmentId): void
     {
         self::requirePositive($assignmentId);
@@ -149,7 +166,7 @@ final readonly class ImageAssignmentService implements ImageAssignmentServiceInt
             if (!$assignment->deleted) {
                 throw ProductBusinessRuleException::notSoftDeleted('Image Assignment', $assignmentId);
             }
-            if (!$this->assignments->restore($assignmentId, $occurredAt)) {
+            if (!$this->assignments->restore($assignmentId, $assignment->scope, $occurredAt)) {
                 throw ProductStorageFailureFactory::lockedRowVanished('Image Assignment', $assignmentId);
             }
         });

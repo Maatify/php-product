@@ -13,6 +13,7 @@ use Maatify\Product\Product\DTO\ProductConfigurationSnapshotDTO;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
 use Maatify\Product\Product\Repository\ProductConfigurationRepositoryInterface;
 use Maatify\Product\Product\Service\ProductConfigurationValidator;
+use Maatify\Product\Variant\Command\UpdateVariantDisplayOrderCommand;
 use Maatify\Product\Variant\Command\UpdateVariantIdentifiersCommand;
 use Maatify\Product\Variant\DTO\VariantCollectionDTO;
 use Maatify\Product\Variant\DTO\VariantCompositionCriteriaDTO;
@@ -204,6 +205,20 @@ final readonly class VariantService implements VariantServiceInterface
         });
     }
 
+    public function updateDisplayOrder(UpdateVariantDisplayOrderCommand $command): void
+    {
+        $variantId = $command->variantId;
+        $occurredAt = $this->clock->now();
+
+        $this->transactions->run(function () use ($command, $variantId, $occurredAt): void {
+            [$snapshot, $variant] = $this->lockedVariant($variantId);
+            $this->assertMutable($snapshot, $variant);
+            if (!$this->variants->updateDisplayOrder($variantId, $snapshot->productId, $command->displayOrder, $occurredAt)) {
+                throw VariantNotFoundException::withId($variantId);
+            }
+        });
+    }
+
     public function restore(int $variantId): void
     {
         self::requirePositive($variantId, 'variantId');
@@ -218,7 +233,7 @@ final readonly class VariantService implements VariantServiceInterface
                 throw ProductBusinessRuleException::notSoftDeleted('Variant', $variantId);
             }
             self::assertValid($snapshot->withVariant($variant->withDeleted(false)));
-            if (!$this->variants->restore($variantId, $occurredAt)) {
+            if (!$this->variants->restore($variantId, $snapshot->productId, $occurredAt)) {
                 throw ProductStorageFailureFactory::lockedRowVanished('Variant', $variantId);
             }
         });

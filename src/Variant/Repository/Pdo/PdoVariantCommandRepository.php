@@ -47,15 +47,7 @@ final readonly class PdoVariantCommandRepository implements VariantCommandReposi
 
         $displayOrder = $this->orderingManager->getNextPosition(
             $this->pdo,
-            new ScopedOrderingConfig(
-                table: self::VARIANT_TABLE,
-                scopeColumn: 'product_id',
-                idColumn: 'id',
-                orderColumn: 'display_order',
-                deletedAtColumn: 'deleted_at',
-                nullableScope: false,
-                updatedAtColumn: 'updated_at',
-            ),
+            self::orderingConfig(),
             $productId,
         );
 
@@ -160,15 +152,40 @@ final readonly class PdoVariantCommandRepository implements VariantCommandReposi
         return $statement->rowCount() > 0;
     }
 
-    public function restore(int $variantId, DateTimeImmutable $occurredAt): bool
+    public function restore(int $variantId, int $productId, DateTimeImmutable $occurredAt): bool
     {
         $statement = $this->pdo->prepare(
-            'UPDATE `' . self::VARIANT_TABLE . '` SET `deleted_at` = NULL, `updated_at` = :updated_at WHERE '
+            'UPDATE `' . self::VARIANT_TABLE . '` SET `deleted_at` = NULL, `display_order` = :display_order, `updated_at` = :updated_at WHERE '
             . '`id` = :id AND `deleted_at` IS NOT NULL',
         );
-        $statement->execute(['updated_at' => $occurredAt->format('Y-m-d H:i:s'), 'id' => $variantId]);
+        $statement->execute([
+            'display_order' => $this->orderingManager->getNextPosition($this->pdo, self::orderingConfig(), $productId),
+            'updated_at' => $occurredAt->format('Y-m-d H:i:s'),
+            'id' => $variantId,
+        ]);
 
         return $statement->rowCount() > 0;
+    }
+
+    public function updateDisplayOrder(int $variantId, int $productId, int $displayOrder, DateTimeImmutable $occurredAt): bool
+    {
+        return $this->orderingManager->moveWithinScope($this->pdo, self::orderingConfig(), $productId, $variantId, $displayOrder, $occurredAt->format('Y-m-d H:i:s'));
+    }
+
+    /**
+     * Variants are ordered within their Product; soft-deleted Variants are outside the live order.
+     */
+    private static function orderingConfig(): ScopedOrderingConfig
+    {
+        return new ScopedOrderingConfig(
+            table: self::VARIANT_TABLE,
+            scopeColumn: 'product_id',
+            idColumn: 'id',
+            orderColumn: 'display_order',
+            deletedAtColumn: 'deleted_at',
+            nullableScope: false,
+            updatedAtColumn: 'updated_at',
+        );
     }
 
     /**

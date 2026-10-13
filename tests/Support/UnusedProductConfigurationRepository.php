@@ -40,7 +40,7 @@ final class UnusedProductConfigurationRepository implements ProductConfiguration
         throw new LogicException('updateVariantStatus is not expected in this test.');
     }
 
-    public function restoreVariantAsActive(int $variantId, DateTimeImmutable $occurredAt): bool
+    public function restoreVariantAsActive(int $variantId, int $productId, DateTimeImmutable $occurredAt): bool
     {
         throw new LogicException('restoreVariantAsActive is not expected in this test.');
     }

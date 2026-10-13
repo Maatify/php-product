@@ -8,6 +8,7 @@ use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\Command\UpdateImageAssignmentDisplayOrderCommand;
 use Maatify\Product\ImageAssignment\DTO\CreatedImageAssignmentDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentAlreadyExistsException;
@@ -72,7 +73,19 @@ interface ImageAssignmentServiceInterface
     public function softDelete(int $assignmentId): void;
 
     /**
-     * Restores a soft-deleted assignment as non-default; its target Product and Variant must not be deleted.
+     * Moves a non-deleted assignment to a position within its exact `(target, role, language, platform)`
+     * scope through the shared Ordering API: a position above the current maximum is clamped to it, the
+     * current position changes nothing, and the other assignments of the scope shift to keep the positions
+     * contiguous. The moved row's `updated_at` is stamped. Other scopes are never touched. The Product row
+     * is locked first, then the target Variant when there is one, then the assignment.
+     *
+     * @throws ImageAssignmentNotFoundException When no assignment has that identity.
+     * @throws ProductBusinessRuleException When the assignment or its target Product or Variant is soft deleted.
+     */
+    public function updateDisplayOrder(UpdateImageAssignmentDisplayOrderCommand $command): void;
+
+    /**
+     * Restores a soft-deleted assignment as non-default at the end of its exact scope's order; its target Product and Variant must not be deleted.
      *
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws ImageAssignmentNotFoundException When no assignment has that identity.

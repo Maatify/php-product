@@ -12,6 +12,7 @@ use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\Option\Exception\OptionNotFoundException;
 use Maatify\Product\Option\Repository\OptionCommandRepositoryInterface;
 use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
+use Maatify\Product\OptionValue\Command\UpdateOptionValueDisplayOrderCommand;
 use Maatify\Product\OptionValue\DTO\CreatedOptionValueDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueStateDTO;
@@ -84,6 +85,23 @@ final readonly class OptionValueService implements OptionValueServiceInterface
         });
     }
 
+    public function updateDisplayOrder(UpdateOptionValueDisplayOrderCommand $command): void
+    {
+        $optionValueId = $command->optionValueId;
+        $occurredAt = $this->clock->now();
+
+        $this->transactions->run(function () use ($command, $optionValueId, $occurredAt): void {
+            [$snapshot, $value] = $this->lockedValue($optionValueId);
+            $this->assertOwnersLive($snapshot, $value);
+            if ($value->deleted) {
+                throw ProductBusinessRuleException::softDeleted('Option Value', $optionValueId);
+            }
+            if (!$this->values->updateDisplayOrder($optionValueId, $value->optionId, $command->displayOrder, $occurredAt)) {
+                throw OptionValueNotFoundException::withId($optionValueId);
+            }
+        });
+    }
+
     public function restore(int $optionValueId): void
     {
         self::requirePositive($optionValueId);
@@ -96,7 +114,7 @@ final readonly class OptionValueService implements OptionValueServiceInterface
                 throw ProductBusinessRuleException::notSoftDeleted('Option Value', $optionValueId);
             }
             self::assertValid($snapshot->withOptionValue($value->withDeleted(false)));
-            if (!$this->values->restore($optionValueId, $occurredAt)) {
+            if (!$this->values->restore($optionValueId, $value->optionId, $occurredAt)) {
                 throw ProductStorageFailureFactory::lockedRowVanished('Option Value', $optionValueId);
             }
         });

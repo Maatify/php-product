@@ -29,10 +29,11 @@ It does not fit if you need prices, stock, suppliers, Categories, orders, URL sl
 | Prepare Options and Values, then make a Product configurable | [7. Reconfigure a Product](#7-reconfigure-a-product) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Resolve a shopper's choices to one Variant | [8. Resolve a composition](#8-resolve-a-composition) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Set, replace, or clear a Variant's SKU and barcode | [11. Variant SKU and barcode](#11-variant-sku-and-barcode) | [`03-read-variants.php`](../../examples/03-read-variants.php) |
+| Reorder Variants, Options, Values, and Image Assignments | [12. Ordering](#12-ordering) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Name Products and label Options and Values per language, and read them exactly | [10. Content](#10-content) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Assign Media Assets with roles, scopes, and one default | [9. Image Roles and Assignments](#9-image-roles-and-assignments) | none yet |
 
-Management lists, search, and pagination outside Content, ordering commands, and standalone Option and Option Value status changes are not implemented yet and have no walkthrough.
+Management lists, search, and pagination outside Content, and standalone Option and Option Value status changes are not implemented yet and have no walkthrough.
 
 ## Setup
 
@@ -111,7 +112,7 @@ $pdo->commit(); // commits Product 'A' and its Variant only
 - **Input:** a Product, Variant, Option, Option Value, Content, Image Role, or Image Assignment identity.
 - **Public call:** `updateStatus(id, StatusEnum)` (Products, Variants, Image Roles), `softDelete(id)`, and `restore(id)` on the capability's service.
 - **Result:** `void`; read the new state back through the management read.
-- **Boundary:** one contract for every family. A soft-deleted row accepts nothing but `restore()`; a status change, re-delete, default operation, or other change on it is a `ProductBusinessRuleException`. A child under a soft-deleted owner (an Option of a deleted Product, a Value of a deleted Option, an Assignment of a deleted Product or Variant) cannot be created or changed until the owner chain is restored. `restore()` keeps the saved status (an inactive row stays inactive) and revalidates the Product invariants first. A missing identity is the family's not-found exception. Inactivity alone blocks no management operation. Product activation needs a non-empty name and a valid configuration; deactivating or deleting the last valid active Variant, or deleting an Option or Value an active Variant needs, is rejected: those changes belong to reconfiguration.
+- **Boundary:** one contract for every family. A soft-deleted row accepts nothing but `restore()`; a status change, re-delete, default operation, or other change on it is a `ProductBusinessRuleException`. A child under a soft-deleted owner (an Option of a deleted Product, a Value of a deleted Option, an Assignment of a deleted Product or Variant) cannot be created or changed until the owner chain is restored. `restore()` keeps the saved status (an inactive row stays inactive), puts an ordered row (Option, Value, Variant, Image Assignment) at the end of its scope, and revalidates the Product invariants first. A missing identity is the family's not-found exception. Inactivity alone blocks no management operation. Product activation needs a non-empty name and a valid configuration; deactivating or deleting the last valid active Variant, or deleting an Option or Value an active Variant needs, is rejected: those changes belong to reconfiguration.
 
 ```php
 $products->updateStatus($created->productId, ProductStatusEnum::ACTIVE); // needs a name and a valid configuration
@@ -189,6 +190,18 @@ $variants->updateIdentifiers(new UpdateVariantIdentifiersCommand(
     VariantIdentifierChange::set('0012345678905'),
 ));
 $variants->updateIdentifiers(new UpdateVariantIdentifiersCommand($variantId, VariantIdentifierChange::clear(), VariantIdentifierChange::unchanged()));
+```
+
+## 12. Ordering
+
+- **Input:** an `UpdateVariantDisplayOrderCommand`, `UpdateOptionDisplayOrderCommand`, `UpdateOptionValueDisplayOrderCommand`, or `UpdateImageAssignmentDisplayOrderCommand`: the row identity and a position of at least 1.
+- **Public call:** `updateDisplayOrder($command)` on the Variant, Option, Option Value, or Image Assignment service.
+- **Result:** `void`; the row is at the requested position within its scope and the other rows of that scope shifted to keep the positions contiguous. Read the positions back through the management reads (`displayOrder`).
+- **Boundary:** a Variant or an Option moves within its Product, a Value within its Option, an assignment within its exact `(target, role, language, platform)` scope; nothing outside that scope changes. A position above the maximum is clamped to it, and the current position writes nothing. The move goes through the shared `maatify/persistence` Ordering API and joins a Host transaction you hold on the connection. A soft-deleted row or owner is a `ProductBusinessRuleException`; a missing identity is the family's not-found exception. A restored row always goes to the end of its scope, because a newer row may hold its old position.
+
+```php
+$options->updateDisplayOrder(new UpdateOptionDisplayOrderCommand($size, 1));   // size first
+$variants->updateDisplayOrder(new UpdateVariantDisplayOrderCommand($variantId, 99)); // clamped to the last position
 ```
 
 ## Running the examples

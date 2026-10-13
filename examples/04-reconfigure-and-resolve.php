@@ -11,6 +11,7 @@ declare(strict_types=1);
  *  - Calls:    OptionServiceInterface::create(), OptionValueServiceInterface::create(),
  *              ProductContentServiceInterface::create(), OptionContentServiceInterface::create(),
  *              OptionValueContentServiceInterface::create(), listVisible(),
+ *              OptionServiceInterface::updateDisplayOrder(),
  *              ProductServiceInterface::reconfigure(), updateStatus(),
  *              VariantServiceInterface::resolveByComposition().
  *  - Result:   a ProductReconfigurationResultDTO with the created and deactivated Variant identities,
@@ -30,6 +31,7 @@ use Maatify\Product\Content\Command\CreateProductContentCommand;
 use Maatify\Product\Content\ValueObject\ExactContentLanguage;
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\Option\Command\CreateOptionCommand;
+use Maatify\Product\Option\Command\UpdateOptionDisplayOrderCommand;
 use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
 use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\Command\ReconfigureOptionTarget;
@@ -78,6 +80,13 @@ $size = $options->create(new CreateOptionCommand($productId, 'size'))->optionId;
 $red = $values->create(new CreateOptionValueCommand($color, 'red'))->optionValueId;
 $blue = $values->create(new CreateOptionValueCommand($color, 'blue'))->optionValueId;
 $medium = $values->create(new CreateOptionValueCommand($size, 'm'))->optionValueId;
+
+// Ordering: move Size before Color within the Product; the shared Ordering API shifts Color down.
+$options->updateDisplayOrder(new UpdateOptionDisplayOrderCommand($size, 1));
+if ($options->getByIdForManagement($size)->displayOrder !== 1 || $options->getByIdForManagement($color)->displayOrder !== 2) {
+    throw new RuntimeException('Unexpected Option order.');
+}
+echo "option order: size, color\n";
 
 // The Product name and the labels are Content records: one per language, `null` is the unlocalized one.
 $productContent->create(new CreateProductContentCommand($productId, null, 'Shirt', 'A plain shirt'));

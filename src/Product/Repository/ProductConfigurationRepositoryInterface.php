@@ -49,9 +49,10 @@ interface ProductConfigurationRepositoryInterface
     public function updateVariantStatus(array $variantIds, bool $active, DateTimeImmutable $occurredAt): void;
 
     /**
-     * Restores a soft-deleted Variant and activates it in one write. Returns whether a row was changed.
+     * Restores a soft-deleted Variant and activates it in one write, at the end of its Product's live
+     * order (the next position of the shared Ordering API). Returns whether a row was changed.
      */
-    public function restoreVariantAsActive(int $variantId, DateTimeImmutable $occurredAt): bool;
+    public function restoreVariantAsActive(int $variantId, int $productId, DateTimeImmutable $occurredAt): bool;
 
     /**
      * Inserts an active Variant with an immutable composition, allocating its position through the

@@ -39,15 +39,7 @@ final readonly class PdoOptionCommandRepository implements OptionCommandReposito
     {
         $displayOrder = $this->orderingManager->getNextPosition(
             $this->pdo,
-            new ScopedOrderingConfig(
-                table: self::TABLE,
-                scopeColumn: 'product_id',
-                idColumn: 'id',
-                orderColumn: 'display_order',
-                deletedAtColumn: 'deleted_at',
-                nullableScope: false,
-                updatedAtColumn: 'updated_at',
-            ),
+            self::orderingConfig(),
             $command->productId,
         );
         $timestamp = $occurredAt->format('Y-m-d H:i:s');
@@ -127,13 +119,39 @@ final readonly class PdoOptionCommandRepository implements OptionCommandReposito
         return $statement->rowCount() > 0;
     }
 
-    public function restore(int $optionId, DateTimeImmutable $occurredAt): bool
+    public function restore(int $optionId, int $productId, DateTimeImmutable $occurredAt): bool
     {
         $statement = $this->pdo->prepare(
-            'UPDATE `' . self::TABLE . '` SET `deleted_at` = NULL, `updated_at` = :updated_at WHERE `id` = :id AND `deleted_at` IS NOT NULL',
+            'UPDATE `' . self::TABLE . '` SET `deleted_at` = NULL, `display_order` = :display_order, `updated_at` = :updated_at '
+            . 'WHERE `id` = :id AND `deleted_at` IS NOT NULL',
         );
-        $statement->execute(['updated_at' => $occurredAt->format('Y-m-d H:i:s'), 'id' => $optionId]);
+        $statement->execute([
+            'display_order' => $this->orderingManager->getNextPosition($this->pdo, self::orderingConfig(), $productId),
+            'updated_at' => $occurredAt->format('Y-m-d H:i:s'),
+            'id' => $optionId,
+        ]);
 
         return $statement->rowCount() > 0;
+    }
+
+    public function updateDisplayOrder(int $optionId, int $productId, int $displayOrder, DateTimeImmutable $occurredAt): bool
+    {
+        return $this->orderingManager->moveWithinScope($this->pdo, self::orderingConfig(), $productId, $optionId, $displayOrder, $occurredAt->format('Y-m-d H:i:s'));
+    }
+
+    /**
+     * Options are ordered within their Product; soft-deleted Options are outside the live order.
+     */
+    private static function orderingConfig(): ScopedOrderingConfig
+    {
+        return new ScopedOrderingConfig(
+            table: self::TABLE,
+            scopeColumn: 'product_id',
+            idColumn: 'id',
+            orderColumn: 'display_order',
+            deletedAtColumn: 'deleted_at',
+            nullableScope: false,
+            updatedAtColumn: 'updated_at',
+        );
     }
 }

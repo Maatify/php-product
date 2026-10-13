@@ -58,7 +58,16 @@ interface VariantCommandRepositoryInterface
     public function softDelete(int $variantId, DateTimeImmutable $occurredAt): bool;
 
     /**
-     * Restores a soft-deleted Variant, preserving its saved status. Returns whether a row was changed.
+     * Restores a soft-deleted Variant, preserving its saved status, at the end of its Product's live
+     * order (the next position of the shared Ordering API), in the same write. Returns whether a row was changed.
      */
-    public function restore(int $variantId, DateTimeImmutable $occurredAt): bool;
+    public function restore(int $variantId, int $productId, DateTimeImmutable $occurredAt): bool;
+
+    /**
+     * Moves a non-deleted row within its ordering scope through the shared Ordering API
+     * (`moveWithinScope()`), which locks the scope, clamps a position above the maximum to it, leaves
+     * a row already at the position unchanged, and stamps the moved row's `updated_at`. Returns false
+     * when the row is not a live member of that scope.
+     */
+    public function updateDisplayOrder(int $variantId, int $productId, int $displayOrder, DateTimeImmutable $occurredAt): bool;
 }

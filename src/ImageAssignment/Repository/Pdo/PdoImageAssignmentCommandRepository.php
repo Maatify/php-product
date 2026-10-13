@@ -42,15 +42,7 @@ final readonly class PdoImageAssignmentCommandRepository implements ImageAssignm
     {
         $displayOrder = $this->orderingManager->getNextPosition(
             $this->pdo,
-            new ScopedOrderingConfig(
-                table: self::TABLE,
-                scopeColumn: 'ordering_scope',
-                idColumn: 'id',
-                orderColumn: 'display_order',
-                deletedAtColumn: 'deleted_at',
-                nullableScope: false,
-                updatedAtColumn: 'updated_at',
-            ),
+            self::orderingConfig(),
             $scope->value,
         );
         $timestamp = $occurredAt->format('Y-m-d H:i:s');
@@ -174,14 +166,40 @@ final readonly class PdoImageAssignmentCommandRepository implements ImageAssignm
         return $statement->rowCount() > 0;
     }
 
-    public function restore(int $assignmentId, DateTimeImmutable $occurredAt): bool
+    public function restore(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool
     {
         $statement = $this->pdo->prepare(
-            'UPDATE `' . self::TABLE . '` SET `is_default` = 0, `deleted_at` = NULL, `updated_at` = :updated_at WHERE '
+            'UPDATE `' . self::TABLE . '` SET `is_default` = 0, `deleted_at` = NULL, `display_order` = :display_order, `updated_at` = :updated_at WHERE '
             . '`id` = :id AND `deleted_at` IS NOT NULL',
         );
-        $statement->execute(['updated_at' => $occurredAt->format('Y-m-d H:i:s'), 'id' => $assignmentId]);
+        $statement->execute([
+            'display_order' => $this->orderingManager->getNextPosition($this->pdo, self::orderingConfig(), $scope),
+            'updated_at' => $occurredAt->format('Y-m-d H:i:s'),
+            'id' => $assignmentId,
+        ]);
 
         return $statement->rowCount() > 0;
+    }
+
+    public function updateDisplayOrder(int $assignmentId, string $scope, int $displayOrder, DateTimeImmutable $occurredAt): bool
+    {
+        return $this->orderingManager->moveWithinScope($this->pdo, self::orderingConfig(), $scope, $assignmentId, $displayOrder, $occurredAt->format('Y-m-d H:i:s'));
+    }
+
+    /**
+     * Assignments are ordered within their exact scope, the generated `ordering_scope` key;
+     * soft-deleted assignments are outside the live order.
+     */
+    private static function orderingConfig(): ScopedOrderingConfig
+    {
+        return new ScopedOrderingConfig(
+            table: self::TABLE,
+            scopeColumn: 'ordering_scope',
+            idColumn: 'id',
+            orderColumn: 'display_order',
+            deletedAtColumn: 'deleted_at',
+            nullableScope: false,
+            updatedAtColumn: 'updated_at',
+        );
     }
 }

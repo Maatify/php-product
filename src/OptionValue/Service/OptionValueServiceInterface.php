@@ -9,6 +9,7 @@ use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Option\Exception\OptionNotFoundException;
 use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
+use Maatify\Product\OptionValue\Command\UpdateOptionValueDisplayOrderCommand;
 use Maatify\Product\OptionValue\DTO\CreatedOptionValueDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueDTO;
 use Maatify\Product\OptionValue\Exception\OptionValueCodeAlreadyExistsException;
@@ -42,7 +43,18 @@ interface OptionValueServiceInterface
     public function softDelete(int $optionValueId): void;
 
     /**
-     * Restores a soft-deleted Value with its saved status, after revalidating the configuration invariants.
+     * Moves a non-deleted Option Value to a position within its Option's order through the shared Ordering API: a
+     * position above the current maximum is clamped to it, the current position changes nothing, and the
+     * other rows of the scope shift to keep the positions contiguous. The moved row's `updated_at` is stamped.
+     * Ordering never changes the configuration's validity, so no invariant is revalidated.
+     *
+     * @throws OptionValueNotFoundException When no Option Value has that identity.
+     * @throws ProductBusinessRuleException When the Option Value, its Option, or its Product is soft deleted.
+     */
+    public function updateDisplayOrder(UpdateOptionValueDisplayOrderCommand $command): void;
+
+    /**
+     * Restores a soft-deleted Value with its saved status at the end of its Option's order, after revalidating the configuration invariants.
      *
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws OptionValueNotFoundException When no Value has that identity.

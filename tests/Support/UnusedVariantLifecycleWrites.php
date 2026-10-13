@@ -35,8 +35,13 @@ trait UnusedVariantLifecycleWrites
         throw new LogicException('softDelete is not expected in this test.');
     }
 
-    public function restore(int $variantId, DateTimeImmutable $occurredAt): bool
+    public function restore(int $variantId, int $productId, DateTimeImmutable $occurredAt): bool
     {
         throw new LogicException('restore is not expected in this test.');
+    }
+
+    public function updateDisplayOrder(int $variantId, int $productId, int $displayOrder, DateTimeImmutable $occurredAt): bool
+    {
+        throw new LogicException('updateDisplayOrder is not expected in this test.');
     }
 }
