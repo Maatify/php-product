@@ -4,21 +4,28 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Option\Repository\Pdo;
 
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
+use Maatify\Product\Common\Pdo\ManagementListQuery;
 use Maatify\Product\Common\Pdo\RowHydrator;
 use Maatify\Product\Option\DTO\OptionDTO;
+use Maatify\Product\Option\DTO\OptionListCriteriaDTO;
 use Maatify\Product\Option\Enum\OptionStatusEnum;
 use Maatify\Product\Option\Repository\OptionQueryReaderInterface;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 use PDO;
 
 /**
- * PDO read adapter for stored Options.
+ * PDO read adapter for stored Options. It performs no write and holds no lock.
  *
  * @internal Not part of the Public Runtime API.
  */
 final readonly class PdoOptionQueryReader implements OptionQueryReaderInterface
 {
+    private const string TABLE = 'maa_product_options';
+    private const string COLUMNS = '`id`, `product_id`, `code`, `status`, `display_order`, `created_at`, `updated_at`, `deleted_at`';
+
     private RowHydrator $row;
 
     public function __construct(
@@ -30,17 +37,70 @@ final readonly class PdoOptionQueryReader implements OptionQueryReaderInterface
 
     public function findById(int $optionId): ?OptionDTO
     {
-        $statement = $this->pdo->prepare(
-            'SELECT `id`, `product_id`, `code`, `status`, `display_order`, `created_at`, `updated_at`, `deleted_at` '
-            . 'FROM `maa_product_options` WHERE `id` = :id LIMIT 1',
-        );
+        $statement = $this->pdo->prepare('SELECT ' . self::COLUMNS . ' FROM `' . self::TABLE . '` WHERE `id` = :id LIMIT 1');
         $statement->execute(['id' => $optionId]);
 
         /** @var array<string, mixed>|false $row */
         $row = $statement->fetch(PDO::FETCH_ASSOC);
-        if ($row === false) {
-            return null;
+
+        return $row === false ? null : $this->hydrate($row);
+    }
+
+    public function listForManagement(int $productId, OptionListCriteriaDTO $criteria): array
+    {
+        [$where, $params] = self::filter($productId, $criteria);
+
+        return array_map($this->hydrate(...), ManagementListQuery::fetchBounded(
+            $this->pdo,
+            'SELECT ' . self::COLUMNS . ' FROM `' . self::TABLE . '` WHERE ' . $where . ' ORDER BY `display_order` ASC, `id` ASC LIMIT :list_limit',
+            $params,
+            $criteria->maxResults,
+        ));
+    }
+
+    public function paginateForManagement(int $productId, OptionListCriteriaDTO $criteria, PageRequest $request): PageResult
+    {
+        [$where, $params] = self::filter($productId, $criteria);
+        $from = ' FROM `' . self::TABLE . '` WHERE ' . $where;
+
+        return ManagementListQuery::paginate(
+            $this->pdo,
+            'SELECT COUNT(*)' . $from,
+            $params,
+            'SELECT COUNT(*)' . $from,
+            $params,
+            'SELECT ' . self::COLUMNS . $from,
+            $request,
+            ManagementListQuery::config(
+                ['display_order' => 'display_order', 'id' => 'id', 'created_at' => 'created_at', 'updated_at' => 'updated_at'],
+                'display_order',
+            ),
+            $this->hydrate(...),
+        );
+    }
+
+    /**
+     * The owner, status, and deleted-state filter shared by the list, the counts, and the page.
+     *
+     * @return array{string, array<string, string|int>}
+     */
+    private static function filter(int $productId, OptionListCriteriaDTO $criteria): array
+    {
+        $where = '`product_id` = :owner_id';
+        $params = ['owner_id' => $productId];
+        if ($criteria->status !== null) {
+            $where .= ' AND `status` = :status';
+            $params['status'] = $criteria->status->value;
         }
+
+        return [$where . ManagementListQuery::deletedCondition($criteria->deletedState), $params];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function hydrate(array $row): OptionDTO
+    {
         $status = OptionStatusEnum::tryFrom(RowHydrator::string($row, 'status'));
         if ($status === null) {
             throw ProductStorageFailureFactory::invalidStorageValue('status');

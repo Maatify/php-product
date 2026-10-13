@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Maatify\Product\OptionValue\Service;
 
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
@@ -11,7 +13,9 @@ use Maatify\Product\Option\Exception\OptionNotFoundException;
 use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
 use Maatify\Product\OptionValue\Command\UpdateOptionValueDisplayOrderCommand;
 use Maatify\Product\OptionValue\DTO\CreatedOptionValueDTO;
+use Maatify\Product\OptionValue\DTO\OptionValueCollectionDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueDTO;
+use Maatify\Product\OptionValue\DTO\OptionValueListCriteriaDTO;
 use Maatify\Product\OptionValue\Exception\OptionValueCodeAlreadyExistsException;
 use Maatify\Product\OptionValue\Exception\OptionValueNotFoundException;
 
@@ -72,4 +76,24 @@ interface OptionValueServiceInterface
         int $optionValueId,
         ProductDeletedStateEnum $deletedState = ProductDeletedStateEnum::NON_DELETED,
     ): OptionValueDTO;
+
+    /**
+     * Lists the Option Values of an Option for management by status (`null` means any) and deleted state,
+     * ordered by display order then identity, at most `maxResults`. A missing Option yields an empty collection.
+     *
+     * @throws ProductInvalidArgumentException When the Option identity is not a positive integer.
+     */
+    public function listByOptionIdForManagement(int $optionId, OptionValueListCriteriaDTO $criteria = new OptionValueListCriteriaDTO()): OptionValueCollectionDTO;
+
+    /**
+     * One page of the Option Values of an Option for management under the same criteria, through the shared `maatify/persistence` paginator: 20 per page by default, 1 to 100 (a larger request is
+     * clamped), ties broken by `id` ascending, and an unknown sort key falls back to the default. The criteria's
+     * `maxResults` does not apply.
+     * Sort keys: `display_order` (default, ascending), `id`, `created_at`, `updated_at`.
+     *
+     * @return PageResult<OptionValueDTO>
+     *
+     * @throws ProductInvalidArgumentException When the Option identity is not a positive integer.
+     */
+    public function paginateByOptionIdForManagement(int $optionId, OptionValueListCriteriaDTO $criteria, PageRequest $request): PageResult;
 }

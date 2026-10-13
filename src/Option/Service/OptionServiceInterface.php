@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Option\Service;
 
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Option\Command\CreateOptionCommand;
 use Maatify\Product\Option\Command\UpdateOptionDisplayOrderCommand;
 use Maatify\Product\Option\DTO\CreatedOptionDTO;
+use Maatify\Product\Option\DTO\OptionCollectionDTO;
 use Maatify\Product\Option\DTO\OptionDTO;
+use Maatify\Product\Option\DTO\OptionListCriteriaDTO;
 use Maatify\Product\Option\Exception\OptionCodeAlreadyExistsException;
 use Maatify\Product\Option\Exception\OptionNotFoundException;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
@@ -73,4 +77,24 @@ interface OptionServiceInterface
         int $optionId,
         ProductDeletedStateEnum $deletedState = ProductDeletedStateEnum::NON_DELETED,
     ): OptionDTO;
+
+    /**
+     * Lists the Options of a Product for management by status (`null` means any) and deleted state,
+     * ordered by display order then identity, at most `maxResults`. A missing Product yields an empty collection.
+     *
+     * @throws ProductInvalidArgumentException When the Product identity is not a positive integer.
+     */
+    public function listByProductIdForManagement(int $productId, OptionListCriteriaDTO $criteria = new OptionListCriteriaDTO()): OptionCollectionDTO;
+
+    /**
+     * One page of the Options of a Product for management under the same criteria, through the shared `maatify/persistence` paginator: 20 per page by default, 1 to 100 (a larger request is
+     * clamped), ties broken by `id` ascending, and an unknown sort key falls back to the default. The criteria's
+     * `maxResults` does not apply.
+     * Sort keys: `display_order` (default, ascending), `id`, `created_at`, `updated_at`.
+     *
+     * @return PageResult<OptionDTO>
+     *
+     * @throws ProductInvalidArgumentException When the Product identity is not a positive integer.
+     */
+    public function paginateByProductIdForManagement(int $productId, OptionListCriteriaDTO $criteria, PageRequest $request): PageResult;
 }

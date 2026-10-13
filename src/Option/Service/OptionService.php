@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Option\Service;
 
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
@@ -12,7 +14,9 @@ use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\Option\Command\CreateOptionCommand;
 use Maatify\Product\Option\Command\UpdateOptionDisplayOrderCommand;
 use Maatify\Product\Option\DTO\CreatedOptionDTO;
+use Maatify\Product\Option\DTO\OptionCollectionDTO;
 use Maatify\Product\Option\DTO\OptionDTO;
+use Maatify\Product\Option\DTO\OptionListCriteriaDTO;
 use Maatify\Product\Option\DTO\OptionStateDTO;
 use Maatify\Product\Option\Exception\OptionNotFoundException;
 use Maatify\Product\Option\Repository\OptionCommandRepositoryInterface;
@@ -132,6 +136,24 @@ final readonly class OptionService implements OptionServiceInterface
         }
 
         return $option;
+    }
+
+    public function listByProductIdForManagement(int $productId, OptionListCriteriaDTO $criteria = new OptionListCriteriaDTO()): OptionCollectionDTO
+    {
+        if ($productId < 1) {
+            throw ProductInvalidArgumentException::nonPositiveId('productId');
+        }
+
+        return new OptionCollectionDTO($this->reader->listForManagement($productId, $criteria));
+    }
+
+    public function paginateByProductIdForManagement(int $productId, OptionListCriteriaDTO $criteria, PageRequest $request): PageResult
+    {
+        if ($productId < 1) {
+            throw ProductInvalidArgumentException::nonPositiveId('productId');
+        }
+
+        return $this->reader->paginateForManagement($productId, $criteria, $request);
     }
 
     /**

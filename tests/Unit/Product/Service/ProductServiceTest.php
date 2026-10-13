@@ -19,6 +19,7 @@ use Maatify\Product\Product\Service\ProductService;
 use Maatify\Product\Tests\Support\CallLog;
 use Maatify\Product\Tests\Support\UnusedProductConfigurationRepository;
 use Maatify\Product\Tests\Support\UnusedProductLifecycleWrites;
+use Maatify\Product\Tests\Support\UnusedProductListReads;
 use Maatify\Product\Tests\Support\UnusedVariantLifecycleWrites;
 use Maatify\Product\Variant\Repository\VariantCommandRepositoryInterface;
 use Maatify\SharedCommon\Contracts\ClockInterface;
@@ -173,6 +174,8 @@ final class ProductServiceTest extends TestCase
     private function readerOf(ProductDTO $dto): ProductQueryReaderInterface
     {
         return new class ($dto) implements ProductQueryReaderInterface {
+            use UnusedProductListReads;
+
             public function __construct(private ProductDTO $dto) {}
 
             public function findById(int $productId): ?ProductDTO
@@ -235,6 +238,8 @@ final class ProductServiceTest extends TestCase
             }
         };
         $reader ??= new class implements ProductQueryReaderInterface {
+            use UnusedProductListReads;
+
             public function findById(int $productId): ?ProductDTO
             {
                 return null;

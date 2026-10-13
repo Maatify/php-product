@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Maatify\Product\Product\Service;
 
 use DateTimeImmutable;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
+use Maatify\Product\Common\Command\CommandTextRules;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
@@ -14,8 +17,10 @@ use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\Command\ReconfigureProductCommand;
 use Maatify\Product\Product\Command\ReconfigureVariantTarget;
 use Maatify\Product\Product\DTO\CreatedProductDTO;
+use Maatify\Product\Product\DTO\ProductCollectionDTO;
 use Maatify\Product\Product\DTO\ProductConfigurationSnapshotDTO;
 use Maatify\Product\Product\DTO\ProductDTO;
+use Maatify\Product\Product\DTO\ProductListCriteriaDTO;
 use Maatify\Product\Product\DTO\ProductReconfigurationResultDTO;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
@@ -92,6 +97,34 @@ final readonly class ProductService implements ProductServiceInterface
         }
 
         return $product;
+    }
+
+    public function getByCodeForManagement(
+        string $code,
+        ProductDeletedStateEnum $deletedState = ProductDeletedStateEnum::NON_DELETED,
+    ): ProductDTO {
+        CommandTextRules::requiredText($code, 'code', CreateProductCommand::MAX_CODE_LENGTH);
+        $product = $this->reader->findByCode($code);
+        $matches = $product !== null && match ($deletedState) {
+            ProductDeletedStateEnum::NON_DELETED => $product->deletedAt === null,
+            ProductDeletedStateEnum::DELETED_ONLY => $product->deletedAt !== null,
+            ProductDeletedStateEnum::INCLUDE_DELETED => true,
+        };
+        if ($product === null || !$matches) {
+            throw ProductNotFoundException::withCode($code);
+        }
+
+        return $product;
+    }
+
+    public function listForManagement(ProductListCriteriaDTO $criteria = new ProductListCriteriaDTO()): ProductCollectionDTO
+    {
+        return new ProductCollectionDTO($this->reader->listForManagement($criteria));
+    }
+
+    public function paginateForManagement(ProductListCriteriaDTO $criteria, PageRequest $request): PageResult
+    {
+        return $this->reader->paginateForManagement($criteria, $request);
     }
 
     public function updateStatus(int $productId, ProductStatusEnum $status): void

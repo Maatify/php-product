@@ -29,11 +29,12 @@ It does not fit if you need prices, stock, suppliers, Categories, orders, URL sl
 | Prepare Options and Values, then make a Product configurable | [7. Reconfigure a Product](#7-reconfigure-a-product) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Resolve a shopper's choices to one Variant | [8. Resolve a composition](#8-resolve-a-composition) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Set, replace, or clear a Variant's SKU and barcode | [11. Variant SKU and barcode](#11-variant-sku-and-barcode) | [`03-read-variants.php`](../../examples/03-read-variants.php) |
+| List, search, and page through Products, Variants, Options, Values, Image Roles, and Image Assignments | [13. Management lists](#13-management-lists) | none yet |
 | Reorder Variants, Options, Values, and Image Assignments | [12. Ordering](#12-ordering) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Name Products and label Options and Values per language, and read them exactly | [10. Content](#10-content) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Assign Media Assets with roles, scopes, and one default | [9. Image Roles and Assignments](#9-image-roles-and-assignments) | none yet |
 
-Management lists, search, and pagination outside Content, and standalone Option and Option Value status changes are not implemented yet and have no walkthrough.
+Standalone Option and Option Value status changes and the consumer reads of Options, Option Values, and Image Assignments are not implemented yet and have no walkthrough.
 
 ## Setup
 
@@ -202,6 +203,25 @@ $variants->updateIdentifiers(new UpdateVariantIdentifiersCommand($variantId, Var
 ```php
 $options->updateDisplayOrder(new UpdateOptionDisplayOrderCommand($size, 1));   // size first
 $variants->updateDisplayOrder(new UpdateVariantDisplayOrderCommand($variantId, 99)); // clamped to the last position
+```
+
+## 13. Management lists
+
+- **Input:** the family's list criteria: `ProductListCriteriaDTO` (status, deleted state, `maxResults`, optional `search`), `VariantListCriteriaDTO`, `OptionListCriteriaDTO`, `OptionValueListCriteriaDTO`, `ImageRoleListCriteriaDTO` (status, deleted state, `maxResults`), or `ImageAssignmentListCriteriaDTO` (the Product and exact target, role, language, and platform selectors); for a page, also a `maatify/persistence` `PageRequest` (page, per page, sort key, direction).
+- **Public call:** `listForManagement()`/`paginateForManagement()` on the Product, Image Role, and Image Assignment services; `listByProductIdForManagement()`/`paginateByProductIdForManagement()` on the Variant and Option services; `listByOptionIdForManagement()`/`paginateByOptionIdForManagement()` on the Option Value service; `getByCodeForManagement()` (Product) and `getByKeyForManagement()` (Image Role) for one record by business key.
+- **Result:** a `*CollectionDTO` of at most `maxResults` (1 to 100, default 100, silently truncated), or a `PageResult` of the family's DTO with `total`, `filtered`, page metadata, and the applied sort.
+- **Boundary:** pages hold 20 records by default and at most 100; an unknown sort key falls back to the list's default order (Products by `id`, Variants, Options, and Values by `display_order`, Image Roles by the binary role key, Image Assignments by exact scope then position). `null` status means any status; the deleted state is non-deleted by default; nothing is hidden because of an owner's state, and a missing owner gives an empty result. Only Products can be searched: a literal, case-insensitive substring of `code` (`%`, `_`, and `\` are plain characters); `total` then counts the Products without the search and `filtered` with it. For Image Assignments, an omitted selector applies no condition, `exactNull()` matches only `NULL`, and a value never matches `NULL`. There is no lookup by SKU, barcode, or Option or Value code.
+
+```php
+$page = $products->paginateForManagement(new ProductListCriteriaDTO(status: ProductStatusEnum::ACTIVE, search: 'shirt'), new PageRequest(1, 20, 'code', 'ASC'));
+$product = $products->getByCodeForManagement('SHIRT-1');
+$heroImages = $assignments->listForManagement(new ImageAssignmentListCriteriaDTO(
+    $productId,
+    ImageAssignmentTargetFilter::productLevel(),
+    ImageAssignmentRoleFilter::forRole($heroRoleId),
+    ImageAssignmentLanguageFilter::exactNull(),
+    ImageAssignmentPlatformFilter::omitted(),
+));
 ```
 
 ## Running the examples

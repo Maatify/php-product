@@ -16,4 +16,12 @@ final class ProductNotFoundException extends ResourceNotFoundMaatifyException im
     {
         return new self(sprintf('Product [%d] was not found.', $productId));
     }
+
+    /**
+     * No Product with that code (under the database collation) matches the read that asked.
+     */
+    public static function withCode(string $code): self
+    {
+        return new self(sprintf('Product with code "%s" was not found.', $code));
+    }
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Variant\Repository;
 
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Option\DTO\OptionStateDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueStateDTO;
 use Maatify\Product\Variant\DTO\VariantDTO;
@@ -41,6 +43,14 @@ interface VariantQueryReaderInterface
      * @return list<VariantDTO> Ordered by display order then identity.
      */
     public function listForManagement(int $productId, VariantListCriteriaDTO $criteria): array;
+
+    /**
+     * One page of the Variants of a Product for management, filtered by status and deleted state, through the
+     * shared paginator; the counts use the same filter.
+     *
+     * @return PageResult<VariantDTO>
+     */
+    public function paginateForManagement(int $productId, VariantListCriteriaDTO $criteria, PageRequest $request): PageResult;
 
     /**
      * Lists the consumer-visible Variants of a Product (see {@see self::findVisibleById()}).

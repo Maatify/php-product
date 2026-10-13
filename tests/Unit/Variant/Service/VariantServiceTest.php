@@ -6,17 +6,19 @@ namespace Maatify\Product\Tests\Unit\Variant\Service;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
+use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Tests\Support\UnusedProductConfigurationRepository;
+use Maatify\Product\Tests\Support\UnusedVariantLifecycleWrites;
 use Maatify\Product\Variant\DTO\VariantDTO;
 use Maatify\Product\Variant\DTO\VariantListCriteriaDTO;
+use Maatify\Product\Variant\DTO\VariantStateDTO;
 use Maatify\Product\Variant\DTO\VariantVisibleListCriteriaDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
 use Maatify\Product\Variant\Exception\VariantNotFoundException;
-use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
-use Maatify\Product\Tests\Support\UnusedProductConfigurationRepository;
-use Maatify\Product\Tests\Support\UnusedVariantLifecycleWrites;
-use Maatify\Product\Variant\DTO\VariantStateDTO;
 use Maatify\Product\Variant\Repository\VariantCommandRepositoryInterface;
 use Maatify\Product\Variant\Repository\VariantQueryReaderInterface;
 use Maatify\Product\Variant\Service\VariantService;
@@ -121,6 +123,11 @@ final class VariantServiceTest extends TestCase
             public function listVisible(int $productId, VariantVisibleListCriteriaDTO $criteria): array
             {
                 return $this->list;
+            }
+
+            public function paginateForManagement(int $productId, VariantListCriteriaDTO $criteria, PageRequest $request): PageResult
+            {
+                throw new \LogicException('paginateForManagement is not expected in this test.');
             }
 
             public function isProductVisible(int $productId): bool

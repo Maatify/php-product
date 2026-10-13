@@ -7,12 +7,15 @@ namespace Maatify\Product\Tests\Unit\ImageAssignment\Service;
 use DateTimeImmutable;
 use DateTimeZone;
 use LogicException;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\Command\UpdateImageAssignmentDisplayOrderCommand;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentIdentityDTO;
+use Maatify\Product\ImageAssignment\DTO\ImageAssignmentListCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentNotFoundException;
 use Maatify\Product\ImageAssignment\Repository\ImageAssignmentCommandRepositoryInterface;
@@ -300,6 +303,16 @@ final class ImageAssignmentServiceTest extends TestCase
             public function findById(int $assignmentId): ?ImageAssignmentDTO
             {
                 throw new LogicException('findById is not expected in this test.');
+            }
+
+            public function listForManagement(ImageAssignmentListCriteriaDTO $criteria): array
+            {
+                throw new LogicException('listForManagement is not expected in this test.');
+            }
+
+            public function paginateForManagement(ImageAssignmentListCriteriaDTO $criteria, PageRequest $request): PageResult
+            {
+                throw new LogicException('paginateForManagement is not expected in this test.');
             }
         };
 

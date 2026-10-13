@@ -16,4 +16,12 @@ final class ImageRoleNotFoundException extends ResourceNotFoundMaatifyException 
     {
         return new self(sprintf('Image Role [%d] was not found.', $roleId));
     }
+
+    /**
+     * No Image Role with that key (under the database collation) matches the read that asked.
+     */
+    public static function withKey(string $roleKey): self
+    {
+        return new self(sprintf('Image Role with key "%s" was not found.', $roleKey));
+    }
 }

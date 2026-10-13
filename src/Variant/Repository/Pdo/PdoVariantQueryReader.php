@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Variant\Repository\Pdo;
 
-use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
+use Maatify\Product\Common\Pdo\ManagementListQuery;
 use Maatify\Product\Common\Pdo\RowHydrator;
 use Maatify\Product\Option\DTO\OptionStateDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueStateDTO;
@@ -65,33 +67,78 @@ final readonly class PdoVariantQueryReader implements VariantQueryReaderInterfac
 
     public function listForManagement(int $productId, VariantListCriteriaDTO $criteria): array
     {
+        [$where, $params] = self::managementFilter($productId, $criteria);
+
+        return $this->hydrate(ManagementListQuery::fetchBounded(
+            $this->pdo,
+            'SELECT ' . self::COLUMNS . ' FROM `maa_product_variants` v WHERE ' . $where
+            . ' ORDER BY v.`display_order` ASC, v.`id` ASC LIMIT :list_limit',
+            $params,
+            $criteria->maxResults,
+        ));
+    }
+
+    public function paginateForManagement(int $productId, VariantListCriteriaDTO $criteria, PageRequest $request): PageResult
+    {
+        [$where, $params] = self::managementFilter($productId, $criteria);
+        $count = 'SELECT COUNT(*) FROM `maa_product_variants` v WHERE ' . $where;
+        $page = ManagementListQuery::paginate(
+            $this->pdo,
+            $count,
+            $params,
+            $count,
+            $params,
+            'SELECT ' . self::COLUMNS . ' FROM `maa_product_variants` v WHERE ' . $where,
+            $request,
+            ManagementListQuery::config(
+                ['display_order' => 'v.display_order', 'id' => 'v.id', 'created_at' => 'v.created_at', 'updated_at' => 'v.updated_at'],
+                'display_order',
+            ),
+            static fn(array $row): array => $row,
+        );
+
+        // The rows are hydrated together so the composition pairs of the page load in one query.
+        return new PageResult(
+            $this->hydrate($page->data),
+            $page->page,
+            $page->perPage,
+            $page->total,
+            $page->filtered,
+            $page->totalPages,
+            $page->hasNext,
+            $page->hasPrevious,
+            $page->sortBy,
+            $page->sortDirection,
+        );
+    }
+
+    public function listVisible(int $productId, VariantVisibleListCriteriaDTO $criteria): array
+    {
+        return $this->hydrate(ManagementListQuery::fetchBounded(
+            $this->pdo,
+            'SELECT ' . self::COLUMNS . ' FROM `maa_product_variants` v WHERE '
+            . 'v.`product_id` = :product_id AND ' . self::visiblePredicate('v')
+            . ' ORDER BY v.`display_order` ASC, v.`id` ASC LIMIT :list_limit',
+            ['product_id' => $productId],
+            $criteria->maxResults,
+        ));
+    }
+
+    /**
+     * The management filter shared by the list, the counts, and the page.
+     *
+     * @return array{string, array<string, string|int>}
+     */
+    private static function managementFilter(int $productId, VariantListCriteriaDTO $criteria): array
+    {
         $where = 'v.`product_id` = :product_id';
         $params = ['product_id' => $productId];
         if ($criteria->status !== null) {
             $where .= ' AND v.`status` = :status';
             $params['status'] = $criteria->status->value;
         }
-        $where .= match ($criteria->deletedState) {
-            ProductDeletedStateEnum::NON_DELETED => ' AND v.`deleted_at` IS NULL',
-            ProductDeletedStateEnum::DELETED_ONLY => ' AND v.`deleted_at` IS NOT NULL',
-            ProductDeletedStateEnum::INCLUDE_DELETED => '',
-        };
 
-        return $this->fetch(
-            'SELECT ' . self::COLUMNS . ' FROM `maa_product_variants` v WHERE ' . $where
-            . ' ORDER BY v.`display_order` ASC, v.`id` ASC LIMIT ' . $criteria->maxResults,
-            $params,
-        );
-    }
-
-    public function listVisible(int $productId, VariantVisibleListCriteriaDTO $criteria): array
-    {
-        return $this->fetch(
-            'SELECT ' . self::COLUMNS . ' FROM `maa_product_variants` v WHERE '
-            . 'v.`product_id` = :product_id AND ' . self::visiblePredicate('v')
-            . ' ORDER BY v.`display_order` ASC, v.`id` ASC LIMIT ' . $criteria->maxResults,
-            ['product_id' => $productId],
-        );
+        return [$where . ManagementListQuery::deletedCondition($criteria->deletedState, 'v.'), $params];
     }
 
     public function isProductVisible(int $productId): bool
@@ -251,6 +298,17 @@ final readonly class PdoVariantQueryReader implements VariantQueryReaderInterfac
 
         /** @var list<array<string, mixed>> $rows */
         $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+        return $this->hydrate($rows);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     *
+     * @return list<VariantDTO>
+     */
+    private function hydrate(array $rows): array
+    {
         if ($rows === []) {
             return [];
         }

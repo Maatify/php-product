@@ -12,6 +12,7 @@ use Maatify\Persistence\Pdo\Pagination\PdoPaginator;
 use Maatify\Persistence\Pdo\Pagination\SortDirectionEnum;
 use Maatify\Persistence\Pdo\Pagination\SortWhitelist;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
+use Maatify\Product\Common\Pdo\ManagementListQuery;
 use Maatify\Product\Common\Pdo\RowHydrator;
 use Maatify\Product\Content\DTO\ContentFieldsDTO;
 use Maatify\Product\Content\DTO\ContentRecordDTO;
@@ -79,13 +80,13 @@ final readonly class PdoContentQueryReader implements ContentQueryReaderInterfac
         int $maxResults,
     ): array {
         [$where, $params] = $this->managementFilter($ownerId, $language, $deletedState);
-        $statement = $this->pdo->prepare(
+        return $this->hydrateAll(ManagementListQuery::fetchBounded(
+            $this->pdo,
             'SELECT ' . $this->columns('') . ' FROM `' . $this->owner->table() . '` WHERE ' . $where
-            . ' ORDER BY `language_code` ASC, `id` ASC LIMIT ' . $maxResults,
-        );
-        $statement->execute($params);
-
-        return $this->hydrateAll($statement->fetchAll(PDO::FETCH_ASSOC));
+            . ' ORDER BY `language_code` ASC, `id` ASC LIMIT :list_limit',
+            $params,
+            $maxResults,
+        ));
     }
 
     public function paginateForManagement(

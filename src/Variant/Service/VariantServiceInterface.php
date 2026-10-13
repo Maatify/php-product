@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Variant\Service;
 
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
@@ -141,4 +143,16 @@ interface VariantServiceInterface
      * @throws ProductBusinessRuleException When the Variant is not soft deleted, its Product is soft deleted, or the restored state would violate an invariant.
      */
     public function restore(int $variantId): void;
+
+    /**
+     * One page of the Variants of a Product for management under the list criteria, through the shared `maatify/persistence` paginator: 20 per page by default, 1 to 100 (a larger request is
+     * clamped), ties broken by `id` ascending, and an unknown sort key falls back to the default. The criteria's
+     * `maxResults` does not apply.
+     * Sort keys: `display_order` (default, ascending), `id`, `created_at`, `updated_at`. A missing Product yields an empty page.
+     *
+     * @return PageResult<VariantDTO>
+     *
+     * @throws ProductInvalidArgumentException When the Product identity is not a positive integer.
+     */
+    public function paginateByProductIdForManagement(int $productId, VariantListCriteriaDTO $criteria, PageRequest $request): PageResult;
 }

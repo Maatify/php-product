@@ -4,19 +4,33 @@ declare(strict_types=1);
 
 namespace Maatify\Product\ImageAssignment\Repository\Pdo;
 
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
+use Maatify\Product\Common\Pdo\ManagementListQuery;
 use Maatify\Product\Common\Pdo\RowHydrator;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
+use Maatify\Product\ImageAssignment\DTO\ImageAssignmentListCriteriaDTO;
 use Maatify\Product\ImageAssignment\Repository\ImageAssignmentQueryReaderInterface;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 use PDO;
 
 /**
- * PDO read adapter for stored Image Assignments.
+ * PDO read adapter for stored Image Assignments. It performs no write and holds no lock.
+ *
+ * Every dimension filter is exact: `NULL` matches only `IS NULL`, a value compares under the column
+ * collation, and an omitted selector adds no condition. Lists are ordered by exact scope
+ * (`ordering_scope`), then `display_order`, then `id`; the paginated read exposes that order as the
+ * derived `business_order` key, `ROW_NUMBER() OVER (ORDER BY ordering_scope, display_order, id)`
+ * over the same filtered rows, because the shared paginator sorts by one key plus the tie-breaker.
  *
  * @internal Not part of the Public Runtime API.
  */
 final readonly class PdoImageAssignmentQueryReader implements ImageAssignmentQueryReaderInterface
 {
+    private const string TABLE = 'maa_product_image_assignments';
+    private const string COLUMNS = '`id`, `product_id`, `variant_id`, `media_asset_id`, `role_id`, `language_code`, `platform`, `is_default`, '
+        . '`display_order`, `created_at`, `updated_at`, `deleted_at`';
+
     private RowHydrator $row;
 
     public function __construct(
@@ -28,18 +42,96 @@ final readonly class PdoImageAssignmentQueryReader implements ImageAssignmentQue
 
     public function findById(int $assignmentId): ?ImageAssignmentDTO
     {
-        $statement = $this->pdo->prepare(
-            'SELECT `id`, `product_id`, `variant_id`, `media_asset_id`, `role_id`, `language_code`, `platform`, `is_default`, '
-            . '`display_order`, `created_at`, `updated_at`, `deleted_at` FROM `maa_product_image_assignments` WHERE `id` = :id LIMIT 1',
-        );
+        $statement = $this->pdo->prepare('SELECT ' . self::COLUMNS . ' FROM `' . self::TABLE . '` WHERE `id` = :id LIMIT 1');
         $statement->execute(['id' => $assignmentId]);
 
         /** @var array<string, mixed>|false $row */
         $row = $statement->fetch(PDO::FETCH_ASSOC);
-        if ($row === false) {
-            return null;
+
+        return $row === false ? null : $this->hydrate($row);
+    }
+
+    public function listForManagement(ImageAssignmentListCriteriaDTO $criteria): array
+    {
+        [$where, $params] = self::filter($criteria);
+
+        return array_map($this->hydrate(...), ManagementListQuery::fetchBounded(
+            $this->pdo,
+            'SELECT ' . self::COLUMNS . ' FROM `' . self::TABLE . '` WHERE ' . $where
+            . ' ORDER BY `ordering_scope` ASC, `display_order` ASC, `id` ASC LIMIT :list_limit',
+            $params,
+            $criteria->maxResults,
+        ));
+    }
+
+    public function paginateForManagement(ImageAssignmentListCriteriaDTO $criteria, PageRequest $request): PageResult
+    {
+        [$where, $params] = self::filter($criteria);
+        $from = ' FROM `' . self::TABLE . '` WHERE ' . $where;
+
+        return ManagementListQuery::paginate(
+            $this->pdo,
+            'SELECT COUNT(*)' . $from,
+            $params,
+            'SELECT COUNT(*)' . $from,
+            $params,
+            'SELECT ' . self::COLUMNS . ', ROW_NUMBER() OVER (ORDER BY `ordering_scope` ASC, `display_order` ASC, `id` ASC) AS `business_order`' . $from,
+            $request,
+            ManagementListQuery::config(
+                ['business_order' => 'business_order', 'id' => 'id', 'created_at' => 'created_at', 'updated_at' => 'updated_at'],
+                'business_order',
+            ),
+            $this->hydrate(...),
+        );
+    }
+
+    /**
+     * The Product, target, role, language, platform, and deleted-state filter shared by the list, the
+     * counts, and the page.
+     *
+     * @return array{string, array<string, string|int>}
+     */
+    private static function filter(ImageAssignmentListCriteriaDTO $criteria): array
+    {
+        $where = '`product_id` = :product_id';
+        $params = ['product_id' => $criteria->productId];
+
+        $variantId = $criteria->target->variantId();
+        if ($criteria->target->isProductLevel()) {
+            $where .= ' AND `variant_id` IS NULL';
+        } elseif ($variantId !== null) {
+            $where .= ' AND `variant_id` = :variant_id';
+            $params['variant_id'] = $variantId;
         }
 
+        $roleId = $criteria->role->roleId();
+        if ($criteria->role->isExactNull()) {
+            $where .= ' AND `role_id` IS NULL';
+        } elseif ($roleId !== null) {
+            $where .= ' AND `role_id` = :role_id';
+            $params['role_id'] = $roleId;
+        }
+
+        foreach ([
+            'language_code' => [$criteria->language->isExactNull(), $criteria->language->value()],
+            'platform' => [$criteria->platform->isExactNull(), $criteria->platform->value()],
+        ] as $column => [$exactNull, $value]) {
+            if ($exactNull) {
+                $where .= ' AND `' . $column . '` IS NULL';
+            } elseif ($value !== null) {
+                $where .= ' AND `' . $column . '` = :' . $column;
+                $params[$column] = $value;
+            }
+        }
+
+        return [$where . ManagementListQuery::deletedCondition($criteria->deletedState), $params];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function hydrate(array $row): ImageAssignmentDTO
+    {
         return new ImageAssignmentDTO(
             id: RowHydrator::positiveInt($row, 'id'),
             productId: RowHydrator::positiveInt($row, 'product_id'),

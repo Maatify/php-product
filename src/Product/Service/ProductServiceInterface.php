@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Product\Service;
 
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
@@ -11,7 +13,9 @@ use Maatify\Product\Common\Exception\ProductPersistenceException;
 use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\Command\ReconfigureProductCommand;
 use Maatify\Product\Product\DTO\CreatedProductDTO;
+use Maatify\Product\Product\DTO\ProductCollectionDTO;
 use Maatify\Product\Product\DTO\ProductDTO;
+use Maatify\Product\Product\DTO\ProductListCriteriaDTO;
 use Maatify\Product\Product\DTO\ProductReconfigurationResultDTO;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
@@ -110,4 +114,33 @@ interface ProductServiceInterface
      * @throws ProductPersistenceException When stored state is inconsistent: a fingerprint that does not match its pairs, or a missing original empty-composition Variant.
      */
     public function reconfigure(ReconfigureProductCommand $command): ProductReconfigurationResultDTO;
+
+    /**
+     * Returns a Product for management by its code, compared under the database collation (`P-1` finds
+     * `p-1`), whatever its status, filtered only by soft-deletion state.
+     *
+     * @throws ProductInvalidArgumentException When the code is empty, whitespace only, longer than 100 characters, or not valid UTF-8.
+     * @throws ProductNotFoundException When no Product with that code matches the deleted state.
+     */
+    public function getByCodeForManagement(
+        string $code,
+        ProductDeletedStateEnum $deletedState = ProductDeletedStateEnum::NON_DELETED,
+    ): ProductDTO;
+
+    /**
+     * Lists Products for management by status (`null` means any), deleted state, and the optional literal
+     * substring search on `code`, ordered by identity, at most `maxResults`.
+     */
+    public function listForManagement(ProductListCriteriaDTO $criteria = new ProductListCriteriaDTO()): ProductCollectionDTO;
+
+    /**
+     * One page of Products for management under the same criteria, through the shared `maatify/persistence` paginator: 20 per page by default, 1 to 100 (a larger request is
+     * clamped), ties broken by `id` ascending, and an unknown sort key falls back to the default. The criteria's
+     * `maxResults` does not apply. Sort keys: `id` (default,
+     * ascending), `code`, `created_at`, `updated_at`. `total` counts the status and deleted-state filter
+     * without the search; `filtered` and the page apply the search too.
+     *
+     * @return PageResult<ProductDTO>
+     */
+    public function paginateForManagement(ProductListCriteriaDTO $criteria, PageRequest $request): PageResult;
 }

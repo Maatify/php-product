@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Maatify\Product\ImageAssignment\Service;
 
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
@@ -12,7 +14,9 @@ use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\Command\UpdateImageAssignmentDisplayOrderCommand;
 use Maatify\Product\ImageAssignment\DTO\CreatedImageAssignmentDTO;
+use Maatify\Product\ImageAssignment\DTO\ImageAssignmentCollectionDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
+use Maatify\Product\ImageAssignment\DTO\ImageAssignmentListCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentNotFoundException;
 use Maatify\Product\ImageAssignment\Repository\ImageAssignmentCommandRepositoryInterface;
@@ -188,6 +192,16 @@ final readonly class ImageAssignmentService implements ImageAssignmentServiceInt
         }
 
         return $assignment;
+    }
+
+    public function listForManagement(ImageAssignmentListCriteriaDTO $criteria): ImageAssignmentCollectionDTO
+    {
+        return new ImageAssignmentCollectionDTO($this->reader->listForManagement($criteria));
+    }
+
+    public function paginateForManagement(ImageAssignmentListCriteriaDTO $criteria, PageRequest $request): PageResult
+    {
+        return $this->reader->paginateForManagement($criteria, $request);
     }
 
     /**

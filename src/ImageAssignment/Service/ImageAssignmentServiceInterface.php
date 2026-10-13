@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace Maatify\Product\ImageAssignment\Service;
 
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\Command\UpdateImageAssignmentDisplayOrderCommand;
 use Maatify\Product\ImageAssignment\DTO\CreatedImageAssignmentDTO;
+use Maatify\Product\ImageAssignment\DTO\ImageAssignmentCollectionDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
+use Maatify\Product\ImageAssignment\DTO\ImageAssignmentListCriteriaDTO;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentAlreadyExistsException;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentNotFoundException;
 use Maatify\Product\ImageRole\Exception\ImageRoleNotFoundException;
@@ -103,4 +107,22 @@ interface ImageAssignmentServiceInterface
         int $assignmentId,
         ProductDeletedStateEnum $deletedState = ProductDeletedStateEnum::NON_DELETED,
     ): ImageAssignmentDTO;
+
+    /**
+     * Lists the assignments of a Product for management under exact target, role, language, and platform
+     * selectors and the deleted state, ordered by exact scope, display order, then identity, at most
+     * `maxResults`. An omitted selector adds no condition; an exact `NULL` matches only `NULL`. A missing
+     * Product yields an empty collection; the state of the Product, Variant, or Role hides nothing.
+     */
+    public function listForManagement(ImageAssignmentListCriteriaDTO $criteria): ImageAssignmentCollectionDTO;
+
+    /**
+     * One page of the assignments of a Product for management under the same criteria, through the shared `maatify/persistence` paginator: 20 per page by default, 1 to 100 (a larger request is
+     * clamped), ties broken by `id` ascending, and an unknown sort key falls back to the default. The criteria's
+     * `maxResults` does not apply. Sort keys:
+     * `business_order` (default: exact scope, display order, then identity), `id`, `created_at`, `updated_at`.
+     *
+     * @return PageResult<ImageAssignmentDTO>
+     */
+    public function paginateForManagement(ImageAssignmentListCriteriaDTO $criteria, PageRequest $request): PageResult;
 }

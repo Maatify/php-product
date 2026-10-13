@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Variant\Service;
 
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
@@ -92,6 +94,13 @@ final readonly class VariantService implements VariantServiceInterface
         self::requirePositive($productId, 'productId');
 
         return new VariantCollectionDTO($this->reader->listForManagement($productId, $criteria));
+    }
+
+    public function paginateByProductIdForManagement(int $productId, VariantListCriteriaDTO $criteria, PageRequest $request): PageResult
+    {
+        self::requirePositive($productId, 'productId');
+
+        return $this->reader->paginateForManagement($productId, $criteria, $request);
     }
 
     public function resolveByComposition(int $productId, VariantCompositionCriteriaDTO $criteria): VariantDTO

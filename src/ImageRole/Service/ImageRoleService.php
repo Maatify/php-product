@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace Maatify\Product\ImageRole\Service;
 
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
+use Maatify\Product\Common\Command\CommandTextRules;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\ImageRole\Command\CreateImageRoleCommand;
 use Maatify\Product\ImageRole\DTO\CreatedImageRoleDTO;
+use Maatify\Product\ImageRole\DTO\ImageRoleCollectionDTO;
 use Maatify\Product\ImageRole\DTO\ImageRoleDTO;
+use Maatify\Product\ImageRole\DTO\ImageRoleListCriteriaDTO;
 use Maatify\Product\ImageRole\DTO\ImageRoleStateDTO;
 use Maatify\Product\ImageRole\Enum\ImageRoleStatusEnum;
 use Maatify\Product\ImageRole\Exception\ImageRoleNotFoundException;
@@ -109,6 +114,34 @@ final readonly class ImageRoleService implements ImageRoleServiceInterface
         }
 
         return $role;
+    }
+
+    public function getByKeyForManagement(
+        string $roleKey,
+        ProductDeletedStateEnum $deletedState = ProductDeletedStateEnum::NON_DELETED,
+    ): ImageRoleDTO {
+        CommandTextRules::requiredText($roleKey, 'roleKey', CreateImageRoleCommand::MAX_ROLE_KEY_LENGTH);
+        $role = $this->reader->findByKey($roleKey);
+        $matches = $role !== null && match ($deletedState) {
+            ProductDeletedStateEnum::NON_DELETED => $role->deletedAt === null,
+            ProductDeletedStateEnum::DELETED_ONLY => $role->deletedAt !== null,
+            ProductDeletedStateEnum::INCLUDE_DELETED => true,
+        };
+        if ($role === null || !$matches) {
+            throw ImageRoleNotFoundException::withKey($roleKey);
+        }
+
+        return $role;
+    }
+
+    public function listForManagement(ImageRoleListCriteriaDTO $criteria = new ImageRoleListCriteriaDTO()): ImageRoleCollectionDTO
+    {
+        return new ImageRoleCollectionDTO($this->reader->listForManagement($criteria));
+    }
+
+    public function paginateForManagement(ImageRoleListCriteriaDTO $criteria, PageRequest $request): PageResult
+    {
+        return $this->reader->paginateForManagement($criteria, $request);
     }
 
     private function lockedRole(int $roleId): ImageRoleStateDTO
