@@ -14,7 +14,7 @@ use Maatify\Product\Product\Enum\ProductStatusEnum;
  * A `null` status means any status, and the deleted-state filter defaults to non-deleted rows.
  * `maxResults` bounds the unpaginated list only; the paginated read takes its page size from the
  * page request. `search` is an optional substring of the Product `code`, matched literally (`%`,
- * `_`, and `\` are not wildcards) under the database collation.
+ * `_`, `\`, and `!` are plain characters) under the database collation.
  */
 final readonly class ProductListCriteriaDTO
 {

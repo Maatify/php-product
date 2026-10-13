@@ -42,7 +42,7 @@ final class ManagementListTest extends RuntimeTestCase
     {
         $service = $this->productService();
         $ids = [];
-        foreach (['ALPHA', 'beta', 'A%B', 'A_B', 'A\\B', 'GAMMA'] as $code) {
+        foreach (['ALPHA', 'beta', 'A%B', 'A_B', 'A\\B', 'A!B', 'GAMMA'] as $code) {
             $ids[$code] = $service->create(new CreateProductCommand($code))->productId;
         }
         $this->nameProduct($ids['GAMMA'], 'Gamma');
@@ -50,24 +50,39 @@ final class ManagementListTest extends RuntimeTestCase
         $service->softDelete($ids['beta']);
         $codes = fn(ProductListCriteriaDTO $criteria): array => array_map(static fn($p): string => $p->code, $service->listForManagement($criteria)->items());
 
-        self::assertSame(['ALPHA', 'A%B', 'A_B', 'A\\B', 'GAMMA'], $codes(new ProductListCriteriaDTO()), 'Non-deleted, any status, by identity.');
+        self::assertSame(['ALPHA', 'A%B', 'A_B', 'A\\B', 'A!B', 'GAMMA'], $codes(new ProductListCriteriaDTO()), 'Non-deleted, any status, by identity.');
         self::assertSame(['GAMMA'], $codes(new ProductListCriteriaDTO(ProductStatusEnum::ACTIVE)));
         self::assertSame(['beta'], $codes(new ProductListCriteriaDTO(null, ProductDeletedStateEnum::DELETED_ONLY)));
-        self::assertCount(6, $codes(new ProductListCriteriaDTO(null, ProductDeletedStateEnum::INCLUDE_DELETED)));
+        self::assertCount(7, $codes(new ProductListCriteriaDTO(null, ProductDeletedStateEnum::INCLUDE_DELETED)));
         self::assertSame(['ALPHA', 'A%B'], $codes(new ProductListCriteriaDTO(null, ProductDeletedStateEnum::NON_DELETED, 2)), 'maxResults bounds the list.');
 
         self::assertSame(['A%B'], $codes(new ProductListCriteriaDTO(search: '%')), '% is literal.');
         self::assertSame(['A_B'], $codes(new ProductListCriteriaDTO(search: 'A_')), '_ is literal.');
         self::assertSame(['A\\B'], $codes(new ProductListCriteriaDTO(search: 'A\\')), 'A backslash is literal.');
+        self::assertSame(['A!B'], $codes(new ProductListCriteriaDTO(search: '!')), 'The escape character itself is literal.');
+
+        // The Host owns sql_mode: under NO_BACKSLASH_ESCAPES the search still treats every character literally.
+        $mode = self::scalar('SELECT @@SESSION.sql_mode');
+        self::$pdo->exec("SET SESSION sql_mode = CONCAT(@@SESSION.sql_mode, ',NO_BACKSLASH_ESCAPES')");
+        try {
+            self::assertStringContainsString('NO_BACKSLASH_ESCAPES', (string) self::scalar('SELECT @@SESSION.sql_mode'));
+            foreach (['%' => ['A%B'], 'A_' => ['A_B'], 'A\\' => ['A\\B'], '!' => ['A!B'], 'b' => ['A%B', 'A_B', 'A\\B', 'A!B']] as $term => $expected) {
+                self::assertSame($expected, $codes(new ProductListCriteriaDTO(search: (string) $term)), 'Literal "' . $term . '" under NO_BACKSLASH_ESCAPES.');
+            }
+            self::assertSame(4, $service->paginateForManagement(new ProductListCriteriaDTO(search: 'b'), new PageRequest())->filtered);
+        } finally {
+            self::$pdo->prepare('SET SESSION sql_mode = :mode')->execute(['mode' => $mode]);
+        }
+        self::assertStringNotContainsString('NO_BACKSLASH_ESCAPES', (string) self::scalar('SELECT @@SESSION.sql_mode'));
         self::assertSame(['ALPHA'], $codes(new ProductListCriteriaDTO(search: '  lph ')), 'A substring, trimmed, compared under the collation.');
         self::assertSame(['beta'], $codes(new ProductListCriteriaDTO(null, ProductDeletedStateEnum::DELETED_ONLY, 100, 'ET')));
 
         $page = $service->paginateForManagement(new ProductListCriteriaDTO(search: 'b'), new PageRequest(1, 2));
-        self::assertSame([5, 3, 2, 2, 'id'], [$page->total, $page->filtered, $page->perPage, $page->totalPages, $page->sortBy], 'total ignores the search; filtered applies it.');
+        self::assertSame([6, 4, 2, 2, 'id'], [$page->total, $page->filtered, $page->perPage, $page->totalPages, $page->sortBy], 'total ignores the search; filtered applies it.');
         self::assertSame(['A%B', 'A_B'], array_map(static fn($p): string => $p->code, $page->data));
-        self::assertSame(['A\\B'], array_map(static fn($p): string => $p->code, $service->paginateForManagement(new ProductListCriteriaDTO(search: 'b'), new PageRequest(2, 2))->data));
+        self::assertSame(['A\\B', 'A!B'], array_map(static fn($p): string => $p->code, $service->paginateForManagement(new ProductListCriteriaDTO(search: 'b'), new PageRequest(2, 2))->data));
         $all = $service->paginateForManagement(new ProductListCriteriaDTO(), new PageRequest(1, 1000, 'code', 'DESC'));
-        self::assertSame([100, 5, 5], [$all->perPage, $all->total, $all->filtered], 'A page above 100 is clamped and the counts match.');
+        self::assertSame([100, 6, 6], [$all->perPage, $all->total, $all->filtered], 'A page above 100 is clamped and the counts match.');
         self::assertSame('GAMMA', $all->data[0]->code);
         self::assertSame('id', $service->paginateForManagement(new ProductListCriteriaDTO(), new PageRequest(1, 10, 'status'))->sortBy, 'An unknown sort key falls back to the default.');
 

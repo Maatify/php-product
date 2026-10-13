@@ -19,8 +19,10 @@ use PDO;
 /**
  * PDO read adapter for stored Products. It performs no write and holds no lock.
  *
- * The management search is a literal substring of `code`: `\`, `%`, and `_` are escaped and the
- * term is matched with `LIKE ... ESCAPE '\'` under the column collation. A paginated read counts
+ * The management search is a literal substring of `code`: `!`, `%`, and `_` are escaped with `!` and
+ * the term is matched with `LIKE ... ESCAPE '!'` under the column collation. `!` is used because no
+ * `sql_mode` changes its literal (a backslash escape breaks under `NO_BACKSLASH_ESCAPES`), so `\` is
+ * an ordinary character. A paginated read counts
  * `total` without the search and `filtered` with it.
  *
  * @internal Not part of the Public Runtime API.
@@ -108,9 +110,10 @@ final readonly class PdoProductQueryReader implements ProductQueryReaderInterfac
         if ($criteria->search === null) {
             return ['', []];
         }
-        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $criteria->search);
+        // The escape character is replaced first, so the escapes added for `%` and `_` stay single.
+        $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $criteria->search);
 
-        return [' AND `code` LIKE :search ESCAPE \'\\\\\'', ['search' => '%' . $escaped . '%']];
+        return [' AND `code` LIKE :search ESCAPE \'!\'', ['search' => '%' . $escaped . '%']];
     }
 
     private function findOne(string $condition, int|string $value): ?ProductDTO
