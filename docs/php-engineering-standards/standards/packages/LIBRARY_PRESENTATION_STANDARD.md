@@ -3,7 +3,7 @@
 ## Standard Metadata
 
 - **Standard ID:** `std-library-presentation`
-- **Standard Version:** `5.0.0`
+- **Standard Version:** `5.0.1`
 - **Standard Version Format:** `MAJOR.MINOR.PATCH`
 
 ## 1. Normative Language
@@ -162,7 +162,11 @@ By default, the README header MUST contain:
 
 # {PACKAGE_DISPLAY_NAME}
 
-![Maatify.dev](https://www.maatify.dev/assets/img/img/maatify_logo_white.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://www.maatify.dev/company-profile/maatify_logo_white.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://www.maatify.dev/company-profile/maatify_logo_dark.svg">
+  <img alt="Maatify.dev" src="https://www.maatify.dev/company-profile/maatify_logo_dark.svg">
+</picture>
 
 {BADGE_AREA}
 
@@ -920,6 +924,10 @@ This Standard explicitly does NOT force:
 * `llms-full.txt`, generated full-context files, or a README badge/link requirement for `llms.txt`.
 
 ## Version History
+
+### `5.0.1`
+
+- `CLARIFICATION / NO_CONTRACT_CHANGE`: update the canonical README header template to select the Maatify logo for the reader's color scheme while preserving the rest of the header contract.
 
 ### `5.0.0`
 
