@@ -41,11 +41,8 @@ final class ProductReconfigurationTest extends RuntimeTestCase
     private int $m;
     private int $l;
 
-    protected function tearDown(): void
+    protected function cleanUp(): void
     {
-        if (self::$pdo->inTransaction()) {
-            self::$pdo->rollBack();
-        }
         self::$pdo->exec('DROP TRIGGER IF EXISTS `' . self::FAILING_TRIGGER . '`');
     }
 

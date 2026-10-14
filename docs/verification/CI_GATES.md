@@ -49,7 +49,9 @@ Integration suite and the Harness through `scripts/ci/mysql-service.sh`:
 - there is no `container_name`; each run uses its own Compose project, a loopback-only
   dynamic host port, and `tmpfs` storage, so no state survives and no developer or
   Host database is touched;
-- teardown is `docker compose down -v`, on success and on failure;
+- teardown is `docker compose down -v`, on success and on failure; a failed teardown is reported on
+  stderr and fails the run, while a failed run keeps its own exit status (logs captured before a
+  failed start are diagnostics only);
 - the PHP runner stays on the host PHP runtime, so the PHP matrix is truthful;
 - the suite runs twice against the same service and then asserts that no test
   database remains.
@@ -74,20 +76,60 @@ an undocumented public method of a service or the factory, or a public type that
   uniqueness including soft-deleted history; whitespace-only rejection (space, tab, LF, CR, VT,
   FF, NBSP, U+3000); composite ownership foreign keys; NULL-safe Content and image-assignment identity;
   image-assignment target, scope, and default rules.
-- `Runtime/`: the public use cases through the factory: Product creation (inactive Product plus
-  one active empty-composition Variant, case-insensitive and soft-delete-reserved conflicts),
-  Variant reads (consumer visibility evaluated by the database including the product-wide
-  unrepresented-Value rule, management filters, ordering and bounds), composition resolution with
-  its four failure classes, the lifecycle contract of every family (soft-deleted row, soft-deleted
-  owner chain, restore with the saved status and revalidation, inactivity blocking nothing), Option
-  and Value creation and ordering, Image Roles and Assignments (identity, target integrity, the scope
-  key shared with the Ordering API, atomic default replacement, no promotion), Product reconfiguration
-  (transitions, explicit reuse, conflicts, restore, failure classes, full rollback), rollback of a failed
-  operation the package started, and, inside a caller-owned transaction, savepoint rollback of a failed
-  operation that the Host then commits or rolls back (the Host's other work preserved, the Host
-  transaction never committed or rolled back by the package), Ordering API allocation, and real
-  concurrent writers in separate processes (creation, reconfiguration of one Product, default
-  replacement within one scope).
+- `Runtime/`: the public use cases through the factory, each family through its separate Management
+  and Consumer services (`DEC-013`):
+  - Product creation (inactive Product plus one active empty-composition Variant, case-insensitive and
+    soft-delete-reserved conflicts) and reconfiguration (transitions, explicit reuse, conflicts, restore,
+    failure classes, full rollback), with reconfigured Variants placed after the highest live position of
+    the Product, soft-deleted Variants excluded (`ProductCreationTest`).
+  - Variant reads (consumer visibility evaluated by the database including the product-wide
+    unrepresented-Value rule, management filters, ordering and bounds), composition resolution with its
+    four failure classes, and Variant identifiers (SKU and barcode set, replaced, cleared, released,
+    classified by the violated key).
+  - The lifecycle contract of every family (soft-deleted row, soft-deleted owner chain, restore with the
+    saved status and revalidation, inactivity blocking nothing), Option and Option Value creation,
+    `updateStatus()` (`DEC-011`), and ordering commands; restore at the end of the live scope.
+  - Content of Products, Options, and Option Values (identity including the unlocalized record and
+    soft-deleted history, full-replacement update, the `INV-05` and `INV-06` rules on soft delete, exact
+    language selectors, consumer visibility).
+  - Consumer reads of Options, Option Values, and exact-scope Image Assignments; management lists,
+    Product search under any Host `sql_mode`, business-key reads, and pagination; identity and
+    uniqueness under the `utf8mb4_unicode_ci` collation.
+  - Image Roles and Assignments (identity, target integrity, the scope key shared with the Ordering API,
+    atomic default replacement, no promotion, `restoreAsDefault()` under `DEC-008`), and a Role status
+    change, deletion, or restore that leaves every assignment column unchanged.
+  - Timestamps: `created_at` and `deleted_at` are the Host Clock's instant stored verbatim as
+    `Y-m-d H:i:s`, and DTO timestamps are hydrated in the reading Clock's timezone (`Asia/Tokyo`
+    and `America/New_York` in the test) with no normalization (`ClockTimestampTest`).
+  - Transactions: rollback of a failed operation the package started; inside a caller-owned
+    transaction, savepoint rollback of a failed operation (Product creation, reconfiguration,
+    Content create and soft delete, `setDefault()` including the previous default it already cleared,
+    Variant `updateStatus()` and `updateIdentifiers()`, `restoreAsDefault()`), with the Host
+    transaction left active, the Host's other work preserved, and the Host's commit or rollback
+    deciding the rest (`HostTransactionAtomicityTest`, `HostTransactionSavepointTest`); locking reads
+    that validate the latest committed state inside a Host transaction holding an older snapshot
+    (`LockingReadSnapshotTest`); and a real deadlock (driver error 1213) between two Host
+    transactions, lost inside a package call, propagated as the original `PDOException` with the Host
+    transaction ended on the server (`DeadlockPropagationTest`).
+  - Real concurrent writers in separate processes and connections, released together by an explicit
+    worker barrier and repeated in rounds: creation, reconfiguration of one Product, default
+    replacement and restore-as-default within one scope, deactivation of two Variants that are each
+    dispensable but not both (one winner, one `FC-INV`), moves of several Options of one Product
+    (positions unique and contiguous), activation against deletion of the only Product name (never an
+    active Product without a name), one SKU on two Variants (one winner, one typed conflict), and
+    `setDefault()` against `create()` on one Role across Products (never a deadlock).
+
+Every Runtime test rolls back a transaction left open on the shared connection in its `tearDown()`,
+so no transaction leaks into the next test.
+
+**Resolved regressions** each keep a recurrence test in the suites above; there is no separate
+`test:regression` entry. Among them: `49d521e` (Product creation atomic inside a Host-owned
+transaction) by `tests/Integration/Runtime/HostTransactionAtomicityTest.php`; `4712da6` (the Product
+code search escaped independently of the Host `sql_mode`) by the `NO_BACKSLASH_ESCAPES` case of
+`tests/Integration/Runtime/ManagementListTest.php`; and `5c6442a` (the identity guard scans every
+`UPDATE`, and duplicate keys are classified by key name only) by `tests/Unit/IdentityStabilityTest.php`,
+`tests/Unit/Common/Repository/Pdo/DuplicateKeyTest.php`, and
+`VariantIdentifiersTest::testTheConflictIsClassifiedByTheViolatedKeyNotByTheValue`.
 
 ## Consumer Verification Harness
 
@@ -95,7 +137,9 @@ an undocumented public method of a service or the factory, or a public type that
 repository, copied, not symlinked), loads it only through the production PSR-4 autoloader
 (asserting that the public classes resolve from the installed package and that test namespaces
 are not autoloadable), installs the delivered `schema/product.sql`, and runs the workflow
-`ProductFactory` -> create, activate, prepare Options and Values, reconfigure, resolve a composition, assign images and
+`ProductFactory` -> create, name the Product through Content, activate, read the Content as a
+consumer (exact language, no fallback), reject deleting the last name of an active Product, prepare
+Options and Values with their Content labels, reconfigure, resolve a composition, assign images and
 replace the default, soft-delete and restore, against a real MySQL service. It runs
 twice from clean consumer roots, uses the same Compose lifecycle as Integration, and is part of
 the stable `Final Gate`.
@@ -112,14 +156,15 @@ rejected and that clean and hard-break files are accepted.
 
 ## Current limits
 
-The harness exercises the public API that exists today. Each new public capability must extend it
-in the Work Unit that adds it.
+Not covered, and not claimed:
 
-Not applicable or not yet provable, and not claimed:
-
-- Regression suite and `test:regression`: no resolved regression exists yet.
-- Concurrency proof for operations that do not exist yet (Content, SKU and barcode mutation,
-  ordering commands).
+- The Consumer Verification Harness does not exercise every public capability: `restoreAsDefault()`,
+  Option and Option Value `updateStatus()`, Variant `updateIdentifiers()`, the ordering commands,
+  Content update and restore, the management lists and pagination, and the Option, Value, and
+  exact-scope image consumer reads are proven by the Integration suite only.
+- There is no separate `test:regression` entry; recurrence tests live in the Unit and Integration suites.
+- The deadlock proof covers one shape (two Host transactions locking two Product rows in opposite
+  orders, the package call losing); other deadlock shapes are not provoked.
 - Release Artifact Verification and Published Artifact Verification: release-time gates, not
   applicable before a release target exists.
 

@@ -55,6 +55,30 @@ final class ImageAssignmentCommandTest extends RuntimeTestCase
         $this->assertThrows(ImageRoleNotFoundException::class, fn() => $roles->softDelete(999999));
     }
 
+    /**
+     * "Changing a Role's status or deleting it never changes an assignment": every column of every
+     * assignment row, `is_default` and `updated_at` included, is identical before and after each Role
+     * lifecycle call, made through a Clock later than the setup so any write would show.
+     */
+    public function testARoleStatusChangeDeletionOrRestoreNeverChangesAnAssignment(): void
+    {
+        $p = $this->namedProduct('P');
+        $hero = $this->imageRoleManagementService()->create(new CreateImageRoleCommand('hero'))->roleId;
+        $assignments = $this->imageAssignmentManagementService();
+        $default = $assignments->create(new CreateImageAssignmentCommand($p->productId, null, 1, $hero))->assignmentId;
+        $assignments->setDefault($default);
+        $assignments->create(new CreateImageAssignmentCommand($p->productId, $p->variantId, 2, $hero, 'en', 'web'));
+        $deleted = $assignments->create(new CreateImageAssignmentCommand($p->productId, null, 3, $hero))->assignmentId;
+        $assignments->softDelete($deleted);
+        $roles = $this->imageRoleManagementService(self::laterClock());
+
+        $this->assertNoWrite('maa_product_image_assignments', fn() => $roles->updateStatus($hero, ImageRoleStatusEnum::INACTIVE), 'Deactivating a Role changes no assignment.');
+        $this->assertNoWrite('maa_product_image_assignments', fn() => $roles->updateStatus($hero, ImageRoleStatusEnum::ACTIVE), 'Activating a Role changes no assignment.');
+        $this->assertNoWrite('maa_product_image_assignments', fn() => $roles->softDelete($hero), 'Deleting a Role changes no assignment.');
+        $this->assertNoWrite('maa_product_image_assignments', fn() => $roles->restore($hero), 'Restoring a Role changes no assignment.');
+        self::assertSame(3, self::rowCount('maa_product_image_assignments', 'role_id = ' . $hero));
+    }
+
     public function testCreateValidatesTargetRoleAndIdentityAndOrdersWithinTheExactScope(): void
     {
         $p = $this->namedProduct('P');

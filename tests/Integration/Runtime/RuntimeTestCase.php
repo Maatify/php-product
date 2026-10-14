@@ -43,8 +43,11 @@ use Throwable;
  * Base for runtime tests: each test starts from empty tables and commits for real,
  * so the service's own transaction handling is exercised without an outer transaction.
  *
- * Content has no write command yet, so labels and Product names are seeded by direct SQL;
- * everything else goes through the public API.
+ * Labels and Product names are seeded by direct SQL as a fixture shortcut; the Content commands
+ * themselves are proven by ContentCommandTest. Everything else goes through the public API.
+ *
+ * After every test, a transaction still open on the shared connection is rolled back, so no
+ * transaction leaks into the next test whatever the test did (std-ci-workflow §11).
  */
 abstract class RuntimeTestCase extends DatabaseTestCase
 {
@@ -71,6 +74,23 @@ abstract class RuntimeTestCase extends DatabaseTestCase
         }
     }
 
+    /**
+     * Rolls back any transaction a test left open on the shared connection, then runs the test's own
+     * cleanup. The rollback comes first because a cleanup DDL statement would implicitly commit it.
+     */
+    final protected function tearDown(): void
+    {
+        if (self::$pdo->inTransaction()) {
+            self::$pdo->rollBack();
+        }
+        $this->cleanUp();
+    }
+
+    /**
+     * Per-test cleanup that runs after the leaked-transaction rollback, such as dropping a trigger.
+     */
+    protected function cleanUp(): void {}
+
     protected static function clock(): SystemClock
     {
         return new SystemClock(new DateTimeZone('UTC'));
@@ -91,6 +111,29 @@ abstract class RuntimeTestCase extends DatabaseTestCase
             public function getTimezone(): DateTimeZone
             {
                 return new DateTimeZone('UTC');
+            }
+        };
+    }
+
+    /**
+     * A Host Clock fixed at one instant in a given timezone, for timestamp-source and hydration evidence.
+     */
+    protected static function fixedClock(string $instant, string $timezone): ClockInterface
+    {
+        return new class ($instant, $timezone) implements ClockInterface {
+            public function __construct(
+                private string $instant,
+                private string $timezone,
+            ) {}
+
+            public function now(): DateTimeImmutable
+            {
+                return new DateTimeImmutable($this->instant, $this->getTimezone());
+            }
+
+            public function getTimezone(): DateTimeZone
+            {
+                return new DateTimeZone($this->timezone);
             }
         };
     }

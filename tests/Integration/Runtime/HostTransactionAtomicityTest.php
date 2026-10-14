@@ -32,13 +32,6 @@ final class HostTransactionAtomicityTest extends RuntimeTestCase
 {
     private const string FAILING_TRIGGER = 'trg_product_it_variant_failure';
 
-    protected function tearDown(): void
-    {
-        if (self::$pdo->inTransaction()) {
-            self::$pdo->rollBack();
-        }
-    }
-
     public function testAFailedCallLeavesNoWriteInTheHostTransactionWhichStaysActive(): void
     {
         $service = $this->serviceWithVariants($this->variantsFailingBeforeTheWrite(new RuntimeException('variant write failed')));

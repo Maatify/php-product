@@ -213,35 +213,79 @@ final class ProductCreationTest extends RuntimeTestCase
         $service = $this->productManagementService();
 
         self::$pdo->beginTransaction();
-        $service->create(new CreateProductCommand('P-OUTER-ROLLBACK'));
-        self::assertTrue(self::$pdo->inTransaction(), 'The service must not commit the caller transaction.');
-        self::$pdo->rollBack();
+        try {
+            $service->create(new CreateProductCommand('P-OUTER-ROLLBACK'));
+            self::assertTrue(self::$pdo->inTransaction(), 'The service must not commit the caller transaction.');
+        } finally {
+            self::$pdo->rollBack();
+        }
         self::assertSame(0, self::rowCount('maa_product_products'));
         self::assertSame(0, self::rowCount('maa_product_variants'));
 
         self::$pdo->beginTransaction();
-        $service->create(new CreateProductCommand('P-OUTER-COMMIT'));
-        self::$pdo->commit();
+        try {
+            $service->create(new CreateProductCommand('P-OUTER-COMMIT'));
+            self::$pdo->commit();
+        } finally {
+            if (self::$pdo->inTransaction()) {
+                self::$pdo->rollBack();
+            }
+        }
         self::assertSame(1, self::rowCount('maa_product_products'));
         self::assertSame(1, self::rowCount('maa_product_variants'));
     }
 
+    /**
+     * The Variants that `reconfigure()` creates take the next positions after the highest live
+     * position of the Product scope, in request order; a soft-deleted Variant is outside the live
+     * order, so its old position is reused rather than skipped. A constant position, a count of all
+     * rows, or a maximum over soft-deleted history would each give different positions.
+     */
     public function testVariantOrderIsAllocatedThroughTheSharedOrderingApi(): void
     {
-        $service = $this->productManagementService();
-        $created = $service->create(new CreateProductCommand('P-ORDER'));
-        $this->execute(
-            'INSERT INTO maa_product_variants (product_id, composition_fingerprint, status, display_order, created_at, updated_at) VALUES (:p, :f, :s, 7, :t, :t2)',
-            ['p' => $created->productId, 'f' => hash('sha256', 'v1|9=9'), 's' => 'inactive', 't' => '2026-01-01 00:00:00', 't2' => '2026-01-01 00:00:00'],
-        );
+        $created = $this->namedProduct('P-ORDER');
+        $color = $this->preparedOption($created->productId, 'color', 'Color');
+        $red = $this->preparedValue($color, 'red', 'Red');
+        $blue = $this->preparedValue($color, 'blue', 'Blue');
+        $green = $this->preparedValue($color, 'green', 'Green');
+        $black = $this->preparedValue($color, 'black', 'Black');
+        $products = $this->productManagementService();
 
-        $next = (new ScopedOrderingManager())->getNextPosition(
-            self::$pdo,
-            new \Maatify\Persistence\Pdo\Ordering\ScopedOrderingConfig('maa_product_variants', 'product_id'),
+        [$redVariant, $blueVariant] = $products->reconfigure(self::reconfiguration($created->productId, [$color => [$red, $blue]], [[[[$color, $red]]], [[[$color, $blue]]]]))->createdVariantIds;
+        self::assertSame([$created->variantId => 1, $redVariant => 2, $blueVariant => 3], $this->variantPositions($created->productId));
+
+        $products->reconfigure(self::reconfiguration($created->productId, [$color => [$red]], [[[[$color, $red]], $redVariant]]));
+        $this->variantManagementService()->softDelete($blueVariant);
+
+        [$greenVariant, $blackVariant] = $products->reconfigure(self::reconfiguration(
             $created->productId,
-        );
+            [$color => [$red, $green, $black]],
+            [[[[$color, $red]], $redVariant], [[[$color, $green]]], [[[$color, $black]]]],
+        ))->createdVariantIds;
 
-        self::assertSame(8, $next, 'Variant display_order is a positive position in the Product scope.');
+        self::assertSame(
+            [$created->variantId => 1, $redVariant => 2, $greenVariant => 3, $blackVariant => 4],
+            $this->variantPositions($created->productId),
+            'New Variants follow the highest live position, in request order, ignoring the soft-deleted Variant.',
+        );
+        self::assertSame(3, (int) self::scalar('SELECT display_order FROM maa_product_variants WHERE id = :i', ['i' => $blueVariant]), 'Soft deletion does not compact positions.');
+    }
+
+    /** @return array<int, int> live Variant id => display_order */
+    private function variantPositions(int $productId): array
+    {
+        $statement = self::$pdo->prepare('SELECT id, display_order FROM maa_product_variants WHERE product_id = :p AND deleted_at IS NULL ORDER BY display_order, id');
+        $statement->execute(['p' => $productId]);
+        $positions = [];
+        foreach ($statement->fetchAll(PDO::FETCH_NUM) as $row) {
+            self::assertIsArray($row);
+            [$id, $position] = $row;
+            self::assertIsInt($id);
+            self::assertIsInt($position);
+            $positions[$id] = $position;
+        }
+
+        return $positions;
     }
 
     public function testTheFactoryRejectsAConnectionThatDoesNotThrow(): void

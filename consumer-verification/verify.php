@@ -11,8 +11,7 @@ declare(strict_types=1);
  * and exceptions) and the schema asset delivered with the installed package, and drives a
  * real MySQL service. It loads nothing from the package repository itself: no source file,
  * no test class, no development autoloader.
- * Content has no command yet, so the Option and Value labels this workflow needs are inserted
- * directly into the harness database.
+ * Product names and Option and Value labels are written through the public Content commands.
  */
 
 use Composer\InstalledVersions;

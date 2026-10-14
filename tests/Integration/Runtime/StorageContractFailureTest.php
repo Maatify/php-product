@@ -72,13 +72,19 @@ final class StorageContractFailureTest extends RuntimeTestCase
 
         $pdo->beginTransaction();
         try {
-            $service->create(new CreateProductCommand('P-HOST-NO-ID'));
-            self::fail('An invalid AUTO_INCREMENT identity must raise ProductPersistenceException.');
-        } catch (Throwable $caught) {
-            self::assertInstanceOf(ProductPersistenceException::class, $caught);
+            try {
+                $service->create(new CreateProductCommand('P-HOST-NO-ID'));
+                self::fail('An invalid AUTO_INCREMENT identity must raise ProductPersistenceException.');
+            } catch (Throwable $caught) {
+                self::assertInstanceOf(ProductPersistenceException::class, $caught);
+            }
+            self::assertTrue($pdo->inTransaction());
+            $pdo->commit();
+        } finally {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
         }
-        self::assertTrue($pdo->inTransaction());
-        $pdo->commit();
 
         self::assertSame(0, self::rowCount('maa_product_products'));
     }

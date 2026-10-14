@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Tests\Integration\Runtime;
 
-use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
-use Maatify\Product\Product\Repository\Pdo\PdoProductConfigurationRepository;
-use Maatify\Product\Product\Service\ProductConfigurationValidator;
-
 /**
  * Real concurrent reconfigurations of one Product: separate processes and connections released at
  * once. The Product row lock serializes them, so the duplicate-composition rule is applied to the
@@ -66,17 +62,5 @@ final class ConcurrentReconfigurationTest extends RuntimeTestCase
         self::assertSame(1, self::rowCount('maa_product_option_values', "status = 'active'"));
         self::assertLessThanOrEqual(4, self::rowCount('maa_product_variants'), 'At most one identity per composition exists.');
         $this->assertValidConfiguration($created->productId);
-    }
-
-    private function assertValidConfiguration(int $productId): void
-    {
-        self::$pdo->beginTransaction();
-        try {
-            $snapshot = (new PdoProductConfigurationRepository(self::$pdo, new ScopedOrderingManager()))->lockSnapshot($productId);
-            self::assertNotNull($snapshot);
-            self::assertNull(ProductConfigurationValidator::firstViolation($snapshot));
-        } finally {
-            self::$pdo->rollBack();
-        }
     }
 }

@@ -15,7 +15,7 @@ source "$ROOT/scripts/ci/mysql-service.sh"
 command -v composer >/dev/null 2>&1 || { echo "ERROR: missing prerequisite: composer" >&2; exit 2; }
 bash "$ROOT/scripts/ci/check-consumer-verification-boundary.sh"
 
-trap mysql_service_stop EXIT INT TERM
+mysql_service_install_teardown
 mysql_service_start
 
 for run in 1 2; do

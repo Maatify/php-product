@@ -25,7 +25,7 @@ source "$ROOT/scripts/ci/mysql-service.sh"
 [ -f schema/product.sql ] || { echo "ERROR: schema/product.sql not found" >&2; exit 2; }
 
 RUNS="${PRODUCT_TEST_RUNS:-2}"
-trap mysql_service_stop EXIT INT TERM
+mysql_service_install_teardown
 mysql_service_start
 
 for run in $(seq 1 "$RUNS"); do

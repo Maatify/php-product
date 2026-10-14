@@ -7,7 +7,12 @@
 #   mysql_service_start   validates prerequisites, starts a run-scoped Compose
 #                         project, waits for service-level health, and exports
 #                         PRODUCT_TEST_DB_* and PRODUCT_TEST_EXPECTED_VERSION
-#   mysql_service_stop    tears the project down with `down -v` (idempotent)
+#   mysql_service_stop    tears the project down with `down -v`; a failed teardown
+#                         is reported on stderr and returns non-zero
+#   mysql_service_install_teardown
+#                         installs the EXIT trap that always tears down and makes
+#                         the exit status report whichever failed: the run's own
+#                         status when it failed, otherwise the teardown's
 #   mysql_service_residue verifies no test database remains; fails otherwise
 
 MYSQL_SERVICE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -44,9 +49,32 @@ mysql_service_start() {
 }
 
 mysql_service_stop() {
-    if [ -n "${MYSQL_SERVICE_PROJECT:-}" ]; then
-        mysql_dc down -v --remove-orphans >/dev/null 2>&1 || true
+    [ -n "${MYSQL_SERVICE_PROJECT:-}" ] || return 0
+    local output
+    if ! output="$(mysql_dc down -v --remove-orphans 2>&1)"; then
+        printf '%s\n' "$output" >&2
+        echo "ERROR: teardown failed: docker compose down -v for project ${MYSQL_SERVICE_PROJECT}" >&2
+        return 1
     fi
+    MYSQL_SERVICE_PROJECT=""
+}
+
+# EXIT trap: always tear down. A failed run keeps its own exit status (the teardown
+# failure is still reported on stderr); a successful run exits non-zero when the
+# teardown fails, so a leaked service or volume is never reported as success.
+mysql_service_exit() {
+    local status=$?
+    trap - EXIT
+    if ! mysql_service_stop && [ "$status" -eq 0 ]; then
+        status=1
+    fi
+    exit "$status"
+}
+
+mysql_service_install_teardown() {
+    trap mysql_service_exit EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
 }
 
 mysql_service_residue() {

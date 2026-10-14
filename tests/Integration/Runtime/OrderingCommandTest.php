@@ -137,15 +137,24 @@ final class OrderingCommandTest extends RuntimeTestCase
         $service = $this->optionManagementService();
 
         self::$pdo->beginTransaction();
-        $service->updateDisplayOrder(new UpdateOptionDisplayOrderCommand($o3, 1));
-        self::assertTrue(self::$pdo->inTransaction(), 'The Host transaction stays open.');
-        self::assertSame([$o3 => 1, $o1 => 2, $o2 => 3], $this->positions('maa_product_options', 'product_id', $p->productId));
-        self::$pdo->rollBack();
+        try {
+            $service->updateDisplayOrder(new UpdateOptionDisplayOrderCommand($o3, 1));
+            self::assertTrue(self::$pdo->inTransaction(), 'The Host transaction stays open.');
+            self::assertSame([$o3 => 1, $o1 => 2, $o2 => 3], $this->positions('maa_product_options', 'product_id', $p->productId));
+        } finally {
+            self::$pdo->rollBack();
+        }
         self::assertSame([$o1 => 1, $o2 => 2, $o3 => 3], $this->positions('maa_product_options', 'product_id', $p->productId), 'The Host rollback removes the move.');
 
         self::$pdo->beginTransaction();
-        $service->updateDisplayOrder(new UpdateOptionDisplayOrderCommand($o1, 3));
-        self::$pdo->commit();
+        try {
+            $service->updateDisplayOrder(new UpdateOptionDisplayOrderCommand($o1, 3));
+            self::$pdo->commit();
+        } finally {
+            if (self::$pdo->inTransaction()) {
+                self::$pdo->rollBack();
+            }
+        }
         self::assertSame([$o2 => 1, $o3 => 2, $o1 => 3], $this->positions('maa_product_options', 'product_id', $p->productId));
     }
 

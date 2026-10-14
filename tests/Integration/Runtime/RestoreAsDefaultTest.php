@@ -32,11 +32,8 @@ final class RestoreAsDefaultTest extends RuntimeTestCase
     private const string TABLE = 'maa_product_image_assignments';
     private const string FAILING_TRIGGER = 'trg_product_it_restore_as_default_duplicate';
 
-    protected function tearDown(): void
+    protected function cleanUp(): void
     {
-        if (self::$pdo->inTransaction()) {
-            self::$pdo->rollBack();
-        }
         self::$pdo->exec('DROP TRIGGER IF EXISTS `' . self::FAILING_TRIGGER . '`');
     }
 
