@@ -6,6 +6,7 @@ namespace Maatify\Product\Tests\Integration\Runtime;
 
 use Maatify\Product\Exception\ProductExceptionInterface;
 use Maatify\Product\Product\Management\Command\CreateProductCommand;
+use Maatify\Product\Tests\Support\ProcessPipes;
 use PDOException;
 use Throwable;
 
@@ -89,10 +90,12 @@ final class DeadlockPropagationTest extends RuntimeTestCase
             array_merge(getenv(), ['PRODUCT_TEST_DB_NAME' => self::$database]),
         );
         self::assertIsResource($process, 'The child process must start.');
-        fclose($pipes[0]);
-        self::assertSame("locked\n", fgets($pipes[1]), 'The child did not take its lock: ' . file_get_contents($stderr));
+        $stdin = ProcessPipes::stream($pipes, 0);
+        $stdout = ProcessPipes::stream($pipes, 1);
+        fclose($stdin);
+        self::assertSame("locked\n", fgets($stdout), 'The child did not take its lock: ' . file_get_contents($stderr));
 
-        return ['process' => $process, 'stdout' => $pipes[1], 'stderr' => $stderr];
+        return ['process' => $process, 'stdout' => $stdout, 'stderr' => $stderr];
     }
 
     /**

@@ -7,6 +7,7 @@ namespace Maatify\Product\Tests\Integration\Runtime;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
 use Maatify\Product\Product\Repository\Pdo\PdoProductConfigurationRepository;
 use Maatify\Product\Product\Service\ProductConfigurationValidator;
+use Maatify\Product\Tests\Support\ProcessPipes;
 
 /**
  * Runs one public command per child process, each on its own MySQL connection, and returns the
@@ -40,7 +41,12 @@ trait ConcurrentWorkers
                 $environment,
             );
             self::assertIsResource($process, 'A worker process must start.');
-            $running[] = ['process' => $process, 'stdin' => $pipes[0], 'stdout' => $pipes[1], 'stderr' => $stderr];
+            $running[] = [
+                'process' => $process,
+                'stdin' => ProcessPipes::stream($pipes, 0),
+                'stdout' => ProcessPipes::stream($pipes, 1),
+                'stderr' => $stderr,
+            ];
         }
 
         foreach ($running as $worker) {

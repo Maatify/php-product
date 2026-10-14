@@ -147,14 +147,8 @@ final class OrderingCommandTest extends RuntimeTestCase
         self::assertSame([$o1 => 1, $o2 => 2, $o3 => 3], $this->positions('maa_product_options', 'product_id', $p->productId), 'The Host rollback removes the move.');
 
         self::$pdo->beginTransaction();
-        try {
-            $service->updateDisplayOrder(new UpdateOptionDisplayOrderCommand($o1, 3));
-            self::$pdo->commit();
-        } finally {
-            if (self::$pdo->inTransaction()) {
-                self::$pdo->rollBack();
-            }
-        }
+        $service->updateDisplayOrder(new UpdateOptionDisplayOrderCommand($o1, 3));
+        self::$pdo->commit();
         self::assertSame([$o2 => 1, $o3 => 2, $o1 => 3], $this->positions('maa_product_options', 'product_id', $p->productId));
     }
 

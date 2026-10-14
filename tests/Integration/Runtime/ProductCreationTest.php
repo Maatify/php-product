@@ -223,14 +223,8 @@ final class ProductCreationTest extends RuntimeTestCase
         self::assertSame(0, self::rowCount('maa_product_variants'));
 
         self::$pdo->beginTransaction();
-        try {
-            $service->create(new CreateProductCommand('P-OUTER-COMMIT'));
-            self::$pdo->commit();
-        } finally {
-            if (self::$pdo->inTransaction()) {
-                self::$pdo->rollBack();
-            }
-        }
+        $service->create(new CreateProductCommand('P-OUTER-COMMIT'));
+        self::$pdo->commit();
         self::assertSame(1, self::rowCount('maa_product_products'));
         self::assertSame(1, self::rowCount('maa_product_variants'));
     }
