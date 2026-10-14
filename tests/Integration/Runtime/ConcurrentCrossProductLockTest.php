@@ -7,11 +7,13 @@ namespace Maatify\Product\Tests\Integration\Runtime;
 use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 
 /**
- * Writers on different Products never wait on each other's rows (std-package-building §25,
- * std-testing §3.4): separate processes and MySQL connections, released together by the worker
- * barrier, several Products per round, each round repeated. Every locking read of a mutation is
- * keyed by the locked Product's own identities, so no gap lock taken for one Product can block an
- * insert of another; any deadlock (driver error 1213) fails the test.
+ * Three cross-Product paths that once deadlocked under `REPEATABLE READ` now run concurrently on
+ * different Products without a deadlock (std-package-building §25, std-testing §3.4): a
+ * reconfiguration that creates a Variant of an already configurable Product, `restoreAsDefault()`,
+ * and `setDefault()`. Separate processes and MySQL connections, released together by the worker
+ * barrier, several Products per round, each round repeated; any deadlock (driver error 1213) fails
+ * the test. It proves these paths only: gap locks at the ends of a Product's index ranges can still
+ * deadlock other cross-Product paths, which the Package Reference states as a transient failure.
  */
 final class ConcurrentCrossProductLockTest extends RuntimeTestCase
 {
@@ -23,7 +25,9 @@ final class ConcurrentCrossProductLockTest extends RuntimeTestCase
 
     /**
      * Each reconfiguration locks its Product's configuration snapshot (composition pairs and labels
-     * included) and then inserts a new Variant with its composition pairs.
+     * included, read by the identities of the locked Variants, Options, and Values) and then inserts a
+     * new Variant with its composition pairs. Fails when the pairs or labels are read by `product_id`
+     * or the Variants through the fingerprint key.
      */
     public function testConcurrentReconfigurationsOfDifferentProductsThatEachCreateAVariantAllSucceed(): void
     {
@@ -61,7 +65,8 @@ final class ConcurrentCrossProductLockTest extends RuntimeTestCase
 
     /**
      * Each restore-as-default reads its scope's live default with a locking read and then writes the
-     * default-scope key.
+     * default-scope key. Fails when that read goes through the default-scope key instead of the
+     * Product-prefixed identity key.
      */
     public function testConcurrentRestoresAsDefaultOnDifferentProductsAllSucceed(): void
     {
@@ -93,7 +98,8 @@ final class ConcurrentCrossProductLockTest extends RuntimeTestCase
     /**
      * Each set-default reads its scope's live default with a locking read, clears it when there is
      * one, and then marks the new one; the scopes of half of the Products start without a live
-     * default, so that read also runs where it finds no row.
+     * default, so that read also runs where it finds no row. Fails when that read goes through the
+     * default-scope key instead of the Product-prefixed identity key.
      */
     public function testConcurrentSetDefaultsOnDifferentProductsAllSucceed(): void
     {

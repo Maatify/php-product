@@ -127,10 +127,11 @@ no method or a method that does not exist.
     (positions unique and contiguous), activation against deletion of the only Product name (never an
     active Product without a name), one SKU on two Variants (one winner, one typed conflict), and
     `setDefault()` against a move of the scope's current default within one Product (both succeed,
-    serialized by the Product lock). Across Products, concurrent `reconfigure()` calls that each create
-    a Variant, concurrent `restoreAsDefault()` calls, and concurrent `setDefault()` calls all succeed
-    with no deadlock, because every locking read of a mutation is keyed by the locked Product's own
-    identities (`ConcurrentCrossProductLockTest`).
+    serialized by the Product lock). Across Products, concurrent `reconfigure()` calls that each add
+    a Variant to an already configurable Product, concurrent `restoreAsDefault()` calls, and
+    concurrent `setDefault()` calls all succeed with no deadlock; each of these tests fails when its
+    locking read is no longer keyed by the locked Product's own identities
+    (`ConcurrentCrossProductLockTest`).
 
 Every Runtime test rolls back a transaction left open on the shared connection in its `tearDown()`,
 so no transaction leaks into the next test.
@@ -141,8 +142,8 @@ so no transaction leaks into the next test.
 `sql_mode` (the `NO_BACKSLASH_ESCAPES` case of `ManagementListTest`); the identity guard scans every
 `UPDATE`, and duplicate keys are classified by key name only (`IdentityStabilityTest`,
 `DuplicateKeyTest`, and `VariantIdentifiersTest::testTheConflictIsClassifiedByTheViolatedKeyNotByTheValue`);
-the configuration snapshot and the live-default reads lock only the locked Product's own rows, so
-writers on different Products never deadlock (`ConcurrentCrossProductLockTest`); and a stored
+the configuration snapshot and the live-default reads record-lock only the locked Product's own rows,
+and the three cross-Product paths above no longer deadlock (`ConcurrentCrossProductLockTest`); and a stored
 identity above `PHP_INT_MAX` is rejected instead of truncated (`RowHydratorTest`).
 
 ## Consumer Verification Harness
@@ -182,6 +183,12 @@ Not covered, and not claimed:
 - There is no separate `test:regression` entry; recurrence tests live in the Unit and Integration suites.
 - The deadlock proof covers one shape (two Host transactions locking two Product rows in opposite
   orders, the package call losing); other deadlock shapes are not provoked.
+- A deadlock between concurrent operations on different Products is possible: under
+  `REPEATABLE READ` the gap locks at the ends of a Product's index ranges can block an insert of a
+  neighbouring Product, in particular the first Content of an owner and a change between simple and
+  configurable. The Package Reference states it as a transient failure (driver error 1213, the
+  `PDOException` propagated unchanged, no write left, the whole transaction retried by the caller or
+  the Host); no test provokes it.
 - Release Artifact Verification and Published Artifact Verification: release-time gates, not
   applicable before a release target exists.
 

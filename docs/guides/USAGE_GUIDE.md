@@ -95,6 +95,20 @@ $visible = $shopVariants->listByProductId($created->productId); // empty until t
 - **Public call:** catch the named exceptions you care about; all package-defined failures implement `Maatify\Product\Exception\ProductExceptionInterface`.
 - **Result:** a conflict exception for a taken identity (`ProductCodeAlreadyExistsException`, `OptionCodeAlreadyExistsException`, `OptionValueCodeAlreadyExistsException`, `ImageRoleKeyAlreadyExistsException`, `ImageAssignmentAlreadyExistsException`, `ProductContentAlreadyExistsException`, `OptionContentAlreadyExistsException`, `OptionValueContentAlreadyExistsException`, `VariantSkuAlreadyExistsException`, `VariantBarcodeAlreadyExistsException`, `VariantCompositionConflictException`, and `ImageAssignmentDefaultConflictException` when a restore-as-default meets a live default; identities compare case-insensitively and stay reserved across soft-deleted history); a not-found exception for a missing or not-visible identity (`ProductNotFoundException`, `VariantNotFoundException`, `OptionNotFoundException`, `OptionValueNotFoundException`, `ImageRoleNotFoundException`, `ImageAssignmentNotFoundException`, `ProductContentNotFoundException`, `OptionContentNotFoundException`, `OptionValueContentNotFoundException`); `ProductInvalidArgumentException` for invalid input, including a structurally invalid composition selection; `ProductBusinessRuleException` when the row or its owner is soft deleted or the operation would break a Product invariant; `ProductPersistenceException` when storage returns data the schema contract does not allow.
 - **Boundary:** every other `PDOException` or `Throwable` propagates unchanged. See the Package Reference, *Failure contract*.
+- **Transient deadlock:** concurrent operations, also on different Products, can fail with a deadlock (driver error 1213). The failed operation leaves no write, and running it again succeeds. When the package owns the transaction, retry the call a bounded number of times:
+
+```php
+for ($attempt = 1; ; ++$attempt) {
+    try {
+        $contents->create(new CreateProductContentCommand($productId, 'en', 'Name'));
+        break;
+    } catch (PDOException $failure) {
+        if (($failure->errorInfo[1] ?? null) !== 1213 || $attempt === 3) {
+            throw $failure;
+        }
+    }
+}
+```
 
 ## 5. Compose with a Host transaction
 
@@ -112,6 +126,27 @@ try {
 } catch (ProductCodeAlreadyExistsException) {
 }
 $pdo->commit(); // commits Product 'A' and its Variant only
+```
+
+- **Retry on deadlock:** after a deadlock your transaction has already ended on the server, so retry the whole transaction, not the call, a bounded number of times:
+
+```php
+for ($attempt = 1; ; ++$attempt) {
+    $pdo->beginTransaction();
+    try {
+        $products->create(new CreateProductCommand('B'));
+        // ... the rest of your work in the same transaction
+        $pdo->commit();
+        break;
+    } catch (PDOException $failure) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        if (($failure->errorInfo[1] ?? null) !== 1213 || $attempt === 3) {
+            throw $failure;
+        }
+    }
+}
 ```
 
 ## 6. Lifecycle

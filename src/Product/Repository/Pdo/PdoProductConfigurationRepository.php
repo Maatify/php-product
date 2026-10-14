@@ -27,9 +27,12 @@ use PDO;
  * Product row, then its Options, Option Values, and Variants, each returned by ascending identity;
  * composition pairs and Content labels are read with shared locks after them. Every read after the
  * Product row goes through a key that starts with the Product identity or with the identities of
- * the rows already locked, pinned with `FORCE INDEX` so that no plan scans or locks another
- * Product's entries; beyond the Product's own entries, a read locks only the gaps at the two ends
- * of its key range.
+ * the rows already locked, pinned with `FORCE INDEX` so that no plan scans or record-locks another
+ * Product's entries. Under `REPEATABLE READ` each range read still takes gap locks: a read keyed by
+ * the Product locks the gap before its first entry and the gap after its last one, and a read
+ * keyed by `IN (...)` does the same around the entries of each listed owner. A gap can border another
+ * Product's entries, so an insert of that Product can wait on it, and concurrent mutations of
+ * different Products can deadlock (driver error 1213); the exception propagates unchanged.
  *
  * @internal Not part of the Public Runtime API.
  */
