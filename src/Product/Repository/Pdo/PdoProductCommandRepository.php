@@ -57,12 +57,12 @@ final readonly class PdoProductCommandRepository implements ProductCommandReposi
             throw $exception;
         }
 
-        $id = $this->pdo->lastInsertId();
-        if (!DigitString::matches($id) || (int) $id < 1) {
+        $id = DigitString::toPositiveInt($this->pdo->lastInsertId());
+        if ($id === null) {
             throw ProductStorageFailureFactory::invalidAutoIncrementIdentity('Product');
         }
 
-        return (int) $id;
+        return $id;
     }
 
     public function lockForUpdate(int $productId): ?ProductLifecycleStateDTO

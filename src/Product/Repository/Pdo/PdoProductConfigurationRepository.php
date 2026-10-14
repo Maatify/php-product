@@ -214,11 +214,11 @@ final readonly class PdoProductConfigurationRepository implements ProductConfigu
             'created_at' => $timestamp,
             'updated_at' => $timestamp,
         ]);
-        $id = $this->pdo->lastInsertId();
-        if (!DigitString::matches($id) || (int) $id < 1) {
+        $id = DigitString::toPositiveInt($this->pdo->lastInsertId());
+        if ($id === null) {
             throw ProductStorageFailureFactory::invalidAutoIncrementIdentity('Variant');
         }
-        $variantId = (int) $id;
+        $variantId = $id;
 
         if ($composition !== []) {
             $pair = $this->pdo->prepare(

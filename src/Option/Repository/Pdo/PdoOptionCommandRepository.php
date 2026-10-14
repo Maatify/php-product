@@ -65,12 +65,12 @@ final readonly class PdoOptionCommandRepository implements OptionCommandReposito
             throw $exception;
         }
 
-        $id = $this->pdo->lastInsertId();
-        if (!DigitString::matches($id) || (int) $id < 1) {
+        $id = DigitString::toPositiveInt($this->pdo->lastInsertId());
+        if ($id === null) {
             throw ProductStorageFailureFactory::invalidAutoIncrementIdentity('Option');
         }
 
-        return (int) $id;
+        return $id;
     }
 
     public function lockForUpdate(int $optionId): ?OptionStateDTO

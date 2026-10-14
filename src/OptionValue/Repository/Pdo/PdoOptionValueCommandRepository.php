@@ -64,12 +64,12 @@ final readonly class PdoOptionValueCommandRepository implements OptionValueComma
             throw $exception;
         }
 
-        $id = $this->pdo->lastInsertId();
-        if (!DigitString::matches($id) || (int) $id < 1) {
+        $id = DigitString::toPositiveInt($this->pdo->lastInsertId());
+        if ($id === null) {
             throw ProductStorageFailureFactory::invalidAutoIncrementIdentity('Option Value');
         }
 
-        return (int) $id;
+        return $id;
     }
 
     public function findProductId(int $optionValueId): ?int

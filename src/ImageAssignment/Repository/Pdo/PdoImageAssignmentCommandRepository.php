@@ -83,12 +83,12 @@ final readonly class PdoImageAssignmentCommandRepository implements ImageAssignm
             throw $exception;
         }
 
-        $id = $this->pdo->lastInsertId();
-        if (!DigitString::matches($id) || (int) $id < 1) {
+        $id = DigitString::toPositiveInt($this->pdo->lastInsertId());
+        if ($id === null) {
             throw ProductStorageFailureFactory::invalidAutoIncrementIdentity('Image Assignment');
         }
 
-        return (int) $id;
+        return $id;
     }
 
     public function findIdentity(int $assignmentId): ?ImageAssignmentIdentityDTO
