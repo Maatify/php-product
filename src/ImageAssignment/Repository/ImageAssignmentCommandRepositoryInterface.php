@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentIdentityDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentAlreadyExistsException;
+use Maatify\Product\ImageAssignment\Exception\ImageAssignmentDefaultConflictException;
 use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentScope;
 
@@ -57,6 +58,21 @@ interface ImageAssignmentCommandRepositoryInterface
      * position of the shared Ordering API), in the same write.
      */
     public function restore(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool;
+
+    /**
+     * The live default of the exact scope, read with a locking read so it reflects the latest
+     * committed state; null when the scope has no live default.
+     */
+    public function lockLiveDefault(string $scope): ?int;
+
+    /**
+     * Restores the assignment as the default of its exact scope, at the end of the scope's live
+     * order (the next position of the shared Ordering API), in one write. It never clears another
+     * row. The database unique key on the default scope is the final guard.
+     *
+     * @throws ImageAssignmentDefaultConflictException When that key reports a live default in the scope.
+     */
+    public function restoreAsDefault(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool;
 
     /**
      * Moves a non-deleted assignment within its exact scope through the shared Ordering API

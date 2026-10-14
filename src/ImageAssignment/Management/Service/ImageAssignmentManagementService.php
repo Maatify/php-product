@@ -15,6 +15,7 @@ use Maatify\Product\ImageAssignment\DTO\CreatedImageAssignmentDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentCollectionDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
+use Maatify\Product\ImageAssignment\Exception\ImageAssignmentDefaultConflictException;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentNotFoundException;
 use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\Management\Command\UpdateImageAssignmentDisplayOrderCommand;
@@ -35,7 +36,8 @@ use Maatify\SharedCommon\Contracts\ClockInterface;
  *
  * Lock order inside every mutation: Product, Variant (when the target is a Variant), Role (when the
  * scope has one), then the assignment row. The default write clears the scope's previous default
- * and sets the new one in the same transaction; the database unique key is the final guard.
+ * and sets the new one in the same transaction; restore-as-default instead fails when the scope
+ * has a live default, read under those locks. The database unique key is the final guard.
  *
  * @internal Not part of the Public Runtime API.
  */
@@ -176,6 +178,26 @@ final readonly class ImageAssignmentManagementService implements ImageAssignment
         });
     }
 
+    public function restoreAsDefault(int $assignmentId): void
+    {
+        self::requirePositive($assignmentId);
+        $occurredAt = $this->clock->now();
+
+        $this->transactions->run(function () use ($assignmentId, $occurredAt): void {
+            $assignment = $this->lockedAssignment($assignmentId, lockRole: true);
+            if (!$assignment->deleted) {
+                throw ProductBusinessRuleException::notSoftDeleted('Image Assignment', $assignmentId);
+            }
+            $default = $this->assignments->lockLiveDefault($assignment->scope);
+            if ($default !== null) {
+                throw ImageAssignmentDefaultConflictException::forRestoreAsDefault($assignmentId, $default);
+            }
+            if (!$this->assignments->restoreAsDefault($assignmentId, $assignment->scope, $occurredAt)) {
+                throw ProductStorageFailureFactory::lockedRowVanished('Image Assignment', $assignmentId);
+            }
+        });
+    }
+
     public function getByIdForManagement(
         int $assignmentId,
         ProductDeletedStateEnum $deletedState = ProductDeletedStateEnum::NON_DELETED,
@@ -212,7 +234,7 @@ final readonly class ImageAssignmentManagementService implements ImageAssignment
      * write path changes; they only select the rows to lock, so no state is validated before the
      * Product lock.
      *
-     * @param bool $lockRole Also lock the Role and require it to be non-deleted (set-default).
+     * @param bool $lockRole Also lock the Role and require it to be non-deleted (set-default, restore-as-default).
      * @param bool $requireLiveOwners Require the target Product and Variant to be non-deleted.
      */
     private function lockedAssignment(int $assignmentId, bool $lockRole, bool $requireLiveOwners = true): ImageAssignmentStateDTO

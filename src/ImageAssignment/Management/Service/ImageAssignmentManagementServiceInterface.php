@@ -13,6 +13,7 @@ use Maatify\Product\ImageAssignment\DTO\CreatedImageAssignmentDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentCollectionDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentAlreadyExistsException;
+use Maatify\Product\ImageAssignment\Exception\ImageAssignmentDefaultConflictException;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentNotFoundException;
 use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\Management\Command\UpdateImageAssignmentDisplayOrderCommand;
@@ -27,8 +28,9 @@ use Maatify\Product\Variant\Exception\VariantNotFoundException;
  *
  * Every mutation runs in the savepoint transaction runner and locks, in this order, the Product
  * row, the target Variant row (when any), the Role row (when any), and the assignment row. Default
- * replacement is atomic within the exact `(target, role, language, platform)` scope, and the database
- * unique key on the default scope is the final guard. No operation ever promotes another assignment.
+ * replacement is atomic within the exact `(target, role, language, platform)` scope, restore-as-default
+ * never replaces a live default, and the database unique key on the default scope is the final guard.
+ * No operation ever promotes another assignment.
  */
 interface ImageAssignmentManagementServiceInterface
 {
@@ -96,6 +98,19 @@ interface ImageAssignmentManagementServiceInterface
      * @throws ProductBusinessRuleException When the assignment is not soft deleted, or its target is soft deleted.
      */
     public function restore(int $assignmentId): void;
+
+    /**
+     * Restores a soft-deleted assignment and makes it the default of its exact scope in one write, at the end of
+     * the scope's order. It requires a non-deleted target Product and Variant and a non-deleted Role when one is set;
+     * an inactive Product, Variant, or Role does not block it. It never replaces a live default: when the exact scope
+     * already has one, it fails and writes nothing. The database unique key on the default scope is the final guard.
+     *
+     * @throws ProductInvalidArgumentException When the identity is not a positive integer.
+     * @throws ImageAssignmentNotFoundException When no assignment has that identity.
+     * @throws ProductBusinessRuleException When the assignment is not soft deleted, or its target or Role is soft deleted.
+     * @throws ImageAssignmentDefaultConflictException When the exact scope already has a live default.
+     */
+    public function restoreAsDefault(int $assignmentId): void;
 
     /**
      * Returns an assignment for management, filtered only by soft-deletion state.

@@ -13,6 +13,7 @@ use Maatify\Product\Option\Exception\OptionNotFoundException;
 use Maatify\Product\OptionValue\DTO\CreatedOptionValueDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueCollectionDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueDTO;
+use Maatify\Product\OptionValue\Enum\OptionValueStatusEnum;
 use Maatify\Product\OptionValue\Exception\OptionValueCodeAlreadyExistsException;
 use Maatify\Product\OptionValue\Exception\OptionValueNotFoundException;
 use Maatify\Product\OptionValue\Management\Command\CreateOptionValueCommand;
@@ -20,10 +21,11 @@ use Maatify\Product\OptionValue\Management\Command\UpdateOptionValueDisplayOrder
 use Maatify\Product\OptionValue\Management\Criteria\OptionValueListCriteriaDTO;
 
 /**
- * Management contract for Option Value creation, lifecycle, and management lookup.
+ * Management contract for Option Value creation, status, lifecycle, and management lookup.
  *
- * A Value's status is changed only by Product reconfiguration. Every mutation runs in the
- * savepoint transaction runner and takes the owning Product's row lock first.
+ * A Value's status changes through the standalone `updateStatus()` when the configuration stays
+ * valid (`DEC-011`), and Product reconfiguration changes the active set atomically. Every mutation
+ * runs in the savepoint transaction runner and takes the owning Product's row lock first.
  */
 interface OptionValueManagementServiceInterface
 {
@@ -35,6 +37,18 @@ interface OptionValueManagementServiceInterface
      * @throws OptionValueCodeAlreadyExistsException When the code is already reserved in the Option, including by a soft-deleted Value.
      */
     public function create(CreateOptionValueCommand $command): CreatedOptionValueDTO;
+
+    /**
+     * Changes the status of a non-deleted Value whose Option and Product are not deleted. The Product's whole
+     * configuration graph is locked first and validated with the new status; a change that would break a structural
+     * invariant (`INV-01` to `INV-07`) is rejected and nothing is written. A request for the current status changes
+     * nothing. An inactive Value of an inactive Option can always change, because it is outside the active configuration.
+     *
+     * @throws ProductInvalidArgumentException When the identity is not a positive integer.
+     * @throws OptionValueNotFoundException When no Value has that identity.
+     * @throws ProductBusinessRuleException When the Value, its Option, or its Product is soft deleted, or the change would violate an invariant.
+     */
+    public function updateStatus(int $optionValueId, OptionValueStatusEnum $status): void;
 
     /**
      * Soft-deletes a non-deleted Value whose Option and Product are not deleted. Rejected when an active

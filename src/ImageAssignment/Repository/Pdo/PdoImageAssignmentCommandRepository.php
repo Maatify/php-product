@@ -13,6 +13,7 @@ use Maatify\Product\Common\Repository\Pdo\RowHydrator;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentIdentityDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentAlreadyExistsException;
+use Maatify\Product\ImageAssignment\Exception\ImageAssignmentDefaultConflictException;
 use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\Repository\ImageAssignmentCommandRepositoryInterface;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentScope;
@@ -22,16 +23,20 @@ use PDOException;
 /**
  * PDO write adapter for Image Assignment persistence on MySQL 8.0.16 or later.
  *
- * Only a duplicate-key error (MySQL driver code 1062) on insert is converted, to
+ * Two duplicate-key errors (MySQL driver code 1062) are converted. On insert, to
  * {@see ImageAssignmentAlreadyExistsException}: a new row is never default, so the identity key is
- * the only unique key an insert can violate besides the primary key. Every other {@see PDOException}
- * propagates, including a duplicate default caught by the database unique key during set-default.
+ * the only unique key an insert can violate besides the primary key. On restore-as-default, a
+ * violation of exactly the default-scope key, matched by name, to
+ * {@see ImageAssignmentDefaultConflictException}. Every other {@see PDOException} propagates,
+ * including a duplicate default caught by the database unique key during set-default.
  *
  * @internal Not part of the Public Runtime API.
  */
 final readonly class PdoImageAssignmentCommandRepository implements ImageAssignmentCommandRepositoryInterface
 {
     private const string TABLE = 'maa_product_image_assignments';
+
+    private const string DEFAULT_SCOPE_KEY = 'uq_maa_product_image_assignments_default_scope';
 
     public function __construct(
         private PDO $pdo,
@@ -176,6 +181,42 @@ final readonly class PdoImageAssignmentCommandRepository implements ImageAssignm
             'updated_at' => $occurredAt->format('Y-m-d H:i:s'),
             'id' => $assignmentId,
         ]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    public function lockLiveDefault(string $scope): ?int
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT `id` FROM `' . self::TABLE . '` WHERE `default_scope_identity` = :scope FOR UPDATE',
+        );
+        $statement->execute(['scope' => $scope]);
+
+        /** @var array<string, mixed>|false $row */
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : RowHydrator::positiveInt($row, 'id');
+    }
+
+    public function restoreAsDefault(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool
+    {
+        $statement = $this->pdo->prepare(
+            'UPDATE `' . self::TABLE . '` SET `is_default` = 1, `deleted_at` = NULL, `display_order` = :display_order, `updated_at` = :updated_at WHERE '
+            . '`id` = :id AND `deleted_at` IS NOT NULL',
+        );
+        try {
+            $statement->execute([
+                'display_order' => $this->orderingManager->getNextPosition($this->pdo, self::orderingConfig(), $scope),
+                'updated_at' => $occurredAt->format('Y-m-d H:i:s'),
+                'id' => $assignmentId,
+            ]);
+        } catch (PDOException $exception) {
+            if (DuplicateKey::isOnKey($exception, self::DEFAULT_SCOPE_KEY)) {
+                throw ImageAssignmentDefaultConflictException::forRestoreAsDefault($assignmentId, $this->lockLiveDefault($scope), $exception);
+            }
+
+            throw $exception;
+        }
 
         return $statement->rowCount() > 0;
     }

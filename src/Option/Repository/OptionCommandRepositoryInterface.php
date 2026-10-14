@@ -6,6 +6,7 @@ namespace Maatify\Product\Option\Repository;
 
 use DateTimeImmutable;
 use Maatify\Product\Option\DTO\OptionStateDTO;
+use Maatify\Product\Option\Enum\OptionStatusEnum;
 use Maatify\Product\Option\Exception\OptionCodeAlreadyExistsException;
 use Maatify\Product\Option\Management\Command\CreateOptionCommand;
 
@@ -34,6 +35,11 @@ interface OptionCommandRepositoryInterface
      * The Product an Option belongs to, whatever the Option's state, or null when no Option has that identity.
      */
     public function findProductId(int $optionId): ?int;
+
+    /**
+     * Writes the status and `updated_at` of a non-deleted Option. Returns whether a row was changed.
+     */
+    public function updateStatus(int $optionId, OptionStatusEnum $status, DateTimeImmutable $occurredAt): bool;
 
     public function softDelete(int $optionId, DateTimeImmutable $occurredAt): bool;
 

@@ -9,9 +9,11 @@ declare(strict_types=1);
  * Usage: php command-worker.php <start-at-microtime> <operation> <json-arguments>
  *   reconfigure  {"productId": int, "options": {optionId: [valueId, ...]}, "variants": [[[optionId, valueId], ...], reuseVariantId|null]}
  *   set-default  {"assignmentId": int}
+ *   restore-as-default  {"assignmentId": int}
  */
 
 use Maatify\Product\Factory\ProductFactory;
+use Maatify\Product\ImageAssignment\Exception\ImageAssignmentDefaultConflictException;
 use Maatify\Product\Product\Management\Command\ReconfigureOptionTarget;
 use Maatify\Product\Product\Management\Command\ReconfigureProductCommand;
 use Maatify\Product\Product\Management\Command\ReconfigureVariantTarget;
@@ -74,11 +76,17 @@ try {
             ProductFactory::createImageAssignmentManagementService($pdo, $clock)->setDefault($assignmentId);
             echo 'ok:' . $assignmentId;
             break;
+        case 'restore-as-default':
+            /** @var int $assignmentId */
+            $assignmentId = $arguments['assignmentId'];
+            ProductFactory::createImageAssignmentManagementService($pdo, $clock)->restoreAsDefault($assignmentId);
+            echo 'ok:' . $assignmentId;
+            break;
         default:
             echo 'error:unknown operation';
             break;
     }
-} catch (VariantCompositionConflictException) {
+} catch (VariantCompositionConflictException|ImageAssignmentDefaultConflictException) {
     echo 'conflict';
 } catch (Throwable $e) {
     echo 'error:' . $e::class . ':' . $e->getMessage();

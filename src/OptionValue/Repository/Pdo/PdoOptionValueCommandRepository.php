@@ -10,6 +10,7 @@ use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\Common\Repository\Pdo\DuplicateKey;
 use Maatify\Product\Common\Repository\Pdo\RowHydrator;
+use Maatify\Product\OptionValue\Enum\OptionValueStatusEnum;
 use Maatify\Product\OptionValue\Exception\OptionValueCodeAlreadyExistsException;
 use Maatify\Product\OptionValue\Management\Command\CreateOptionValueCommand;
 use Maatify\Product\OptionValue\Repository\OptionValueCommandRepositoryInterface;
@@ -82,6 +83,20 @@ final readonly class PdoOptionValueCommandRepository implements OptionValueComma
         $row = $statement->fetch(PDO::FETCH_ASSOC);
 
         return $row === false ? null : RowHydrator::positiveInt($row, 'product_id');
+    }
+
+    public function updateStatus(int $optionValueId, OptionValueStatusEnum $status, DateTimeImmutable $occurredAt): bool
+    {
+        $statement = $this->pdo->prepare(
+            'UPDATE `' . self::TABLE . '` SET `status` = :status, `updated_at` = :updated_at WHERE `id` = :id AND `deleted_at` IS NULL',
+        );
+        $statement->execute([
+            'status' => $status->value,
+            'updated_at' => $occurredAt->format('Y-m-d H:i:s'),
+            'id' => $optionValueId,
+        ]);
+
+        return $statement->rowCount() > 0;
     }
 
     public function softDelete(int $optionValueId, DateTimeImmutable $occurredAt): bool

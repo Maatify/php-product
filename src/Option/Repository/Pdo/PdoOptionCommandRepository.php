@@ -11,6 +11,7 @@ use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\Common\Repository\Pdo\DuplicateKey;
 use Maatify\Product\Common\Repository\Pdo\RowHydrator;
 use Maatify\Product\Option\DTO\OptionStateDTO;
+use Maatify\Product\Option\Enum\OptionStatusEnum;
 use Maatify\Product\Option\Exception\OptionCodeAlreadyExistsException;
 use Maatify\Product\Option\Management\Command\CreateOptionCommand;
 use Maatify\Product\Option\Repository\OptionCommandRepositoryInterface;
@@ -105,6 +106,20 @@ final readonly class PdoOptionCommandRepository implements OptionCommandReposito
         $row = $statement->fetch(PDO::FETCH_ASSOC);
 
         return $row === false ? null : RowHydrator::positiveInt($row, 'product_id');
+    }
+
+    public function updateStatus(int $optionId, OptionStatusEnum $status, DateTimeImmutable $occurredAt): bool
+    {
+        $statement = $this->pdo->prepare(
+            'UPDATE `' . self::TABLE . '` SET `status` = :status, `updated_at` = :updated_at WHERE `id` = :id AND `deleted_at` IS NULL',
+        );
+        $statement->execute([
+            'status' => $status->value,
+            'updated_at' => $occurredAt->format('Y-m-d H:i:s'),
+            'id' => $optionId,
+        ]);
+
+        return $statement->rowCount() > 0;
     }
 
     public function softDelete(int $optionId, DateTimeImmutable $occurredAt): bool

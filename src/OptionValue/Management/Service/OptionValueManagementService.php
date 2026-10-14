@@ -17,6 +17,7 @@ use Maatify\Product\OptionValue\DTO\CreatedOptionValueDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueCollectionDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueStateDTO;
+use Maatify\Product\OptionValue\Enum\OptionValueStatusEnum;
 use Maatify\Product\OptionValue\Exception\OptionValueNotFoundException;
 use Maatify\Product\OptionValue\Management\Command\CreateOptionValueCommand;
 use Maatify\Product\OptionValue\Management\Command\UpdateOptionValueDisplayOrderCommand;
@@ -30,7 +31,10 @@ use Maatify\Product\Product\Service\ProductConfigurationValidator;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 
 /**
- * Orchestrates Option Value creation, lifecycle, and management lookup under the Product lock.
+ * Orchestrates Option Value creation, status, lifecycle, and management lookup under the Product lock.
+ *
+ * Every status change, soft delete, and restore locks the Product's whole configuration graph first and
+ * validates the graph as it would be after the change before writing.
  *
  * @internal Not part of the Public Runtime API.
  */
@@ -68,6 +72,28 @@ final readonly class OptionValueManagementService implements OptionValueManageme
             }
 
             return new CreatedOptionValueDTO($this->values->create($command, $occurredAt));
+        });
+    }
+
+    public function updateStatus(int $optionValueId, OptionValueStatusEnum $status): void
+    {
+        self::requirePositive($optionValueId);
+        $occurredAt = $this->clock->now();
+
+        $this->transactions->run(function () use ($optionValueId, $status, $occurredAt): void {
+            [$snapshot, $value] = $this->lockedValue($optionValueId);
+            $this->assertOwnersLive($snapshot, $value);
+            if ($value->deleted) {
+                throw ProductBusinessRuleException::softDeleted('Option Value', $optionValueId);
+            }
+            $activate = $status === OptionValueStatusEnum::ACTIVE;
+            if ($value->active === $activate) {
+                return;
+            }
+            self::assertValid($snapshot->withOptionValue($value->withActive($activate)));
+            if (!$this->values->updateStatus($optionValueId, $status, $occurredAt)) {
+                throw ProductStorageFailureFactory::lockedRowVanished('Option Value', $optionValueId);
+            }
         });
     }
 

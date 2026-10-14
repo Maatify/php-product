@@ -11,10 +11,12 @@ use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
+use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\ImageAssignment\Consumer\Criteria\ImageAssignmentExactScopeCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentIdentityDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
+use Maatify\Product\ImageAssignment\Exception\ImageAssignmentDefaultConflictException;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentNotFoundException;
 use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\Management\Command\UpdateImageAssignmentDisplayOrderCommand;
@@ -41,7 +43,7 @@ use Throwable;
 
 /**
  * Lock order and failure classification of the Image Assignment mutations, with fakes that record
- * every repository call: Product, target Variant, Role (set-default only), then the assignment row,
+ * every repository call: Product, target Variant, Role (set-default and restore-as-default only), then the assignment row,
  * and nothing written when the request matches the stored state.
  */
 final class ImageAssignmentServiceTest extends TestCase
@@ -57,6 +59,7 @@ final class ImageAssignmentServiceTest extends TestCase
     private ?VariantLifecycleStateDTO $variant;
     private ?ImageRoleStateDTO $role;
     private ?ImageAssignmentStateDTO $assignment;
+    private ?int $liveDefault;
 
     protected function setUp(): void
     {
@@ -66,6 +69,7 @@ final class ImageAssignmentServiceTest extends TestCase
         $this->variant = new VariantLifecycleStateDTO(self::VARIANT, self::PRODUCT, true, false);
         $this->role = new ImageRoleStateDTO(self::ROLE, true, false);
         $this->assignment = $this->assignmentState(isDefault: false, deleted: false);
+        $this->liveDefault = null;
     }
 
     public function testEveryMutationLocksTheOwnersBeforeTheAssignmentRow(): void
@@ -89,6 +93,66 @@ final class ImageAssignmentServiceTest extends TestCase
         $this->assignment = $this->assignmentState(isDefault: false, deleted: false);
         $this->service()->updateDisplayOrder(new UpdateImageAssignmentDisplayOrderCommand(self::ASSIGNMENT, 2));
         self::assertSame([...$lead, 'assignment:lock:7', 'assignment:move:7:2', 'transaction:end'], $this->takeCalls());
+    }
+
+    public function testRestoreAsDefaultLocksTheOwnersAndTheAssignmentBeforeReadingTheScopeDefault(): void
+    {
+        $this->assignment = $this->assignmentState(isDefault: false, deleted: true);
+
+        $this->service()->restoreAsDefault(self::ASSIGNMENT);
+        self::assertSame(
+            ['transaction:begin', 'identity:7', 'product:lock:1', 'variant:lock:2', 'role:lock:3', 'assignment:lock:7', 'assignment:lock-default:scope', 'assignment:restore-as-default:7', 'transaction:end'],
+            $this->takeCalls(),
+        );
+
+        $this->identity = new ImageAssignmentIdentityDTO(self::PRODUCT, null, null);
+        $this->service()->restoreAsDefault(self::ASSIGNMENT);
+        self::assertSame(
+            ['transaction:begin', 'identity:7', 'product:lock:1', 'assignment:lock:7', 'assignment:lock-default:scope', 'assignment:restore-as-default:7', 'transaction:end'],
+            $this->takeCalls(),
+            'A Product target without a Role locks only the Product before the assignment row.',
+        );
+    }
+
+    public function testRestoreAsDefaultNeverReplacesALiveDefault(): void
+    {
+        $this->assignment = $this->assignmentState(isDefault: false, deleted: true);
+        $this->liveDefault = 9;
+
+        try {
+            $this->service()->restoreAsDefault(self::ASSIGNMENT);
+            self::fail('A live default of the scope must conflict.');
+        } catch (ImageAssignmentDefaultConflictException $conflict) {
+            self::assertStringContainsString('[7]', $conflict->getMessage());
+            self::assertStringContainsString('[9]', $conflict->getMessage(), 'The conflict names the live default.');
+        }
+        self::assertSame([], $this->writes());
+    }
+
+    public function testRestoreAsDefaultPreconditions(): void
+    {
+        $this->assignment = $this->assignmentState(isDefault: false, deleted: false);
+        $this->assertFails(ProductBusinessRuleException::class, fn() => $this->service()->restoreAsDefault(self::ASSIGNMENT), 'restoreAsDefault of a live assignment');
+
+        foreach ([new ImageRoleStateDTO(self::ROLE, true, true), null] as $role) {
+            $this->setUp();
+            $this->assignment = $this->assignmentState(isDefault: false, deleted: true);
+            $this->role = $role;
+            $this->assertFails(ProductBusinessRuleException::class, fn() => $this->service()->restoreAsDefault(self::ASSIGNMENT), 'restoreAsDefault under a deleted Role');
+        }
+
+        $this->setUp();
+        $this->assignment = $this->assignmentState(isDefault: false, deleted: true);
+        $this->product = new ProductLifecycleStateDTO(self::PRODUCT, false, false);
+        $this->variant = new VariantLifecycleStateDTO(self::VARIANT, self::PRODUCT, false, false);
+        $this->role = new ImageRoleStateDTO(self::ROLE, false, false);
+        $this->service()->restoreAsDefault(self::ASSIGNMENT);
+        self::assertSame(['assignment:restore-as-default:7'], $this->writes(), 'Inactivity alone blocks nothing.');
+
+        $this->setUp();
+        $this->assertFails(ProductInvalidArgumentException::class, fn() => $this->service()->restoreAsDefault(0), 'non-positive identity');
+        self::assertSame([], $this->calls->entries(), 'A non-positive identity is rejected before any call.');
+        self::assertSame([], $this->writes());
     }
 
     public function testAProductTargetWithoutARoleLocksOnlyTheProductBeforeTheAssignmentRow(): void
@@ -147,7 +211,7 @@ final class ImageAssignmentServiceTest extends TestCase
             'missing variant' => fn() => $this->variant = null,
         ];
         foreach ($owners as $owner => $breakOwner) {
-            foreach (['setDefault' => false, 'softDelete' => false, 'restore' => true] as $operation => $deleted) {
+            foreach (['setDefault' => false, 'softDelete' => false, 'restore' => true, 'restoreAsDefault' => true] as $operation => $deleted) {
                 $this->setUp();
                 $breakOwner();
                 $this->assignment = $this->assignmentState(isDefault: false, deleted: $deleted);
@@ -196,6 +260,7 @@ final class ImageAssignmentServiceTest extends TestCase
             'clearDefault' => fn() => $this->service()->clearDefault(self::ASSIGNMENT),
             'softDelete' => fn() => $this->service()->softDelete(self::ASSIGNMENT),
             'restore' => fn() => $this->service()->restore(self::ASSIGNMENT),
+            'restoreAsDefault' => fn() => $this->service()->restoreAsDefault(self::ASSIGNMENT),
         ];
     }
 
@@ -228,7 +293,7 @@ final class ImageAssignmentServiceTest extends TestCase
     {
         return array_values(array_filter(
             $this->calls->entries(),
-            static fn(string $entry): bool => preg_match('/^assignment:(set-default|clear-default|soft-delete|restore):/', $entry) === 1,
+            static fn(string $entry): bool => preg_match('/^assignment:(set-default|clear-default|soft-delete|restore|restore-as-default):/', $entry) === 1,
         ));
     }
 
@@ -288,6 +353,20 @@ final class ImageAssignmentServiceTest extends TestCase
             public function restore(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool
             {
                 $this->calls->record('assignment:restore:' . $assignmentId);
+
+                return true;
+            }
+
+            public function lockLiveDefault(string $scope): ?int
+            {
+                $this->calls->record('assignment:lock-default:' . $scope);
+
+                return $this->test->liveDefaultFixture();
+            }
+
+            public function restoreAsDefault(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool
+            {
+                $this->calls->record('assignment:restore-as-default:' . $assignmentId);
 
                 return true;
             }
@@ -481,5 +560,11 @@ final class ImageAssignmentServiceTest extends TestCase
     public function assignmentFixture(): ?ImageAssignmentStateDTO
     {
         return $this->assignment;
+    }
+
+    /** Fixture accessor for the fakes. */
+    public function liveDefaultFixture(): ?int
+    {
+        return $this->liveDefault;
     }
 }

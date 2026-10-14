@@ -12,6 +12,7 @@ use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Option\DTO\CreatedOptionDTO;
 use Maatify\Product\Option\DTO\OptionCollectionDTO;
 use Maatify\Product\Option\DTO\OptionDTO;
+use Maatify\Product\Option\Enum\OptionStatusEnum;
 use Maatify\Product\Option\Exception\OptionCodeAlreadyExistsException;
 use Maatify\Product\Option\Exception\OptionNotFoundException;
 use Maatify\Product\Option\Management\Command\CreateOptionCommand;
@@ -20,10 +21,11 @@ use Maatify\Product\Option\Management\Criteria\OptionListCriteriaDTO;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
 
 /**
- * Management contract for Option creation, lifecycle, and management lookup.
+ * Management contract for Option creation, status, lifecycle, and management lookup.
  *
- * An Option's status is changed only by Product reconfiguration. Every mutation runs in the
- * savepoint transaction runner and takes the owning Product's row lock first.
+ * An Option's status changes through the standalone `updateStatus()` when the configuration stays
+ * valid (`DEC-011`), and Product reconfiguration changes the active set atomically. Every mutation
+ * runs in the savepoint transaction runner and takes the owning Product's row lock first.
  */
 interface OptionManagementServiceInterface
 {
@@ -35,6 +37,19 @@ interface OptionManagementServiceInterface
      * @throws OptionCodeAlreadyExistsException When the code is already reserved in the Product, including by a soft-deleted Option.
      */
     public function create(CreateOptionCommand $command): CreatedOptionDTO;
+
+    /**
+     * Changes the status of a non-deleted Option of a non-deleted Product. The Product's whole configuration graph
+     * is locked first and validated with the new status; a change that would break a structural invariant
+     * (`INV-01` to `INV-07`) is rejected and nothing is written. A request for the current status changes nothing.
+     * Because an active configuration always has an active Variant, a change of the active Option set belongs to
+     * reconfiguration.
+     *
+     * @throws ProductInvalidArgumentException When the identity is not a positive integer.
+     * @throws OptionNotFoundException When no Option has that identity.
+     * @throws ProductBusinessRuleException When the Option or its Product is soft deleted, or the change would violate an invariant.
+     */
+    public function updateStatus(int $optionId, OptionStatusEnum $status): void;
 
     /**
      * Soft-deletes a non-deleted Option of a non-deleted Product. Its Values are not changed.

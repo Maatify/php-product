@@ -15,6 +15,7 @@ use Maatify\Product\Option\DTO\CreatedOptionDTO;
 use Maatify\Product\Option\DTO\OptionCollectionDTO;
 use Maatify\Product\Option\DTO\OptionDTO;
 use Maatify\Product\Option\DTO\OptionStateDTO;
+use Maatify\Product\Option\Enum\OptionStatusEnum;
 use Maatify\Product\Option\Exception\OptionNotFoundException;
 use Maatify\Product\Option\Management\Command\CreateOptionCommand;
 use Maatify\Product\Option\Management\Command\UpdateOptionDisplayOrderCommand;
@@ -29,7 +30,10 @@ use Maatify\Product\Product\Service\ProductConfigurationValidator;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 
 /**
- * Orchestrates Option creation, lifecycle, and management lookup under the Product lock.
+ * Orchestrates Option creation, status, lifecycle, and management lookup under the Product lock.
+ *
+ * Every status change, soft delete, and restore locks the Product's whole configuration graph first and
+ * validates the graph as it would be after the change before writing.
  *
  * @internal Not part of the Public Runtime API.
  */
@@ -58,6 +62,30 @@ final readonly class OptionManagementService implements OptionManagementServiceI
             }
 
             return new CreatedOptionDTO($this->options->create($command, $occurredAt));
+        });
+    }
+
+    public function updateStatus(int $optionId, OptionStatusEnum $status): void
+    {
+        self::requirePositive($optionId);
+        $occurredAt = $this->clock->now();
+
+        $this->transactions->run(function () use ($optionId, $status, $occurredAt): void {
+            [$snapshot, $option] = $this->lockedOption($optionId);
+            if ($snapshot->productDeleted) {
+                throw ProductBusinessRuleException::ownerSoftDeleted('Option', $optionId, 'Product', $snapshot->productId);
+            }
+            if ($option->deleted) {
+                throw ProductBusinessRuleException::softDeleted('Option', $optionId);
+            }
+            $activate = $status === OptionStatusEnum::ACTIVE;
+            if ($option->active === $activate) {
+                return;
+            }
+            self::assertValid($snapshot->withOption($option->withActive($activate)));
+            if (!$this->options->updateStatus($optionId, $status, $occurredAt)) {
+                throw ProductStorageFailureFactory::lockedRowVanished('Option', $optionId);
+            }
         });
     }
 
