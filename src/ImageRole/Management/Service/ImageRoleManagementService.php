@@ -25,7 +25,7 @@ use Maatify\Product\ImageRole\Repository\ImageRoleQueryReaderInterface;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 
 /**
- * Orchestrates Image Role creation, lifecycle, and management lookup.
+ * Orchestrates Image Role creation, status, lifecycle, and management reads.
  *
  * @internal Not part of the Public Runtime API.
  */

@@ -32,7 +32,7 @@ use Maatify\Product\Variant\Management\Criteria\VariantListCriteriaDTO;
 
 /**
  * Management lists, search, pagination, business-key reads, and the exact image-assignment
- * criteria against real MySQL (`GAP-04`, `GAP-05`, `GAP-19`): status and deleted-state filters,
+ * criteria against real MySQL: status and deleted-state filters,
  * the default order, the `maxResults` bound, the shared paginator's page size, sort whitelist,
  * and aligned counts, and the literal Product code search.
  */

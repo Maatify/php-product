@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Example 5: what a storefront reads to present a configurable Product.
  *
@@ -16,6 +14,8 @@ declare(strict_types=1);
  *
  * Environment: see example 01.
  */
+
+declare(strict_types=1);
 
 use Maatify\Product\Content\Management\Command\CreateOptionContentCommand;
 use Maatify\Product\Content\Management\Command\CreateOptionValueContentCommand;

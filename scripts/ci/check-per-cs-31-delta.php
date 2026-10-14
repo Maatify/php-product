@@ -2,6 +2,15 @@
 
 declare(strict_types=1);
 
+namespace Maatify\Product\Tooling;
+
+use FilesystemIterator;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use RuntimeException;
+use SplFileInfo;
+use Throwable;
+
 /**
  * Verifies the repository-owned normative differences between PER-CS 3.0 and 3.1.
  *
@@ -129,6 +138,111 @@ final class PerCs31DeltaVerifier
         self::scanAnonymousClassAttributes($file, $source, $tokens, $violations);
         self::scanEnumConstants($file, $tokens, $violations);
         self::scanMultilineArrays($file, $source, $tokens, $violations);
+        self::scanHeaderOrder($file, $tokens, $violations);
+        self::scanNamespacedDeclarations($file, $tokens, $violations);
+    }
+
+    /**
+     * PER-CS header block order: the file-level docblock comes right after the opening tag and
+     * before every `declare`, `namespace`, and `use` statement. Within the header region (the
+     * opening tag and those statements, up to the first other statement), a doc comment that follows
+     * one of those statements is reported, unless it documents the declaration that follows it
+     * (a class-like, function, constant, or attribute) or is a single inline `@var` annotation of
+     * the statement that follows it.
+     *
+     * @param list<array{id: int|null, text: string, line: int, offset: int, end: int}> $tokens
+     * @param list<string> $violations
+     */
+    private static function scanHeaderOrder(string $file, array $tokens, array &$violations): void
+    {
+        $headerStatementSeen = false;
+        $count = count($tokens);
+        for ($index = 0; $index < $count; $index++) {
+            $token = $tokens[$index];
+            if (in_array($token['id'], [T_OPEN_TAG, T_WHITESPACE, T_COMMENT], true)) {
+                continue;
+            }
+            if ($token['id'] === T_DOC_COMMENT) {
+                if (!$headerStatementSeen) {
+                    continue;
+                }
+                $next = self::nextMeaningful($tokens, $index + 1);
+                $documentsDeclaration = $next !== null && (
+                    in_array($tokens[$next]['id'], [
+                        T_ABSTRACT, T_FINAL, T_READONLY, T_CLASS, T_INTERFACE, T_TRAIT, T_ENUM,
+                        T_FUNCTION, T_CONST, T_ATTRIBUTE,
+                    ], true)
+                );
+                $inlineVar = preg_match('~\A/\*\*\s*@(?:phpstan-|psalm-)?var\s[^\n]*\*/\z~', $token['text']) === 1;
+                if (!$documentsDeclaration && !$inlineVar) {
+                    self::addViolation(
+                        $violations,
+                        $file,
+                        $token['line'],
+                        'header-docblock-order',
+                        'The file-level docblock MUST precede the declare, namespace, and use statements.',
+                    );
+                }
+
+                return;
+            }
+            if (in_array($token['id'], [T_DECLARE, T_NAMESPACE, T_USE], true)) {
+                $end = self::nextText($tokens, $index + 1, ';');
+                $brace = self::nextText($tokens, $index + 1, '{');
+                if ($end === null || ($brace !== null && $brace < $end)) {
+                    return;
+                }
+                $headerStatementSeen = true;
+                $index = $end;
+                continue;
+            }
+
+            return;
+        }
+    }
+
+    /**
+     * Every class, interface, trait, and enum declaration MUST be inside a namespace. Anonymous
+     * classes and `::class` constants are not declarations.
+     *
+     * @param list<array{id: int|null, text: string, line: int, offset: int, end: int}> $tokens
+     * @param list<string> $violations
+     */
+    private static function scanNamespacedDeclarations(string $file, array $tokens, array &$violations): void
+    {
+        $namespaced = false;
+        foreach ($tokens as $index => $token) {
+            if ($token['id'] === T_NAMESPACE) {
+                $next = self::nextMeaningful($tokens, $index + 1);
+                if ($next !== null && in_array($tokens[$next]['id'], [T_STRING, T_NAME_QUALIFIED], true)) {
+                    $namespaced = true;
+                }
+                continue;
+            }
+            if (!in_array($token['id'], [T_CLASS, T_INTERFACE, T_TRAIT, T_ENUM], true)) {
+                continue;
+            }
+            $previous = self::previousMeaningful($tokens, $index - 1);
+            if ($previous !== null && in_array($tokens[$previous]['id'], [T_DOUBLE_COLON, T_NEW], true)) {
+                continue;
+            }
+            if ($token['id'] === T_CLASS && $previous !== null && $tokens[$previous]['text'] === ')') {
+                continue;
+            }
+            $name = self::nextMeaningful($tokens, $index + 1);
+            if ($name === null || $tokens[$name]['id'] !== T_STRING) {
+                continue;
+            }
+            if (!$namespaced) {
+                self::addViolation(
+                    $violations,
+                    $file,
+                    $token['line'],
+                    'namespace-required',
+                    'Every class, interface, trait, and enum MUST be declared inside a namespace.',
+                );
+            }
+        }
     }
 
     /**
@@ -980,7 +1094,9 @@ final class PerCs31DeltaVerifier
     {
         $lineStart = strrpos(substr($source, 0, $offset), "\n");
         $lineEnd = strpos($source, "\n", $offset);
-        $lineEnd ??= strlen($source);
+        if ($lineEnd === false) {
+            $lineEnd = strlen($source);
+        }
 
         return substr($source, $lineStart === false ? 0 : $lineStart + 1, $lineEnd - ($lineStart === false ? 0 : $lineStart + 1));
     }

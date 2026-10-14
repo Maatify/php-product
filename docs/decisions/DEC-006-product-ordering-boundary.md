@@ -53,7 +53,7 @@ This was given in direct approval of the Lead recommendation governing the Produ
    - `maa_product_options`: ordered within owning `product_id`.
    - `maa_product_option_values`: ordered within owning `option_id`.
    - `maa_product_variants`: ordered within owning `product_id`.
-   - `maa_product_media_assignments`: ordered within exact target and media role/language/platform scope.
+   - `maa_product_image_assignments`: ordered within exact target and image role/language/platform scope.
    These entities continue to use positive `display_order` values managed via the shared `maatify/persistence` scoped-ordering API where applicable.
 
 ---
@@ -91,8 +91,8 @@ The following documentation reconciliations were completed atomically as part of
 ### Follow-up Requirements
 
 - Any future implementation of Product persistence, mapping integration, or query services must strictly preserve this boundary: `maa_product_products` does not maintain a persistent sequence column, and persistent product ordering within a category belongs to the mapping relationship scoped by `category_id` (managed via `maatify/persistence`).
-- The candidate architecture document retains its `CANDIDATE` classification. This decision does not authorize runtime PHP implementation, SQL migrations, database behavior, or modifications to `STANDARDS_MANIFEST.md`.
-- Standards applicability must be formally re-evaluated under canonical standards governance before any persistence implementation begins.
+- This decision itself does not authorize runtime PHP implementation, SQL migrations, database behavior, or modifications to `STANDARDS_MANIFEST.md`; the start of implementation is authorized by [`DEC-007`](DEC-007-product-v1-implementation-start-authorization.md).
+- The standards applicability re-evaluation required before persistence implementation is recorded in `STANDARDS_MANIFEST.md`.
 
 ---
 
@@ -102,18 +102,8 @@ This decision is strictly bounded to the ordering boundary for Product V1. The f
 
 - Implementing Category-to-Product mapping schema, tables, or APIs.
 - Creating a new Catalog or integration package.
-- Altering scoped ordering on `Option`, `Option Value`, `Variant`, or `Media Assignment`.
+- Altering scoped ordering on `Option`, `Option Value`, `Variant`, or `Image Assignment`.
 - Implementing runtime PHP code, classes, interfaces, traits, or exceptions.
 - Creating SQL DDL files, database migrations, or schema tables.
 - Modifying `STANDARDS_MANIFEST.md` or activating conditional persistence standards.
 - Authorizing implementation or merging the Draft umbrella PR.
-
----
-
-## Current-State Reconciliation (2026-10-13)
-
-This section is appended; the decision text above is preserved as approved and is not rewritten. It records only how the current normative sources relate to that text.
-
-- **Terminology.** After the pre-release cross-package alignment with `Maatify/php-category`, the current normative names for what this record calls Product Media Roles and Media Assignments are **Image Roles** and **Image Assignments**, persisted as `maa_product_image_roles` and `maa_product_image_assignments`, with the explicit marker `is_default` (formerly `is_primary`). `media_asset_id` and the Media Asset identity contract are unchanged. The current contract is owned by [`PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](../architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md) (§9, §11); where this record's historical wording differs, the architecture document governs.
-- **Status of the non-goals above.** The implementation start was authorized by [`DEC-007`](DEC-007-product-v1-implementation-start-authorization.md). The statement that this decision does not authorize implementation describes the scope of this decision only.
-- **Naming and restore-as-default (2026-10-14).** [`DEC-008`](DEC-008-image-naming-read-pair-and-restore-as-default.md) records the Owner decision that governs the current Image Assignment naming and the `is_default` marker. It replaces the descriptive naming in item 6 of the Explicit Contract Details above; the ordering boundary of this decision is unchanged and this decision remains `ACTIVE`.

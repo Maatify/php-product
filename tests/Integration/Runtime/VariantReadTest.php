@@ -58,7 +58,7 @@ final class VariantReadTest extends RuntimeTestCase
         $size = $this->option($product, 'size', 'active', 'Size');
         $red = $this->value($color, 'red', 'active', 'Red');
         $medium = $this->value($size, 'm', 'active', 'Medium');
-        // blue stays inactive: an active Value represented by no valid Variant would hide the whole Product (GAP-26).
+        // blue stays inactive: an active Value represented by no valid Variant would hide the whole Product (the product-wide rule).
         $blue = $this->value($color, 'blue', 'inactive', 'Blue');
 
         $full = $this->variant($product, 'full', 1, [[$size, $medium], [$color, $red]]);
@@ -156,7 +156,7 @@ final class VariantReadTest extends RuntimeTestCase
     }
 
     /**
-     * GAP-26 (Lead decision): the consumer reads apply the whole Product configuration, not only the
+     * The product-wide rule: the consumer reads apply the whole Product configuration, not only the
      * validity of the single Variant. While an active Value of an active Option is represented by no
      * active valid Variant, every Variant of the Product is hidden from the single get and from the
      * list alike; management reads keep showing the stored state; and the reads return the correct

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Product\DTO;
 
+use JsonSerializable;
 use Maatify\Product\Option\DTO\OptionStateDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueStateDTO;
 use Maatify\Product\Variant\DTO\VariantStateDTO;
@@ -18,7 +19,7 @@ use Maatify\Product\Variant\DTO\VariantStateDTO;
  *
  * @internal Not part of the Public Runtime API.
  */
-final readonly class ProductConfigurationSnapshotDTO
+final readonly class ProductConfigurationSnapshotDTO implements JsonSerializable
 {
     /**
      * @param bool $hasName Whether a non-deleted Product Content record with a non-empty name exists.
@@ -71,5 +72,19 @@ final readonly class ProductConfigurationSnapshotDTO
         $variants[$variant->id] = $variant;
 
         return new self($this->productId, $this->productActive, $this->productDeleted, $this->hasName, $this->options, $this->optionValues, $variants);
+    }
+
+    /** @return array{productId: int, productActive: bool, productDeleted: bool, hasName: bool, options: array<int, array{id: int, productId: int, active: bool, deleted: bool, labelled: bool}>, optionValues: array<int, array{id: int, optionId: int, active: bool, deleted: bool, labelled: bool}>, variants: array<int, array{id: int, productId: int, fingerprint: string, active: bool, deleted: bool, composition: list<array{optionId: int, optionValueId: int}>}>} */
+    public function jsonSerialize(): array
+    {
+        return [
+            'productId' => $this->productId,
+            'productActive' => $this->productActive,
+            'productDeleted' => $this->productDeleted,
+            'hasName' => $this->hasName,
+            'options' => array_map(static fn(OptionStateDTO $option): array => $option->jsonSerialize(), $this->options),
+            'optionValues' => array_map(static fn(OptionValueStateDTO $value): array => $value->jsonSerialize(), $this->optionValues),
+            'variants' => array_map(static fn(VariantStateDTO $variant): array => $variant->jsonSerialize(), $this->variants),
+        ];
     }
 }

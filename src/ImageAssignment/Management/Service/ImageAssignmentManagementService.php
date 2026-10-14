@@ -32,7 +32,7 @@ use Maatify\Product\Variant\Repository\VariantCommandRepositoryInterface;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 
 /**
- * Orchestrates Image Assignment creation, default operations, lifecycle, and management lookup.
+ * Orchestrates Image Assignment creation, default operations, lifecycle, ordering, and management reads.
  *
  * Lock order inside every mutation: Product, Variant (when the target is a Variant), Role (when the
  * scope has one), then the assignment row. The default write clears the scope's previous default

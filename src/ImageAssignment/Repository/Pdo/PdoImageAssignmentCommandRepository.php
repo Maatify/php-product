@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingConfig;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
+use Maatify\Product\Common\Repository\Pdo\DigitString;
 use Maatify\Product\Common\Repository\Pdo\DuplicateKey;
 use Maatify\Product\Common\Repository\Pdo\RowHydrator;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentIdentityDTO;
@@ -77,7 +78,7 @@ final readonly class PdoImageAssignmentCommandRepository implements ImageAssignm
         }
 
         $id = $this->pdo->lastInsertId();
-        if (!ctype_digit($id) || (int) $id < 1) {
+        if (!DigitString::matches($id) || (int) $id < 1) {
             throw ProductStorageFailureFactory::invalidAutoIncrementIdentity('Image Assignment');
         }
 

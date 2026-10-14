@@ -20,12 +20,13 @@ use Maatify\Product\Variant\Management\Command\UpdateVariantIdentifiersCommand;
 use Maatify\Product\Variant\Management\Criteria\VariantListCriteriaDTO;
 
 /**
- * Management contract for Variant management reads and lifecycle.
+ * Management contract for Variants: management reads, status and lifecycle, the SKU and barcode
+ * update, and ordering. Variants are created only with their Product or by Product reconfiguration.
  *
  * Management reads ignore consumer visibility and filter by status and soft-deletion state; the
  * consumer reads are on {@see \Maatify\Product\Variant\Consumer\Service\VariantConsumerServiceInterface}. List reads never fail for a missing Product:
- * they return an empty collection. Lifecycle mutations run in the savepoint transaction runner
- * and take the owning Product's row lock before reading the configuration they validate.
+ * they return an empty collection. Every mutation runs in the savepoint transaction runner and
+ * takes the owning Product's row lock before reading the state it validates.
  */
 interface VariantManagementServiceInterface
 {

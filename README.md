@@ -18,7 +18,7 @@
 [![Package Reference](https://img.shields.io/badge/Docs-Package%20Reference-informational)](PRODUCT_PACKAGE_REFERENCE.md)
 [![Changelog](https://img.shields.io/badge/Docs-Changelog-informational)](CHANGELOG.md)
 
-Framework-agnostic PHP library for Product and Variant identity on MySQL: a stable Product code, sellable Variant identities with immutable compositions, atomic reconfiguration, composition resolution, Image Roles and Assignments, and a MySQL schema that enforces the package's invariants.
+Framework-agnostic PHP library for Product and Variant identity on MySQL: a stable Product code, sellable Variant identities with immutable compositions, atomic reconfiguration, composition resolution, Image Roles and Assignments, and a MySQL schema that enforces identity, ownership, status, and exact-scope uniqueness while the package enforces the configuration invariants under a Product lock.
 
 </div>
 
@@ -34,9 +34,9 @@ Framework-agnostic PHP library for Product and Variant identity on MySQL: a stab
 - **Exact Content.** Product names and descriptions and Option and Option Value labels are Content records per language, with `null` as the single unlocalized record; reads select an exact language, the unlocalized record, or (for management only) all languages, and never fall back.
 - **Separate Management and Consumer contracts.** Every capability has a Management service (creation, lifecycle, and management reads) and, when it has a consumer read, a Consumer service that returns only consumer-visible records and writes nothing. `getById()` on a Consumer service is the consumer read (active, not deleted, structurally valid); `getByIdForManagement()` on a Management service filters only by soft-deletion state.
 - **Host-owned boundaries.** The Host supplies the PDO connection and the Clock. The package performs no Pricing, Inventory, Supplier, Category, or media storage work.
-- **Database-enforced invariants.** `schema/product.sql` defines ten tables with foreign keys, case-sensitive status checks, and exact-scope uniqueness, verified against real MySQL, including concurrent writers.
+- **Database-enforced rules.** `schema/product.sql` defines ten tables with foreign keys, case-sensitive status checks, and exact-scope uniqueness, verified against real MySQL, including concurrent writers. The configuration invariants that need transactions and locking are enforced by the package (see [`schema/README.md`](schema/README.md), *What the schema does not prove*).
 
-The package is in development and no version is released. Every capability of the approved contract is implemented, including the standalone Option and Option Value status changes (`DEC-011`) and `restoreAsDefault()` (`DEC-008`). See [Not yet implemented](PRODUCT_PACKAGE_REFERENCE.md#not-yet-implemented).
+The package is in development and no version is released. Every capability of the approved contract is implemented; the [Package Reference](PRODUCT_PACKAGE_REFERENCE.md) is the complete contract.
 
 ## Requirements
 
@@ -134,6 +134,9 @@ A taken identity becomes the family's conflict exception (`ProductCodeAlreadyExi
 - [`03-read-variants.php`](examples/03-read-variants.php): management and consumer Variant reads, and the SKU and barcode update.
 - [`04-reconfigure-and-resolve.php`](examples/04-reconfigure-and-resolve.php): prepare Options and Values, name and label them with Content commands, make the Product configurable, resolve a shopper's choices, read exact Content, and go back to simple.
 - [`05-consumer-presentation.php`](examples/05-consumer-presentation.php): the storefront reads of selectable Options and Values, exact Content, and exact-scope images.
+- [`06-management-lists.php`](examples/06-management-lists.php): management lists with status and deleted-state filters, the Product code search, pagination, and business-key reads.
+- [`07-image-roles-and-assignments.php`](examples/07-image-roles-and-assignments.php): Image Roles, Product- and Variant-level assignments, `setDefault()`, `clearDefault()`, restore and `restoreAsDefault()`, ordering, the Role and assignment lists and pages, and the exact management and consumer reads.
+- [`08-lifecycle-and-status.php`](examples/08-lifecycle-and-status.php): activation, deactivation, soft delete, and restore; Option and Option Value `updateStatus()` against the configuration; and Variant and Option Value ordering.
 
 ## Documentation
 

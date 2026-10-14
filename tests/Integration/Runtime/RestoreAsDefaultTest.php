@@ -21,7 +21,7 @@ use Maatify\Product\Variant\Enum\VariantStatusEnum;
 use PDOException;
 
 /**
- * `restoreAsDefault()` (`IAS-07`, `DEC-008`) against real MySQL: it restores a soft-deleted
+ * `restoreAsDefault()` (`IAS-07`) against real MySQL: it restores a soft-deleted
  * assignment as the default of its exact scope at the end of the scope's order, never replaces a
  * live default (typed conflict, nothing written), keeps the `setDefault()` preconditions, leaves a
  * Host transaction active and untouched on failure, and maps only a duplicate on the default-scope
@@ -54,7 +54,7 @@ final class RestoreAsDefaultTest extends RuntimeTestCase
         $restored = $service->getByIdForManagement($a1);
         self::assertNull($restored->deletedAt);
         self::assertTrue($restored->isDefault);
-        self::assertSame(4, $restored->displayOrder, 'The restored row takes the next position of its live scope (DEC-012).');
+        self::assertSame(4, $restored->displayOrder, 'The restored row takes the next position of its live scope.');
         self::assertSame(self::LATER_TS, self::scalar('SELECT updated_at FROM ' . self::TABLE . ' WHERE id = :i', ['i' => $a1]), 'updated_at comes from the Clock.');
         self::assertSame([$a1, $other], $this->defaults(), 'Another exact scope keeps its own default.');
         foreach ([$a2 => 2, $a3 => 3] as $id => $position) {

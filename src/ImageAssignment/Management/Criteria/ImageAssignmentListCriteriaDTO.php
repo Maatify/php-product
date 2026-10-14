@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Product\ImageAssignment\Management\Criteria;
 
+use JsonSerializable;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentLanguageFilter;
@@ -18,7 +19,7 @@ use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentTargetFilter;
  * constructor argument (`null`) means the selector's default: any target, and omitted role,
  * language, and platform. `maxResults` bounds the unpaginated list only.
  */
-final readonly class ImageAssignmentListCriteriaDTO
+final readonly class ImageAssignmentListCriteriaDTO implements JsonSerializable
 {
     public const int DEFAULT_MAX_RESULTS = 100;
     public const int MAX_MAX_RESULTS = 100;
@@ -50,5 +51,19 @@ final readonly class ImageAssignmentListCriteriaDTO
         $this->role = $role ?? ImageAssignmentRoleFilter::omitted();
         $this->language = $language ?? ImageAssignmentLanguageFilter::omitted();
         $this->platform = $platform ?? ImageAssignmentPlatformFilter::omitted();
+    }
+
+    /** @return array{target: array{target: string, variantId: ?int}, role: array{role: string, roleId: ?int}, language: array{languageCode: string, value: ?string}, platform: array{platform: string, value: ?string}, productId: int, deletedState: string, maxResults: int} */
+    public function jsonSerialize(): array
+    {
+        return [
+            'target' => $this->target->jsonSerialize(),
+            'role' => $this->role->jsonSerialize(),
+            'language' => $this->language->jsonSerialize(),
+            'platform' => $this->platform->jsonSerialize(),
+            'productId' => $this->productId,
+            'deletedState' => $this->deletedState->value,
+            'maxResults' => $this->maxResults,
+        ];
     }
 }

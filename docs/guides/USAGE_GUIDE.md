@@ -2,7 +2,7 @@
 
 This guide shows how a Host application consumes `maatify/php-product`. The technical contract (the complete Public Runtime API and its guarantees) is owned by the [Package Reference](../../PRODUCT_PACKAGE_REFERENCE.md); this guide does not redefine it. Runnable code is in [`examples/`](../../examples/).
 
-The package is in development and no version is published. This guide covers exactly what is implemented today: Product creation, lifecycle, and reconfiguration; Variant reads, composition resolution, identifiers, and lifecycle; Options and Option Values; Product, Option, and Option Value Content; Image Roles and Image Assignments; ordering; management lists, search, and pagination; and the consumer reads.
+The package is in development and no version is published. This guide covers every public capability: Product creation, lifecycle, and reconfiguration; Variant reads, composition resolution, identifiers, and lifecycle; Options and Option Values; Product, Option, and Option Value Content; Image Roles and Image Assignments; ordering; management lists, search, and pagination; and the consumer reads.
 
 ## Fit
 
@@ -25,15 +25,16 @@ It does not fit if you need prices, stock, suppliers, Categories, orders, URL sl
 | Read the Variants of a Product for management or consumers | [3. Read Variants](#3-read-variants) | [`03-read-variants.php`](../../examples/03-read-variants.php) |
 | Handle duplicate codes and other failures | [4. Handle failures](#4-handle-failures) | [`01-create-and-read-product.php`](../../examples/01-create-and-read-product.php) |
 | Create inside a Host-owned transaction | [5. Compose with a Host transaction](#5-compose-with-a-host-transaction) | [`02-host-transaction.php`](../../examples/02-host-transaction.php) |
-| Activate, deactivate, soft-delete, and restore | [6. Lifecycle](#6-lifecycle) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
+| Activate, deactivate, soft-delete, and restore | [6. Lifecycle](#6-lifecycle) | [`08-lifecycle-and-status.php`](../../examples/08-lifecycle-and-status.php) |
+| Change an Option or Option Value status against the whole configuration | [6. Lifecycle](#6-lifecycle) | [`08-lifecycle-and-status.php`](../../examples/08-lifecycle-and-status.php) |
 | Prepare Options and Values, then make a Product configurable | [7. Reconfigure a Product](#7-reconfigure-a-product) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Resolve a shopper's choices to one Variant | [8. Resolve a composition](#8-resolve-a-composition) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
 | Set, replace, or clear a Variant's SKU and barcode | [11. Variant SKU and barcode](#11-variant-sku-and-barcode) | [`03-read-variants.php`](../../examples/03-read-variants.php) |
 | Present a Product to shoppers: selectable Options and Values and exact-scope images | [14. Consumer reads](#14-consumer-reads) | [`05-consumer-presentation.php`](../../examples/05-consumer-presentation.php) |
-| List, search, and page through Products, Variants, Options, Values, Image Roles, and Image Assignments | [13. Management lists](#13-management-lists) | none yet |
-| Reorder Variants, Options, Values, and Image Assignments | [12. Ordering](#12-ordering) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
-| Name Products and label Options and Values per language, and read them exactly | [10. Content](#10-content) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) |
-| Assign Media Assets with roles, scopes, and one default | [9. Image Roles and Assignments](#9-image-roles-and-assignments) | none yet |
+| List, search, and page through Products, Variants, Options, Values, Image Roles, and Image Assignments | [13. Management lists](#13-management-lists) | [`06-management-lists.php`](../../examples/06-management-lists.php), [`07-image-roles-and-assignments.php`](../../examples/07-image-roles-and-assignments.php) (Image Roles and Assignments), [`08-lifecycle-and-status.php`](../../examples/08-lifecycle-and-status.php) (Variants) |
+| Reorder Variants, Options, Values, and Image Assignments | [12. Ordering](#12-ordering) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php) (Options), [`08-lifecycle-and-status.php`](../../examples/08-lifecycle-and-status.php) (Variants and Values), [`07-image-roles-and-assignments.php`](../../examples/07-image-roles-and-assignments.php) (Image Assignments) |
+| Name Products and label Options and Values per language, and read them exactly | [10. Content](#10-content) | [`04-reconfigure-and-resolve.php`](../../examples/04-reconfigure-and-resolve.php), [`05-consumer-presentation.php`](../../examples/05-consumer-presentation.php); update, soft delete, and restore in [`08-lifecycle-and-status.php`](../../examples/08-lifecycle-and-status.php) |
+| Assign Media Assets with roles, scopes, and one default | [9. Image Roles and Assignments](#9-image-roles-and-assignments) | [`07-image-roles-and-assignments.php`](../../examples/07-image-roles-and-assignments.php) |
 
 Option and Option Value status changes through `updateStatus()` when the whole configuration stays valid (section 6), and `reconfigure()` changes the active set atomically (section 7).
 

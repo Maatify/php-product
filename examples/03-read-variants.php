@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Example 3: read the Variants of a Product for management and for consumers, and set its SKU and barcode.
  *
@@ -17,6 +15,8 @@ declare(strict_types=1);
  *
  * Environment: see example 01.
  */
+
+declare(strict_types=1);
 
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\Product\Management\Command\CreateProductCommand;

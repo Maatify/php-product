@@ -141,7 +141,10 @@ final readonly class PdoContentQueryReader implements ContentQueryReaderInterfac
         );
         $statement->execute($params);
 
-        return $this->hydrateAll($statement->fetchAll(PDO::FETCH_ASSOC));
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+        return $this->hydrateAll($rows);
     }
 
     /**

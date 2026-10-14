@@ -20,7 +20,7 @@ use Maatify\Product\Product\Enum\ProductStatusEnum;
  * The consumer reads of Options (`OPT-R2`), Option Values (`OVL-R2`), and exact-scope Image
  * Assignments (`IAS-R2`) against real MySQL: Options and Values are visible only while their
  * Product has a consumer-visible Variant under the shared Variant visibility rule (including the
- * product-wide rule of `GAP-26`), and assignments only in their exact scope under an active owner chain.
+ * product-wide unrepresented-Value rule), and assignments only in their exact scope under an active owner chain.
  */
 final class ConsumerReadTest extends RuntimeTestCase
 {
@@ -59,7 +59,7 @@ final class ConsumerReadTest extends RuntimeTestCase
         self::assertSame([$size], $visibleOptions(0, 1), 'maxResults bounds the list.');
         self::assertSame([$blue], $visibleValues($color, 1));
 
-        // GAP-26: an active Value represented by no active valid Variant hides the whole Product.
+        // The product-wide rule: an active Value represented by no active valid Variant hides the whole Product.
         $this->execute("UPDATE maa_product_option_values SET status = 'active' WHERE id = :i", ['i' => $green]);
         self::assertSame([], $visibleOptions(), 'A broken configuration hides every Option.');
         self::assertSame([], $visibleValues($color), 'A broken configuration hides every Value.');

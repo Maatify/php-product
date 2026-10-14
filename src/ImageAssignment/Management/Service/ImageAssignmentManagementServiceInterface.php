@@ -24,7 +24,8 @@ use Maatify\Product\Variant\Exception\VariantNotFoundException;
 
 /**
  * Management contract for Image Assignments: creation, the explicit default operations,
- * lifecycle, and management lookup.
+ * lifecycle, ordering, and management reads (lookup by identity, the Product-scoped list with its
+ * exact selectors, and its paginated twin).
  *
  * Every mutation runs in the savepoint transaction runner and locks, in this order, the Product
  * row, the target Variant row (when any), the Role row (when any), and the assignment row. Default

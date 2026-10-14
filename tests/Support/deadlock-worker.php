@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Child process for the deadlock test, playing a second Host transaction on its own connection.
  *
@@ -12,6 +10,8 @@ declare(strict_types=1);
  *
  * Usage: php deadlock-worker.php <first-product-id> <second-product-id> <comma-separated-weight-product-ids>
  */
+
+declare(strict_types=1);
 
 /** @var list<string> $argv */
 $first = (int) ($argv[1] ?? '0');

@@ -31,7 +31,8 @@ use Maatify\Product\Product\Service\ProductConfigurationValidator;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 
 /**
- * Orchestrates Option Value creation, status, lifecycle, and management lookup under the Product lock.
+ * Orchestrates Option Value creation, status, lifecycle, ordering, and management reads; every
+ * mutation runs under the Product lock.
  *
  * Every status change, soft delete, and restore locks the Product's whole configuration graph first and
  * validates the graph as it would be after the change before writing.

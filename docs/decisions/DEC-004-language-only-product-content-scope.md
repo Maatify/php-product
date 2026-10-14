@@ -64,7 +64,7 @@ The project Owner formally approved the following decision on 2026-10-11:
 
 - Implementation of `php-product` V1 must strictly adhere to this schema and query contract (language-only scoping, NULL unlocalized identity support, no automatic fallback, and no platform columns in core content tables).
 - The Host Application or Catalog orchestration layer is responsible for providing any required interface fallback or presentation resolution chains.
-- The architecture candidate document (`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`) remains classified as `Architecture Candidate` until the remaining Owner decision gates (Gates 5 and 6) are resolved.
+- The architecture document (`docs/architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`) carries this decision in §4.1, §11.2, and §20; the remaining Owner decision gates are resolved by `DEC-005` and `DEC-006`, and the start of implementation is authorized by `DEC-007`.
 
 ---
 
@@ -72,16 +72,8 @@ The project Owner formally approved the following decision on 2026-10-11:
 
 This decision is strictly confined to the content scoping of core Product, Option, and Option Value entities. The following areas remain explicitly out of scope:
 
-- Media Assignment scoping, which retains platform, language, and role dimensions under its dedicated specification.
+- Image Assignment scoping, which retains platform, language, and role dimensions under its dedicated specification.
 - Design or activation of optional Content Fields extensions.
 - Resolution of the Shared Media Asset identity contract (Gate 5).
 - Resolution of the retention or exclusion of `Product.display_order` in V1 (Gate 6).
 - Authorization of PHP runtime implementation, database migrations, or physical schema creation.
-
----
-
-## Current-State Reconciliation (2026-10-13)
-
-This section is appended; the decision text above is preserved as approved and is not rewritten. It records only how the current normative sources relate to that text.
-
-- **Terminology.** After the pre-release cross-package alignment with `Maatify/php-category`, the current normative names for what this record calls Product Media Roles and Media Assignments are **Image Roles** and **Image Assignments**, persisted as `maa_product_image_roles` and `maa_product_image_assignments`, with the explicit marker `is_default` (formerly `is_primary`). `media_asset_id` and the Media Asset identity contract are unchanged. The current contract is owned by [`PRODUCT_V1_ARCHITECTURE_CANDIDATE.md`](../architecture/PRODUCT_V1_ARCHITECTURE_CANDIDATE.md) (§9, §11); where this record's historical wording differs, the architecture document governs.

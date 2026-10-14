@@ -6,7 +6,7 @@ namespace Maatify\Product\Variant\Repository\Pdo;
 
 /**
  * The single source of the consumer-visibility SQL of a Variant, shared by the Variant reads and
- * by the consumer reads of Options and Option Values that depend on it (`GAP-26`). Every alias it
+ * by the consumer reads of Options and Option Values that depend on it, including the product-wide unrepresented-Value rule. Every alias it
  * receives is a trusted package constant, never caller input; the subqueries it adds use their own
  * aliases, so it can be embedded in any query that names the Variant row.
  *

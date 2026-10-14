@@ -19,8 +19,7 @@
     ],
     "support": {
         "issues": "https://github.com/Maatify/php-product/issues",
-        "source": "https://github.com/Maatify/php-product",
-        "security": "https://github.com/Maatify/php-product/blob/main/SECURITY.md"
+        "source": "https://github.com/Maatify/php-product"
     },
     "autoload": {
         "psr-4": {

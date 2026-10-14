@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Example 1: create a Product with its Variant and read it back.
  *
@@ -18,6 +16,8 @@ declare(strict_types=1);
  * MySQL 8.0.16+ database where schema/product.sql is installed. PRODUCT_EXAMPLE_AUTOLOAD may
  * name the Composer autoloader of your project (default: ../vendor/autoload.php).
  */
+
+declare(strict_types=1);
 
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Factory\ProductFactory;

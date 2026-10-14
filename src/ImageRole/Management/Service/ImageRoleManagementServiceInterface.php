@@ -19,7 +19,8 @@ use Maatify\Product\ImageRole\Management\Command\CreateImageRoleCommand;
 use Maatify\Product\ImageRole\Management\Criteria\ImageRoleListCriteriaDTO;
 
 /**
- * Management contract for Product Image Roles: creation, lifecycle, and management lookup.
+ * Management contract for Product Image Roles: creation, status, lifecycle, and management reads
+ * (lookup by identity or key, the list, and its paginated twin).
  *
  * Role IDs are a Product-owned namespace, never Category Image Role IDs. Changing a Role's status
  * or deleting it never changes an existing assignment; consumer reads hide such assignments.

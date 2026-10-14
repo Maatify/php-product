@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Variant\Consumer\Criteria;
 
+use JsonSerializable;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 
 /**
  * Bounded criteria for the consumer Variant list.
  */
-final readonly class VariantVisibleListCriteriaDTO
+final readonly class VariantVisibleListCriteriaDTO implements JsonSerializable
 {
     public const int DEFAULT_MAX_RESULTS = 100;
     public const int MAX_MAX_RESULTS = 100;
@@ -22,5 +23,13 @@ final readonly class VariantVisibleListCriteriaDTO
         if ($maxResults < 1 || $maxResults > self::MAX_MAX_RESULTS) {
             throw ProductInvalidArgumentException::invalidListLimit($maxResults, self::MAX_MAX_RESULTS);
         }
+    }
+
+    /** @return array{maxResults: int} */
+    public function jsonSerialize(): array
+    {
+        return [
+            'maxResults' => $this->maxResults,
+        ];
     }
 }

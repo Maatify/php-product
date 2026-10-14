@@ -19,7 +19,8 @@ use SplFileInfo;
  * API" table lists it, and internal exactly when its own docblock carries `@internal`. So a new
  * type must be classified in the code, a listed type may not be tagged internal, every method
  * named for a service or the factory must exist and every public method of those types must be
- * named, and every capability row the inventory marks **Implemented** must name existing methods.
+ * named, and every capability row of the inventory (`PRD-01`, `IAS-R2`, and so on) must name at
+ * least one method, each of which must exist.
  */
 final class PublicApiInventoryTest extends TestCase
 {
@@ -86,7 +87,7 @@ final class PublicApiInventoryTest extends TestCase
         self::assertSame([], $problems);
     }
 
-    public function testEveryMethodNamedByAnImplementedInventoryRowExists(): void
+    public function testEveryCapabilityRowNamesExistingMethods(): void
     {
         $reference = (string) file_get_contents(dirname(__DIR__, 2) . '/PRODUCT_PACKAGE_REFERENCE.md');
         $start = strpos($reference, '## Approved Contract Inventory');
@@ -107,28 +108,31 @@ final class PublicApiInventoryTest extends TestCase
         }
 
         $missing = [];
-        $checked = 0;
+        $rows = 0;
         foreach (explode("\n", substr($reference, $start, $end - $start)) as $line) {
-            if (!str_starts_with($line, '| `') || !str_contains($line, '**Implemented')) {
+            if (preg_match('/^\| `((?:PRD|VAR|OPT|OVL|CNT|IRL|IAS)-R?\d+)` \|/', $line, $id) !== 1) {
                 continue;
             }
-            preg_match_all('/`([a-z]\w*)\(/', $line, $names);
+            ++$rows;
+            preg_match_all('/`(?:\w+::)?([a-z]\w*)\(/', $line, $names);
+            if ($names[1] === []) {
+                $missing[] = $id[1] . ' names no method';
+            }
             foreach ($names[1] as $name) {
-                ++$checked;
                 if (!isset($methods[$name])) {
-                    $missing[] = $name;
+                    $missing[] = $id[1] . ' names the missing method ' . $name;
                 }
             }
         }
 
-        self::assertGreaterThan(0, $checked, 'The inventory must name implemented methods.');
+        // PRD (6), VAR (8), OPT (7), OVL (7), CNT (6), IRL (5), IAS (9).
+        self::assertSame(48, $rows, 'Every capability row of the inventory must be checked.');
         self::assertSame([], $missing);
     }
 
     /**
-     * `DEC-013` replaced the single service of each capability by separate Management and Consumer
-     * contracts before the first release, with no compatibility layer: none of the former types or
-     * factory methods may remain.
+     * Each capability has separate Management and Consumer contracts and no single combined service:
+     * no combined service type or factory method may exist.
      */
     public function testTheFormerSingleServiceContractsNoLongerExist(): void
     {

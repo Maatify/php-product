@@ -6,6 +6,7 @@ namespace Maatify\Product\Product\Repository\Pdo;
 
 use DateTimeImmutable;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
+use Maatify\Product\Common\Repository\Pdo\DigitString;
 use Maatify\Product\Common\Repository\Pdo\DuplicateKey;
 use Maatify\Product\Common\Repository\Pdo\RowHydrator;
 use Maatify\Product\Product\DTO\ProductLifecycleStateDTO;
@@ -57,7 +58,7 @@ final readonly class PdoProductCommandRepository implements ProductCommandReposi
         }
 
         $id = $this->pdo->lastInsertId();
-        if (!ctype_digit($id) || (int) $id < 1) {
+        if (!DigitString::matches($id) || (int) $id < 1) {
             throw ProductStorageFailureFactory::invalidAutoIncrementIdentity('Product');
         }
 

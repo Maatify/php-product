@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Consumer Verification Harness for maatify/php-product.
  *
@@ -13,6 +11,8 @@ declare(strict_types=1);
  * no test class, no development autoloader.
  * Product names and Option and Value labels are written through the public Content commands.
  */
+
+declare(strict_types=1);
 
 use Composer\InstalledVersions;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;

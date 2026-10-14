@@ -13,7 +13,7 @@ use Maatify\Product\Product\Exception\ProductNotFoundException;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
 
 /**
- * Product status, soft delete, and restore under the lifecycle contract the Lead settled for GAP-10:
+ * Product status, soft delete, and restore under the lifecycle contract:
  * a soft-deleted row accepts nothing but restore, restore preserves the saved status and revalidates,
  * a missing identity is not found, and inactivity alone blocks no management operation.
  */

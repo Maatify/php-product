@@ -21,8 +21,8 @@ use Maatify\Product\Variant\Exception\VariantNotFoundException;
 
 /**
  * Image Roles and Image Assignments against real MySQL: identity and target integrity, the exact
- * scope key shared with the Ordering API (GAP-12 evidence), and the default operations under the
- * GAP-18 decision: set-default needs a live assignment, target, and Role; clear-default works even
+ * scope key shared with the Ordering API, and the default operations under a soft-deleted target:
+ * set-default needs a live assignment, target, and Role; clear-default works even
  * under a deleted target or Role; nothing is ever promoted; inactivity alone blocks nothing.
  */
 final class ImageAssignmentCommandTest extends RuntimeTestCase

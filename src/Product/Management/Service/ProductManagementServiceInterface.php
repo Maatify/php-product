@@ -24,7 +24,8 @@ use Maatify\Product\Variant\Exception\VariantCompositionConflictException;
 use Maatify\Product\Variant\Exception\VariantNotFoundException;
 
 /**
- * Management contract for Product creation, management lookup, lifecycle, and reconfiguration.
+ * Management contract for Products: creation, management reads (lookup by identity or code, the
+ * list with its code search, and its paginated twin), status and lifecycle, and reconfiguration.
  *
  * Every mutation runs through the savepoint transaction runner: it owns and commits a
  * transaction when none is active, and inside a Host transaction on the same connection it
@@ -98,7 +99,10 @@ interface ProductManagementServiceInterface
      * The transition to a simple Product reuses the original empty-composition Variant and never
      * creates a second one. Every failure rejects the whole operation.
      *
-     * @throws ProductInvalidArgumentException When the command repeats an element (also raised by the command itself).
+     * The command is validated when it is constructed: a non-positive identity or a repeated Option,
+     * Value, composition, or reuse identity raises `ProductInvalidArgumentException` there, before
+     * this method is called.
+     *
      * @throws ProductNotFoundException When no Product has that identity.
      * @throws VariantNotFoundException When a `reuseVariantId` names no Variant.
      * @throws VariantCompositionConflictException When a composition exists without a reuse identity, or the named Variant does not match.

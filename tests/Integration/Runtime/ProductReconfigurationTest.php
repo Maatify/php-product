@@ -24,7 +24,7 @@ use PDOException;
 use Throwable;
 
 /**
- * `CFG-01` Product reconfiguration against real MySQL under the GAP-15 decision: one atomic
+ * `CFG-01` Product reconfiguration against real MySQL under its contract: one atomic
  * Product-local operation over a complete target state, explicit reuse of historical identities,
  * the simple/configurable transitions, the failure classes, and full rollback whoever owns the transaction.
  */

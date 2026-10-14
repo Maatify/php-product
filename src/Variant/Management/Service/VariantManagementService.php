@@ -27,11 +27,14 @@ use Maatify\Product\Variant\Repository\VariantQueryReaderInterface;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 
 /**
- * Orchestrates Variant management reads and lifecycle mutations.
+ * Orchestrates Variant management reads, status and lifecycle mutations, the SKU and barcode
+ * update, and ordering.
  *
- * Reads write nothing and open no transaction. Lifecycle mutations run in the savepoint
- * transaction runner, lock the owning Product row, read the configuration under that lock,
- * validate the resulting graph in memory, and write only when the invariants hold.
+ * Reads write nothing and open no transaction. Every mutation runs in the savepoint transaction
+ * runner and locks the owning Product row first. Status and lifecycle mutations read the
+ * configuration under that lock, validate the resulting graph in memory, and write only when the
+ * invariants hold; the identifier update and ordering change no invariant and rely on the database
+ * keys and the shared Ordering API.
  *
  * @internal Not part of the Public Runtime API.
  */

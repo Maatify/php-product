@@ -16,7 +16,7 @@ interface OptionConsumerServiceInterface
     /**
      * Consumer read of the selectable Options of a Product: active, not deleted, and labelled Options of a
      * Product that has at least one consumer-visible Variant (the Variant visibility rule, including the
-     * product-wide rule of `GAP-26`), ordered by display order then identity, at most `maxResults`. A
+     * product-wide rule that hides every Variant of a Product while one of its active Values is unrepresented), ordered by display order then identity, at most `maxResults`. A
      * missing, inactive, deleted, simple, or invalidly configured Product yields an empty collection.
      *
      * @throws ProductInvalidArgumentException When the Product identity is not a positive integer.

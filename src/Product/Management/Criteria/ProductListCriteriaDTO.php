@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Product\Management\Criteria;
 
+use JsonSerializable;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
@@ -16,7 +17,7 @@ use Maatify\Product\Product\Enum\ProductStatusEnum;
  * page request. `search` is an optional substring of the Product `code`, matched literally (`%`,
  * `_`, `\`, and `!` are plain characters) under the database collation.
  */
-final readonly class ProductListCriteriaDTO
+final readonly class ProductListCriteriaDTO implements JsonSerializable
 {
     public const int DEFAULT_MAX_RESULTS = 100;
     public const int MAX_MAX_RESULTS = 100;
@@ -54,5 +55,16 @@ final readonly class ProductListCriteriaDTO
             }
         }
         $this->search = $search;
+    }
+
+    /** @return array{search: ?string, status: ?string, deletedState: string, maxResults: int} */
+    public function jsonSerialize(): array
+    {
+        return [
+            'search' => $this->search,
+            'status' => $this->status?->value,
+            'deletedState' => $this->deletedState->value,
+            'maxResults' => $this->maxResults,
+        ];
     }
 }

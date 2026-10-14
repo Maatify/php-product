@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Example 2: compose Product creation inside a Host-owned transaction.
  *
@@ -15,6 +13,8 @@ declare(strict_types=1);
  *
  * Environment: see example 01.
  */
+
+declare(strict_types=1);
 
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;

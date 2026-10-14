@@ -14,7 +14,7 @@ use Maatify\Product\Variant\ValueObject\OptionValueSelection;
 
 /**
  * `RES-01` composition resolution against real MySQL, with the failure classes the Lead settled
- * for GAP-08: structural selection errors are validation failures, an invisible Product is not
+ * of the resolution contract: structural selection errors are validation failures, an invisible Product is not
  * found, a valid composition with no visible Variant is a Variant not-found, and inconsistent
  * stored data is a persistence failure.
  */
@@ -190,7 +190,7 @@ final class VariantResolutionTest extends RuntimeTestCase
         $complete = self::selection([[$this->color, $this->red], [$this->size, $this->m]]);
         self::assertSame($this->redM, $service->resolveByComposition($this->product, $complete)->id);
 
-        // green becomes an active, unrepresented Value only through direct SQL; GAP-26 then hides the whole Product.
+        // green becomes an active, unrepresented Value only through direct SQL; the product-wide rule then hides the whole Product.
         $this->execute("UPDATE maa_product_option_values SET status = 'active' WHERE id = :i", ['i' => $this->green]);
         $this->assertThrows(VariantNotFoundException::class, fn() => $service->resolveByComposition($this->product, $complete));
         $this->execute("UPDATE maa_product_option_values SET status = 'inactive' WHERE id = :i", ['i' => $this->green]);

@@ -24,7 +24,7 @@ use PDOException;
 use Throwable;
 
 /**
- * Collation evidence for every text identity (`GAP-23`): under `utf8mb4_unicode_ci` (a PAD SPACE
+ * Collation evidence for every text identity: under `utf8mb4_unicode_ci` (a PAD SPACE
  * collation in MySQL 8.0), values that differ only by accents or by trailing spaces are the same
  * identity. The package performs no PHP pre-check, so the database unique key decides, and the
  * collision surfaces as the family's typed conflict with the driver error as `previous`; the

@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Smoke-executes every standalone example in examples/ against the repository-owned MySQL service.
  *
@@ -12,6 +10,8 @@ declare(strict_types=1);
  * database with schema/product.sql installed is created for the run and dropped afterwards.
  * Every example must exit 0 and finish with an `OK: example` line.
  */
+
+declare(strict_types=1);
 
 $root = $argv[1] ?? '';
 if ($root === '' || !is_dir($root . '/examples')) {

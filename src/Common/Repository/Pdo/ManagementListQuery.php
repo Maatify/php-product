@@ -63,8 +63,10 @@ final class ManagementListQuery
         $statement->bindValue(':list_limit', $limit, PDO::PARAM_INT);
         $statement->execute();
 
-        /** @var list<array<string, mixed>> */
-        return $statement->fetchAll(PDO::FETCH_ASSOC);
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+        return $rows;
     }
 
     /**

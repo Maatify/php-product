@@ -45,11 +45,12 @@ interface VariantConsumerServiceInterface
      *
      * The selection must name exactly one active Value for every active Option of the Product; an
      * empty selection resolves a simple Product's Variant. It never creates or reactivates a Variant
-     * and never invents a default.
+     * and never invents a default. A repeated Option is rejected earlier, by the criteria at
+     * construction ({@see VariantCompositionCriteriaDTO}, `ProductInvalidArgumentException`).
      *
      * @throws ProductInvalidArgumentException When the Product identity is not positive, or the selection is structurally invalid:
-     *                                         a repeated Option, an Option or Value that is not an active, non-deleted member of
-     *                                         the Product, a Value paired with the wrong Option, or an active Option left unselected.
+     *                                         an Option or Value that is not an active, non-deleted member of the Product, a Value
+     *                                         paired with the wrong Option, or an active Option left unselected.
      * @throws ProductNotFoundException When the Product does not exist or is not consumer-visible.
      * @throws VariantNotFoundException When the structurally valid selection matches no consumer-visible Variant.
      * @throws ProductPersistenceException When the matching Variant's stored fingerprint does not match its composition pairs.

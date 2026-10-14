@@ -1,13 +1,13 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Child process for the concurrency test: waits for a shared start instant, then
  * creates one Product through the public factory and prints the outcome.
  *
  * Usage: php create-product-worker.php <code> <start-at-microtime>
  */
+
+declare(strict_types=1);
 
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;

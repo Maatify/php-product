@@ -35,7 +35,7 @@ use Maatify\Product\Variant\ValueObject\CompositionFingerprint;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 
 /**
- * Orchestrates Product creation, management lookup, lifecycle, and reconfiguration.
+ * Orchestrates Product creation, management reads, status and lifecycle, and reconfiguration.
  *
  * Every mutation runs in the savepoint transaction runner, so it is atomic whoever owns the
  * transaction: the runner commits a transaction it opened and rolls back to an operation-local

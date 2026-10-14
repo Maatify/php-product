@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Example 4: make a Product configurable, resolve a shopper's choices, and go back to simple.
  *
@@ -23,6 +21,8 @@ declare(strict_types=1);
  *
  * Environment: see example 01.
  */
+
+declare(strict_types=1);
 
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Content\Management\Command\CreateOptionContentCommand;

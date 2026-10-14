@@ -21,10 +21,11 @@ use Maatify\Product\OptionValue\Management\Command\UpdateOptionValueDisplayOrder
 use Maatify\Product\OptionValue\Management\Criteria\OptionValueListCriteriaDTO;
 
 /**
- * Management contract for Option Value creation, status, lifecycle, and management lookup.
+ * Management contract for Option Values: creation, status, lifecycle, ordering, and management reads
+ * (lookup by identity, the owner-scoped list, and its paginated twin).
  *
- * A Value's status changes through the standalone `updateStatus()` when the configuration stays
- * valid (`DEC-011`), and Product reconfiguration changes the active set atomically. Every mutation
+ * A Value's status changes through the standalone `updateStatus()` when the whole configuration
+ * stays valid, and Product reconfiguration changes the active set atomically. Every mutation
  * runs in the savepoint transaction runner and takes the owning Product's row lock first.
  */
 interface OptionValueManagementServiceInterface

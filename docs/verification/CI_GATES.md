@@ -29,7 +29,7 @@ random, run-scoped database password.
 | PHP syntax | `bash scripts/ci/check-php-syntax.sh` | PHP Syntax Check |
 | Autoload (strict PSR-4) | `composer dump-autoload --optimize --strict-psr` | Static Analysis, Unit, Integration |
 | Static analysis (PHPStan max over `src`, `tests`, and `examples`, no baseline or suppressions) | `composer analyse` | Static Analysis (PHPStan) |
-| Coding style (PER-CS 3.1, non-mutating) | `composer format:check` | PHP Coding Style (PER 3.1) |
+| Coding style (PER-CS 3.1, non-mutating; the repository delta verifier also checks the header block order and that every class-like type is namespaced) | `composer format:check` | PHP Coding Style (PER 3.1) |
 | Unit suite (no Docker needed) | `composer test:unit` | Unit (PHP 8.4 and 8.5) |
 | Integration suite on real MySQL | `composer test:integration` (`composer test` runs Unit then the same Integration orchestration) | Integration (PHP x MySQL matrix) |
 | Lowest supported dependencies | `composer update --prefer-lowest --prefer-stable` then `composer analyse` and `composer test` | Lowest Supported Dependencies |
@@ -67,9 +67,12 @@ encoding cases (Product, Option, Value, Role, Assignment, and reconfiguration co
 contract, composition selections), the composition fingerprint vectors, the in-memory configuration validator,
 DTO invariants, Service orchestration with test doubles,
 the `ProductPersistenceException` consumer contract, identity stability (no package SQL statement sets an
-identity column and no service method replaces one), and the Package Reference conformity test, which fails
-when the "Implemented Public API" table and the code disagree (a listed type or method that does not exist,
-an undocumented public method of a service or the factory, or a public type that is neither listed nor internal).
+identity column and no service method replaces one), the digit-string rule used for stored identities (equal to
+the `ctype` digit check without requiring that extension), every `*DTO` type implementing `JsonSerializable`,
+and the Package Reference conformity test, which fails when the "Implemented Public API" table and the code
+disagree (a listed type or method that does not exist, an undocumented public method of a service or the
+factory, or a public type that is neither listed nor internal) or when a capability row of the inventory names
+no method or a method that does not exist.
 
 **Integration** (`tests/Integration`, real MySQL, exact MySQL error numbers):
 - `Schema/`: install shape; status casing; code, SKU, barcode, language, platform, and role-key
@@ -77,7 +80,7 @@ an undocumented public method of a service or the factory, or a public type that
   FF, NBSP, U+3000); composite ownership foreign keys; NULL-safe Content and image-assignment identity;
   image-assignment target, scope, and default rules.
 - `Runtime/`: the public use cases through the factory, each family through its separate Management
-  and Consumer services (`DEC-013`):
+  and Consumer services:
   - Product creation (inactive Product plus one active empty-composition Variant, case-insensitive and
     soft-delete-reserved conflicts) and reconfiguration (transitions, explicit reuse, conflicts, restore,
     failure classes, full rollback), with reconfigured Variants placed after the highest live position of
@@ -88,7 +91,7 @@ an undocumented public method of a service or the factory, or a public type that
     classified by the violated key).
   - The lifecycle contract of every family (soft-deleted row, soft-deleted owner chain, restore with the
     saved status and revalidation, inactivity blocking nothing), Option and Option Value creation,
-    `updateStatus()` (`DEC-011`), and ordering commands; restore at the end of the live scope.
+    `updateStatus()`, and ordering commands; restore at the end of the live scope.
   - Content of Products, Options, and Option Values (identity including the unlocalized record and
     soft-deleted history, full-replacement update, the `INV-05` and `INV-06` rules on soft delete, exact
     language selectors, consumer visibility).
@@ -96,7 +99,7 @@ an undocumented public method of a service or the factory, or a public type that
     Product search under any Host `sql_mode`, business-key reads, and pagination; identity and
     uniqueness under the `utf8mb4_unicode_ci` collation.
   - Image Roles and Assignments (identity, target integrity, the scope key shared with the Ordering API,
-    atomic default replacement, no promotion, `restoreAsDefault()` under `DEC-008`), and a Role status
+    atomic default replacement, no promotion, `restoreAsDefault()`), and a Role status
     change, deletion, or restore that leaves every assignment column unchanged.
   - Timestamps: `created_at` and `deleted_at` are the Host Clock's instant stored verbatim as
     `Y-m-d H:i:s`, and DTO timestamps are hydrated in the reading Clock's timezone (`Asia/Tokyo`
@@ -158,10 +161,10 @@ rejected and that clean and hard-break files are accepted.
 
 Not covered, and not claimed:
 
-- The Consumer Verification Harness does not exercise every public capability: `restoreAsDefault()`,
-  Option and Option Value `updateStatus()`, Variant `updateIdentifiers()`, the ordering commands,
-  Content update and restore, the management lists and pagination, and the Option, Value, and
-  exact-scope image consumer reads are proven by the Integration suite only.
+- The Harness workflow in `consumer-verification/verify.php` exercises the main path only; the other public
+  calls are exercised from the installed package by the examples it smoke-executes (`examples/01` to `08`),
+  which check their own results. Edge cases and failure classes of those calls are proven by the
+  Integration suite.
 - There is no separate `test:regression` entry; recurrence tests live in the Unit and Integration suites.
 - The deadlock proof covers one shape (two Host transactions locking two Product rows in opposite
   orders, the package call losing); other deadlock shapes are not provoked.

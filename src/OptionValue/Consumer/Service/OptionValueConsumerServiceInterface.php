@@ -16,8 +16,9 @@ interface OptionValueConsumerServiceInterface
     /**
      * Consumer read of the selectable Values of an Option: active, not deleted, and labelled Values of an
      * active, non-deleted, labelled Option, each represented by at least one consumer-visible Variant
-     * (the Variant visibility rule, including the product-wide rule of `GAP-26`), ordered by display order
-     * then identity, at most `maxResults`. Anything else yields an empty collection.
+     * (the Variant visibility rule, including the product-wide rule that hides every Variant of a
+     * Product while one of its active Values is unrepresented), ordered by display order then identity,
+     * at most `maxResults`. Anything else yields an empty collection.
      *
      * @throws ProductInvalidArgumentException When the Option identity is not a positive integer.
      */

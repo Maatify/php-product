@@ -35,7 +35,7 @@ default Product Image Roles, and it never touches tables it does not own. Instal
 it once per deployed set of Product tables: V1 supports one Product identity
 namespace per table set, so there is no `catalog_id`, tenant, or store column.
 
-Identity stability (`id`, `code`, `role_key`, the composition fingerprint, and the identity dimensions of Content and Image Assignments) is deliberately not enforced by triggers: the architecture (4.1) makes it an application contract, and the package has no write path that changes an identity column. `tests/Unit/IdentityStabilityTest.php` and the schema test that asserts no trigger or routine exists keep both facts true.
+Identity stability (`id`, `code`, `role_key`, the composition fingerprint, and the identity dimensions of Content and Image Assignments) is deliberately not enforced by triggers: the architecture (§4.1, §11.1) makes it an application contract, and the package has no write path that changes an identity column. The database therefore does not stop an `UPDATE` of an identity column issued outside the package; such writes are the Host's responsibility. `tests/Unit/IdentityStabilityTest.php` and the schema test that asserts no trigger or routine exists keep both facts true.
 
 ## Tables
 
@@ -80,7 +80,8 @@ Creation order follows foreign-key dependency.
   values.
 - **Media.** `media_asset_id` is `BIGINT UNSIGNED` with `CHECK (> 0)` and no
   foreign key. At most one active default exists per exact target and
-  role/language/platform scope; a soft-deleted row can never be default.
+  role/language/platform scope; a soft-deleted row can never be default, enforced
+  by `CHECK (deleted_at IS NULL OR is_default = 0)`.
 - **Text.** Codes, role keys, Content names, language codes, platforms, SKU, and
   barcode reject empty and whitespace-only values (spaces, tabs, newlines, and other
   characters matching `[[:space:]]`) through `REGEXP '[^[:space:]]'`, and enforce their

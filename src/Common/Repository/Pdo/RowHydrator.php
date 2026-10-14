@@ -59,7 +59,7 @@ final readonly class RowHydrator
         if (!is_int($value) && !is_string($value)) {
             throw ProductStorageFailureFactory::unexpectedColumnType($column);
         }
-        if (!ctype_digit((string) $value) || (int) $value < 1) {
+        if (!DigitString::matches((string) $value) || (int) $value < 1) {
             throw ProductStorageFailureFactory::invalidStorageValue($column);
         }
 

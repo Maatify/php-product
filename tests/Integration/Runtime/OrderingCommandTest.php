@@ -19,10 +19,9 @@ use Maatify\Product\Variant\Management\Command\UpdateVariantDisplayOrderCommand;
 
 /**
  * The ordering commands (`VAR-05`, `OPT-05`, `OVL-05`, `IAS-06`) and the restore position
- * (Lead decision on `GAP-11`) against real MySQL: moves go through the shared Ordering API within
- * one scope only, clamp above the maximum, leave the current position unchanged, respect the
- * lifecycle contract, compose with a Host transaction, and a restored row takes the end of its
- * live scope so positions stay unique.
+ * against real MySQL: moves go through the shared Ordering API within one scope only, clamp above
+ * the maximum, leave the current position unchanged, respect the lifecycle contract, compose with
+ * a Host transaction, and a restored row takes the end of its live scope so positions stay unique.
  */
 final class OrderingCommandTest extends RuntimeTestCase
 {

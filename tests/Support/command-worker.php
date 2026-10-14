@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Child process for the concurrency tests: opens its own connection, builds the public services
  * through the factory, reports `ready` on stdout, and waits for one line on stdin. The parent
@@ -24,6 +22,8 @@ declare(strict_types=1);
  * (ProductBusinessRuleException); `sku-conflict` (VariantSkuAlreadyExistsException); otherwise
  * `error:<class>:<driver code>:<message>`.
  */
+
+declare(strict_types=1);
 
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Factory\ProductFactory;

@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Maatify\Product\OptionValue\DTO;
 
+use JsonSerializable;
+
 /**
  * Lifecycle state of a stored Option Value as read under the Product lock.
  *
  * @internal Not part of the Public Runtime API.
  */
-final readonly class OptionValueStateDTO
+final readonly class OptionValueStateDTO implements JsonSerializable
 {
     /**
      * @param bool $labelled Whether a non-deleted Content record with a non-empty label exists.
@@ -35,5 +37,17 @@ final readonly class OptionValueStateDTO
     public function withLabelled(bool $labelled): self
     {
         return new self($this->id, $this->optionId, $this->active, $this->deleted, $labelled);
+    }
+
+    /** @return array{id: int, optionId: int, active: bool, deleted: bool, labelled: bool} */
+    public function jsonSerialize(): array
+    {
+        return [
+            'id' => $this->id,
+            'optionId' => $this->optionId,
+            'active' => $this->active,
+            'deleted' => $this->deleted,
+            'labelled' => $this->labelled,
+        ];
     }
 }

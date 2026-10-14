@@ -13,7 +13,7 @@ use Maatify\Product\OptionValue\Exception\OptionValueNotFoundException;
 use PDO;
 
 /**
- * The standalone Option and Option Value status commands (`OPT-02`, `OVL-02`, `DEC-011`) against
+ * The standalone Option and Option Value status commands (`OPT-02`, `OVL-02`) against
  * real MySQL: the whole configuration is validated with the new status under the Product lock, a
  * change that breaks `INV-01` to `INV-07` writes nothing, the current status is a no-op, a deleted
  * row or owner is rejected, and a successful change writes only `status` and `updated_at`.
