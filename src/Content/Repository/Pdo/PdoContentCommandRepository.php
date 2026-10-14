@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Content\Repository\Pdo;
 
+use Maatify\Product\Common\Pdo\DuplicateKey;
 use DateTimeImmutable;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\Common\Pdo\RowHydrator;
@@ -26,8 +27,6 @@ use PDOException;
  */
 final readonly class PdoContentCommandRepository implements ContentCommandRepositoryInterface
 {
-    private const int MYSQL_DUPLICATE_KEY = 1062;
-
     public function __construct(
         private PDO $pdo,
         private ContentOwnerEnum $owner,
@@ -93,7 +92,7 @@ final readonly class PdoContentCommandRepository implements ContentCommandReposi
         try {
             $statement->execute($params + ['created_at' => $timestamp, 'updated_at' => $timestamp]);
         } catch (PDOException $exception) {
-            if ($this->isIdentityConflict($exception)) {
+            if (DuplicateKey::isOnKey($exception, $this->owner->identityKey())) {
                 throw $this->owner->identityTaken($ownerId, $languageCode, $exception);
             }
 
@@ -187,20 +186,5 @@ final readonly class PdoContentCommandRepository implements ContentCommandReposi
         $statement->execute(['updated_at' => $occurredAt->format('Y-m-d H:i:s'), 'id' => $contentId]);
 
         return $statement->rowCount() > 0;
-    }
-
-    /**
-     * A duplicate-key error on this owner's identity key. The message names the key as
-     * `uq_...` (MySQL 8.0.16 to 8.0.18) or `table.uq_...` (8.0.19 and later).
-     */
-    private function isIdentityConflict(PDOException $exception): bool
-    {
-        $driverCode = $exception->errorInfo[1] ?? null;
-        $message = $exception->errorInfo[2] ?? null;
-
-        return (is_int($driverCode) || is_string($driverCode))
-            && (int) $driverCode === self::MYSQL_DUPLICATE_KEY
-            && is_string($message)
-            && str_contains($message, $this->owner->identityKey());
     }
 }

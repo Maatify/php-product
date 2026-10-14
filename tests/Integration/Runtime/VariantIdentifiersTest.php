@@ -67,6 +67,22 @@ final class VariantIdentifiersTest extends RuntimeTestCase
         self::assertSame('SKU-A', $service->getByIdForManagement($a->variantId, ProductDeletedStateEnum::DELETED_ONLY)->sku);
     }
 
+    public function testTheConflictIsClassifiedByTheViolatedKeyNotByTheValue(): void
+    {
+        $a = $this->namedProduct('A');
+        $b = $this->namedProduct('B');
+        $service = $this->variantService();
+        $service->updateIdentifiers(self::change($a->variantId, VariantIdentifierChange::unchanged(), VariantIdentifierChange::set('uq_maa_product_variants_sku-1')));
+
+        $conflict = $this->assertThrows(
+            VariantBarcodeAlreadyExistsException::class,
+            fn() => $service->updateIdentifiers(self::change($b->variantId, VariantIdentifierChange::set('B-SKU'), VariantIdentifierChange::set('uq_maa_product_variants_sku-1'))),
+            'A barcode that contains the SKU key name is still a barcode conflict.',
+        );
+        self::assertStringContainsString('uq_maa_product_variants_sku-1', $conflict->getMessage());
+        self::assertSame([null, null], $this->identifiersOf($b->variantId));
+    }
+
     public function testAnUnchangedRequestWritesNothingAndOwnersAreChecked(): void
     {
         $a = $this->namedProduct('A');

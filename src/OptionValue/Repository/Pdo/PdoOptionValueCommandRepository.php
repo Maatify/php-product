@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Product\OptionValue\Repository\Pdo;
 
+use Maatify\Product\Common\Pdo\DuplicateKey;
 use DateTimeImmutable;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingConfig;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
@@ -27,7 +28,6 @@ use PDOException;
 final readonly class PdoOptionValueCommandRepository implements OptionValueCommandRepositoryInterface
 {
     private const string TABLE = 'maa_product_option_values';
-    private const int MYSQL_DUPLICATE_KEY = 1062;
 
     public function __construct(
         private PDO $pdo,
@@ -55,8 +55,7 @@ final readonly class PdoOptionValueCommandRepository implements OptionValueComma
                 'updated_at' => $timestamp,
             ]);
         } catch (PDOException $exception) {
-            $driverCode = $exception->errorInfo[1] ?? null;
-            if ((is_int($driverCode) || is_string($driverCode)) && (int) $driverCode === self::MYSQL_DUPLICATE_KEY) {
+            if (DuplicateKey::isDuplicate($exception)) {
                 throw OptionValueCodeAlreadyExistsException::withCode($command->optionId, $command->code, $exception);
             }
 

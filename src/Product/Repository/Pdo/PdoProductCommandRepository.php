@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Product\Repository\Pdo;
 
+use Maatify\Product\Common\Pdo\DuplicateKey;
 use DateTimeImmutable;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
 use Maatify\Product\Common\Pdo\RowHydrator;
@@ -29,7 +30,6 @@ use PDOException;
 final readonly class PdoProductCommandRepository implements ProductCommandRepositoryInterface
 {
     private const string TABLE = 'maa_product_products';
-    private const int MYSQL_DUPLICATE_KEY = 1062;
 
     public function __construct(private PDO $pdo) {}
 
@@ -49,8 +49,7 @@ final readonly class PdoProductCommandRepository implements ProductCommandReposi
                 'updated_at' => $timestamp,
             ]);
         } catch (PDOException $exception) {
-            $driverCode = $exception->errorInfo[1] ?? null;
-            if ((is_int($driverCode) || is_string($driverCode)) && (int) $driverCode === self::MYSQL_DUPLICATE_KEY) {
+            if (DuplicateKey::isDuplicate($exception)) {
                 throw ProductCodeAlreadyExistsException::withCode($command->code, $exception);
             }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Variant\Repository\Pdo;
 
+use Maatify\Product\Common\Pdo\DuplicateKey;
 use DateTimeImmutable;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingConfig;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
@@ -34,7 +35,6 @@ final readonly class PdoVariantCommandRepository implements VariantCommandReposi
 {
     private const string PRODUCT_TABLE = 'maa_product_products';
     private const string VARIANT_TABLE = 'maa_product_variants';
-    private const int MYSQL_DUPLICATE_KEY = 1062;
 
     public function __construct(
         private PDO $pdo,
@@ -123,15 +123,12 @@ final readonly class PdoVariantCommandRepository implements VariantCommandReposi
         try {
             $statement->execute(['sku' => $sku, 'barcode' => $barcode, 'updated_at' => $occurredAt->format('Y-m-d H:i:s'), 'id' => $variantId]);
         } catch (PDOException $exception) {
-            $driverCode = $exception->errorInfo[1] ?? null;
-            $message = $exception->errorInfo[2] ?? null;
-            if ((is_int($driverCode) || is_string($driverCode)) && (int) $driverCode === self::MYSQL_DUPLICATE_KEY && is_string($message)) {
-                if ($sku !== null && str_contains($message, 'uq_maa_product_variants_sku')) {
-                    throw VariantSkuAlreadyExistsException::withSku($sku, $exception);
-                }
-                if ($barcode !== null && str_contains($message, 'uq_maa_product_variants_barcode')) {
-                    throw VariantBarcodeAlreadyExistsException::withBarcode($barcode, $exception);
-                }
+            $key = DuplicateKey::keyName($exception);
+            if ($sku !== null && $key === 'uq_maa_product_variants_sku') {
+                throw VariantSkuAlreadyExistsException::withSku($sku, $exception);
+            }
+            if ($barcode !== null && $key === 'uq_maa_product_variants_barcode') {
+                throw VariantBarcodeAlreadyExistsException::withBarcode($barcode, $exception);
             }
 
             throw $exception;
