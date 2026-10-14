@@ -9,6 +9,7 @@ use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Exception\ProductPersistenceException;
 use Maatify\Product\ImageAssignment\DTO\CreatedImageAssignmentDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentCollectionDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
@@ -45,6 +46,7 @@ interface ImageAssignmentManagementServiceInterface
      * @throws ProductInvalidArgumentException When the Variant does not belong to the Product.
      * @throws ProductBusinessRuleException When the Product or Variant is soft deleted, or the Role is inactive or soft deleted.
      * @throws ImageAssignmentAlreadyExistsException When the identity exists, including as a soft-deleted assignment (restore it instead).
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function create(CreateImageAssignmentCommand $command): CreatedImageAssignmentDTO;
 
@@ -56,6 +58,7 @@ interface ImageAssignmentManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws ImageAssignmentNotFoundException When no assignment has that identity.
      * @throws ProductBusinessRuleException When the assignment, its target, or its Role is soft deleted.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function setDefault(int $assignmentId): void;
 
@@ -66,6 +69,7 @@ interface ImageAssignmentManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws ImageAssignmentNotFoundException When no assignment has that identity.
      * @throws ProductBusinessRuleException When the assignment is soft deleted.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function clearDefault(int $assignmentId): void;
 
@@ -76,6 +80,7 @@ interface ImageAssignmentManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws ImageAssignmentNotFoundException When no assignment has that identity.
      * @throws ProductBusinessRuleException When the assignment or its target is soft deleted.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function softDelete(int $assignmentId): void;
 
@@ -88,6 +93,7 @@ interface ImageAssignmentManagementServiceInterface
      *
      * @throws ImageAssignmentNotFoundException When no assignment has that identity.
      * @throws ProductBusinessRuleException When the assignment or its target Product or Variant is soft deleted.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function updateDisplayOrder(UpdateImageAssignmentDisplayOrderCommand $command): void;
 
@@ -97,6 +103,7 @@ interface ImageAssignmentManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws ImageAssignmentNotFoundException When no assignment has that identity.
      * @throws ProductBusinessRuleException When the assignment is not soft deleted, or its target is soft deleted.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function restore(int $assignmentId): void;
 
@@ -110,6 +117,7 @@ interface ImageAssignmentManagementServiceInterface
      * @throws ImageAssignmentNotFoundException When no assignment has that identity.
      * @throws ProductBusinessRuleException When the assignment is not soft deleted, or its target or Role is soft deleted.
      * @throws ImageAssignmentDefaultConflictException When the exact scope already has a live default.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function restoreAsDefault(int $assignmentId): void;
 

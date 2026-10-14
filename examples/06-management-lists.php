@@ -8,16 +8,19 @@
  *              three Options of one of them.
  *  - Calls:    ProductManagementServiceInterface::listForManagement(), paginateForManagement(),
  *              getByCodeForManagement(), updateStatus(), softDelete(),
- *              ProductContentManagementServiceInterface::create(),
+ *              ProductContentManagementServiceInterface::create(), listForManagement(), paginateForManagement(),
  *              OptionManagementServiceInterface::listByProductIdForManagement(), paginateByProductIdForManagement(),
  *              OptionValueManagementServiceInterface::create(), listByOptionIdForManagement(),
  *              paginateByOptionIdForManagement().
- *  - Result:   ProductCollectionDTO and OptionCollectionDTO lists bounded by `maxResults`, and
- *              maatify/persistence PageResult pages of ProductDTO and OptionDTO with their metadata.
+ *  - Result:   ProductCollectionDTO, ProductContentCollectionDTO, and OptionCollectionDTO lists bounded by
+ *              `maxResults`, and maatify/persistence PageResult pages of ProductDTO, ProductContentDTO, and
+ *              OptionDTO with their metadata.
  *  - Boundary: lists filter by status (`null` means any) and deleted state (non-deleted by default) and
  *              are truncated at `maxResults` without a "more" flag; pages hold 1 to 100 rows with a sort
  *              whitelist; only Products can be searched (a literal substring of `code`), and `total`
- *              counts without the search while `filtered` counts with it.
+ *              counts without the search while `filtered` counts with it. Content lists select by owner
+ *              and by one language state: all languages, the unlocalized record only, or one exact
+ *              language, with no fallback.
  *
  * Environment: see example 01.
  */
@@ -27,7 +30,10 @@ declare(strict_types=1);
 use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Pagination\SortDirectionEnum;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
+use Maatify\Product\Content\DTO\ProductContentDTO;
 use Maatify\Product\Content\Management\Command\CreateProductContentCommand;
+use Maatify\Product\Content\Management\Criteria\ProductContentListCriteriaDTO;
+use Maatify\Product\Content\ValueObject\ContentLanguageFilter;
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\Option\DTO\OptionDTO;
 use Maatify\Product\Option\Management\Command\CreateOptionCommand;
@@ -135,6 +141,21 @@ try {
     $expect($products->getByCodeForManagement($prefix . 'GAMMA', ProductDeletedStateEnum::INCLUDE_DELETED)->id === $gamma, 'INCLUDE_DELETED finds GAMMA');
     echo "by code: GAMMA found only with INCLUDE_DELETED\n";
 }
+
+// Content of one owner: listed and paged by language, the unlocalized record first.
+$productContent->create(new CreateProductContentCommand($alpha, 'en', 'Alpha (en)'));
+$productContent->create(new CreateProductContentCommand($alpha, 'ar', 'Alpha (ar)'));
+$languages = static fn(ProductContentDTO ...$items): string => implode(', ', array_map(static fn(ProductContentDTO $item): string => $item->languageCode ?? 'unlocalized', $items));
+$allContent = $productContent->listForManagement(new ProductContentListCriteriaDTO($alpha, ContentLanguageFilter::allLanguages()));
+$expect($languages(...$allContent->items()) === 'unlocalized, ar, en', 'all languages, the unlocalized record first');
+echo 'content of ALPHA: ' . $languages(...$allContent->items()) . "\n";
+$english = $productContent->listForManagement(new ProductContentListCriteriaDTO($alpha, ContentLanguageFilter::exactLanguage('EN')));
+$expect($languages(...$english->items()) === 'en', 'an exact language compares under the collation');
+$unlocalized = $productContent->listForManagement(new ProductContentListCriteriaDTO($alpha, ContentLanguageFilter::unlocalizedOnly()));
+$expect($languages(...$unlocalized->items()) === 'unlocalized', 'the unlocalized record only');
+$contentPage = $productContent->paginateForManagement(new ProductContentListCriteriaDTO($alpha, ContentLanguageFilter::allLanguages()), new PageRequest(1, 2));
+$expect($languages(...$contentPage->data) === 'unlocalized, ar' && $contentPage->total === 3 && $contentPage->totalPages === 2, 'the Content page 1');
+echo "content of ALPHA page 1/{$contentPage->totalPages}: " . $languages(...$contentPage->data) . "\n";
 
 // An owner-scoped family: the Options of one Product, ordered by display_order then id.
 foreach (['color', 'size', 'material'] as $optionCode) {

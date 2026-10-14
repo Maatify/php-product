@@ -9,6 +9,7 @@ use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Exception\ProductPersistenceException;
 use Maatify\Product\Variant\DTO\VariantCollectionDTO;
 use Maatify\Product\Variant\DTO\VariantDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
@@ -60,6 +61,7 @@ interface VariantManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws VariantNotFoundException When no Variant has that identity.
      * @throws ProductBusinessRuleException When the Variant or its Product is soft deleted, or the change would violate an invariant.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function updateStatus(int $variantId, VariantStatusEnum $status): void;
 
@@ -69,6 +71,7 @@ interface VariantManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws VariantNotFoundException When no Variant has that identity.
      * @throws ProductBusinessRuleException When the Variant or its Product is soft deleted, or the deletion would violate an invariant.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function softDelete(int $variantId): void;
 
@@ -82,6 +85,7 @@ interface VariantManagementServiceInterface
      * @throws ProductBusinessRuleException When the Variant or its Product is soft deleted.
      * @throws VariantSkuAlreadyExistsException When another Variant holds the SKU under the collation, including a soft-deleted one.
      * @throws VariantBarcodeAlreadyExistsException When another Variant holds the barcode under the collation, including a soft-deleted one.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function updateIdentifiers(UpdateVariantIdentifiersCommand $command): void;
 
@@ -93,6 +97,7 @@ interface VariantManagementServiceInterface
      *
      * @throws VariantNotFoundException When no Variant has that identity.
      * @throws ProductBusinessRuleException When the Variant or its Product is soft deleted.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function updateDisplayOrder(UpdateVariantDisplayOrderCommand $command): void;
 
@@ -102,6 +107,7 @@ interface VariantManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws VariantNotFoundException When no Variant has that identity.
      * @throws ProductBusinessRuleException When the Variant is not soft deleted, its Product is soft deleted, or the restored state would violate an invariant.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function restore(int $variantId): void;
 

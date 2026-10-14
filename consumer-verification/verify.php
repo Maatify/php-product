@@ -10,6 +10,8 @@
  * real MySQL service. It loads nothing from the package repository itself: no source file,
  * no test class, no development autoloader.
  * Product names and Option and Value labels are written through the public Content commands.
+ * One race runs from separate processes of this same script, on the same consumer autoloader,
+ * released together by a barrier on stdin.
  */
 
 declare(strict_types=1);
@@ -62,6 +64,75 @@ function env(string $name): string
     }
 
     return $value;
+}
+
+/**
+ * Race worker: this same script, started again by the harness with `race-worker <database> <code>`,
+ * on the same consumer autoloader. It opens its own connection, builds the public service, reports
+ * `ready`, waits for one line on stdin (the barrier), creates one Product, and prints the outcome.
+ */
+if (($argv[1] ?? '') === 'race-worker') {
+    $workerPdo = new PDO(
+        sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', env('PRODUCT_TEST_DB_HOST'), env('PRODUCT_TEST_DB_PORT'), $argv[2] ?? ''),
+        env('PRODUCT_TEST_DB_USER'),
+        env('PRODUCT_TEST_DB_PASSWORD'),
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false],
+    );
+    $workerService = ProductFactory::createProductManagementService($workerPdo, new SystemClock(new DateTimeZone('UTC')));
+    fwrite(STDOUT, "ready\n");
+    fflush(STDOUT);
+    if (fgets(STDIN) === false) {
+        fwrite(STDERR, "The release signal never arrived.\n");
+        exit(1);
+    }
+    try {
+        echo 'created:' . $workerService->create(new CreateProductCommand($argv[3] ?? ''))->productId;
+    } catch (ProductCodeAlreadyExistsException) {
+        echo 'conflict';
+    } catch (Throwable $e) {
+        echo 'error:' . $e::class . ':' . $e->getMessage();
+    }
+    exit(0);
+}
+
+/**
+ * Starts one race worker per entry, releases them together once every one is ready, and returns
+ * their printed outcomes.
+ *
+ * @param list<string> $codes
+ *
+ * @return list<string>
+ */
+function raceCreates(string $database, array $codes): array
+{
+    $workers = [];
+    foreach ($codes as $code) {
+        $process = proc_open([PHP_BINARY, __FILE__, 'race-worker', $database, $code], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        check(is_resource($process), 'a race worker process starts');
+        $workers[] = ['process' => $process, 'pipes' => $pipes];
+    }
+    foreach ($workers as $worker) {
+        $line = fgets($worker['pipes'][1]);
+        if ($line !== "ready\n") {
+            fwrite(STDERR, 'FAIL: a race worker did not become ready: ' . stream_get_contents($worker['pipes'][2]) . "\n");
+            exit(1);
+        }
+    }
+    foreach ($workers as $worker) {
+        fwrite($worker['pipes'][0], "go\n");
+        fclose($worker['pipes'][0]);
+    }
+    $outcomes = [];
+    foreach ($workers as $worker) {
+        $outcome = (string) stream_get_contents($worker['pipes'][1]);
+        $errors = (string) stream_get_contents($worker['pipes'][2]);
+        fclose($worker['pipes'][1]);
+        fclose($worker['pipes'][2]);
+        check(proc_close($worker['process']) === 0, 'a race worker exits cleanly' . ($errors === '' ? '' : ': ' . $errors));
+        $outcomes[] = $outcome;
+    }
+
+    return $outcomes;
 }
 
 check(InstalledVersions::isInstalled('maatify/php-product'), 'package is installed through Composer');
@@ -127,6 +198,14 @@ try {
     $rows = $variants->fetchAll(PDO::FETCH_NUM);
     check($rows === [['active', 1]], 'the Product has exactly one active empty-composition Variant');
 
+    // A real race from separate consumer processes: one winner, every other writer a typed conflict.
+    $outcomes = raceCreates($database, ['RACE-1', 'race-1', 'RACE-1', 'Race-1']);
+    $winners = array_values(array_filter($outcomes, static fn(string $outcome): bool => str_starts_with($outcome, 'created:')));
+    $conflicts = array_filter($outcomes, static fn(string $outcome): bool => $outcome === 'conflict');
+    check(count($winners) === 1 && count($conflicts) === 3, 'concurrent creates of one code yield one Product and typed conflicts (' . implode(' | ', $outcomes) . ')');
+    $raced = $pdo->query("SELECT COUNT(*) FROM maa_product_products WHERE code = 'RACE-1'");
+    check($raced !== false && (int) $raced->fetchColumn() === 1, 'the race left exactly one Product with that code');
+
     $second = $service->create(new CreateProductCommand('SIMPLE-2'));
     check($second->variantId !== $created->variantId, 'each Product receives its own Variant identity');
 
@@ -137,7 +216,7 @@ try {
         check(true, 'a duplicate code conflicts case-insensitively');
     }
     $count = $pdo->query('SELECT COUNT(*) FROM maa_product_products');
-    check($count !== false && (int) $count->fetchColumn() === 2, 'the conflicting create left no extra Product behind');
+    check($count !== false && (int) $count->fetchColumn() === 3, 'the conflicting create left no extra Product behind');
 
     try {
         $consumer->getById($created->productId);

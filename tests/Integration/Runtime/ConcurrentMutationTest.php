@@ -6,7 +6,6 @@ namespace Maatify\Product\Tests\Integration\Runtime;
 
 use Maatify\Product\Content\Management\Command\CreateProductContentCommand;
 use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
-use Maatify\Product\ImageRole\Management\Command\CreateImageRoleCommand;
 use Maatify\Product\Option\Management\Command\CreateOptionCommand;
 use Maatify\Product\Product\Management\Command\CreateProductCommand;
 use PDO;
@@ -133,32 +132,35 @@ final class ConcurrentMutationTest extends RuntimeTestCase
     }
 
     /**
-     * `setDefault()` on an assignment of one Product and `create()` of an assignment on another
-     * Product, both on one Role: both take the Product lock first and the Role lock next, so the lock
-     * order is the same and neither ever deadlocks.
+     * `setDefault()` of one assignment and `updateDisplayOrder()` of the scope's current default, on
+     * one Product and one scope. The two touch each other's rows: set-default clears the current
+     * default, and the move locks every row of the scope. Both lock the Product first and their own
+     * assignment row next, so they serialize instead of deadlocking; both succeed, the new default is
+     * the only one, and the positions stay unique and contiguous.
      */
-    public function testConcurrentDefaultAndCreateOnOneRoleAcrossProductsNeverDeadlock(): void
+    public function testConcurrentSetDefaultAndMoveOfTheCurrentDefaultInOneScopeBothSucceed(): void
     {
+        $assignments = $this->imageAssignmentManagementService();
         for ($round = 1; $round <= self::ROUNDS; ++$round) {
-            $roleId = $this->imageRoleManagementService()->create(new CreateImageRoleCommand('role-' . $round))->roleId;
-            $first = $this->productManagementService()->create(new CreateProductCommand('IMAGE-A-' . $round))->productId;
-            $second = $this->productManagementService()->create(new CreateProductCommand('IMAGE-B-' . $round))->productId;
-            $assignments = $this->imageAssignmentManagementService();
-            $current = $assignments->create(new CreateImageAssignmentCommand($first, null, 1, $roleId))->assignmentId;
+            $productId = $this->productManagementService()->create(new CreateProductCommand('IMAGE-' . $round))->productId;
+            $current = $assignments->create(new CreateImageAssignmentCommand($productId, null, 1))->assignmentId;
             $assignments->setDefault($current);
-            $next = $assignments->create(new CreateImageAssignmentCommand($first, null, 2, $roleId))->assignmentId;
-            $assignments->create(new CreateImageAssignmentCommand($second, null, 1, $roleId));
+            $next = $assignments->create(new CreateImageAssignmentCommand($productId, null, 2))->assignmentId;
+            $assignments->create(new CreateImageAssignmentCommand($productId, null, 3));
 
             $outcomes = $this->runCommandWorkers([
                 ['set-default', ['assignmentId' => $next]],
-                ['create-assignment', ['productId' => $second, 'mediaAssetId' => 2, 'roleId' => $roleId]],
+                ['move-assignment', ['assignmentId' => $current, 'position' => 3]],
             ]);
 
             $summary = 'Round ' . $round . ': ' . implode(' | ', $outcomes);
             self::assertSame(['ok', 'ok'], self::sortedKinds($outcomes), $summary);
+            self::assertSame(1, self::rowCount('maa_product_image_assignments', 'is_default = 1 AND product_id = ' . $productId), $summary);
             self::assertSame(1, self::rowCount('maa_product_image_assignments', 'is_default = 1 AND id = ' . $next), $summary);
-            self::assertSame(1, self::rowCount('maa_product_image_assignments', 'is_default = 1 AND product_id = ' . $first), $summary);
-            self::assertSame(2, self::rowCount('maa_product_image_assignments', 'product_id = ' . $second), $summary);
+            self::assertSame(1, self::rowCount('maa_product_image_assignments', 'display_order = 3 AND id = ' . $current), $summary);
+            $statement = self::$pdo->prepare('SELECT display_order FROM maa_product_image_assignments WHERE product_id = :p ORDER BY display_order');
+            $statement->execute(['p' => $productId]);
+            self::assertSame([1, 2, 3], $statement->fetchAll(PDO::FETCH_COLUMN), $summary);
         }
     }
 

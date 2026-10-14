@@ -9,6 +9,7 @@ use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Exception\ProductPersistenceException;
 use Maatify\Product\Option\DTO\CreatedOptionDTO;
 use Maatify\Product\Option\DTO\OptionCollectionDTO;
 use Maatify\Product\Option\DTO\OptionDTO;
@@ -36,6 +37,7 @@ interface OptionManagementServiceInterface
      * @throws ProductNotFoundException When no Product has that identity.
      * @throws ProductBusinessRuleException When the Product is soft deleted.
      * @throws OptionCodeAlreadyExistsException When the code is already reserved in the Product, including by a soft-deleted Option.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function create(CreateOptionCommand $command): CreatedOptionDTO;
 
@@ -49,6 +51,7 @@ interface OptionManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws OptionNotFoundException When no Option has that identity.
      * @throws ProductBusinessRuleException When the Option or its Product is soft deleted, or the change would violate an invariant.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function updateStatus(int $optionId, OptionStatusEnum $status): void;
 
@@ -60,6 +63,7 @@ interface OptionManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws OptionNotFoundException When no Option has that identity.
      * @throws ProductBusinessRuleException When the Option or its Product is soft deleted, or the deletion would violate an invariant.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function softDelete(int $optionId): void;
 
@@ -71,6 +75,7 @@ interface OptionManagementServiceInterface
      *
      * @throws OptionNotFoundException When no Option has that identity.
      * @throws ProductBusinessRuleException When the Option or its Product is soft deleted.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function updateDisplayOrder(UpdateOptionDisplayOrderCommand $command): void;
 
@@ -80,6 +85,7 @@ interface OptionManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws OptionNotFoundException When no Option has that identity.
      * @throws ProductBusinessRuleException When the Option is not soft deleted, its Product is soft deleted, or the restored state would violate an invariant.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function restore(int $optionId): void;
 

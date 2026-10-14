@@ -17,7 +17,7 @@ use Throwable;
 
 /**
  * Savepoint evidence inside a Host transaction for Content create and soft delete, `setDefault()`,
- * Variant `updateStatus()`, and `updateIdentifiers()`: a real MySQL failure inside the operation
+ * `reconfigure()`, Variant `updateStatus()`, and `updateIdentifiers()`: a real MySQL failure inside the operation
  * propagates, leaves none of the operation's writes in the Host transaction, leaves that
  * transaction active, and keeps the Host's earlier work, which the Host then commits.
  */
@@ -80,6 +80,39 @@ final class HostTransactionSavepointTest extends RuntimeTestCase
         self::assertSame(1, self::rowCount('maa_product_image_assignments', 'is_default = 1'));
     }
 
+    /**
+     * The failure comes on the insert of the new Variant's composition pair, after the operation's
+     * first writes (the Option and Value activations, the deactivation of the empty Variant, and the
+     * new Variant row), so only the rollback to the operation's savepoint can undo them. The identity
+     * the rolled-back Variant row consumed proves that row was written.
+     */
+    public function testAFailedReconfigurationUndoesItsPartialWritesAndKeepsTheHostWork(): void
+    {
+        $created = $this->namedProduct('RECONFIGURE');
+        $color = $this->preparedOption($created->productId, 'color', 'Color');
+        $red = $this->preparedValue($color, 'red', 'Red');
+        $lastVariant = (int) self::scalar('SELECT MAX(id) FROM maa_product_variants');
+        $this->failingTrigger('BEFORE INSERT ON `maa_product_variant_option_values`', 'TRUE');
+
+        $this->assertFailureInsideHostTransaction(
+            'maa_product_variants',
+            fn() => $this->productManagementService(self::laterClock())->reconfigure(self::reconfiguration($created->productId, [$color => [$red]], [[[[$color, $red]]]])),
+            'maa_product_options',
+            'maa_product_option_values',
+            'maa_product_variant_option_values',
+        );
+
+        self::assertSame(1, self::rowCount('maa_product_options', "status = 'inactive' AND id = " . $color));
+        self::assertSame(1, self::rowCount('maa_product_option_values', "status = 'inactive' AND id = " . $red));
+        self::assertSame(1, self::rowCount('maa_product_variants', "status = 'active' AND id = " . $created->variantId));
+        self::assertSame(0, self::rowCount('maa_product_variant_option_values'));
+        self::assertSame(
+            $lastVariant + 3,
+            $this->productManagementService()->create(new CreateProductCommand('AFTER'))->variantId,
+            'The Host work took the next Variant identity and the rolled-back Variant row the one after it.',
+        );
+    }
+
     public function testAFailedVariantStatusChangeLeavesNoWriteAndKeepsTheHostWork(): void
     {
         $created = $this->namedProduct('VARIANT-STATUS');
@@ -133,14 +166,14 @@ final class HostTransactionSavepointTest extends RuntimeTestCase
 
     /**
      * Opens a Host transaction, does Host work through the package (a new Product), runs the failing
-     * call, and proves: the original MySQL failure propagates, the table is exactly as before the
-     * call, the transaction is still active, and the Host's commit persists its own work.
+     * call, and proves: the original MySQL failure propagates, every given table is exactly as before
+     * the call, the transaction is still active, and the Host's commit persists its own work.
      */
-    private function assertFailureInsideHostTransaction(string $table, callable $call): void
+    private function assertFailureInsideHostTransaction(string $table, callable $call, string ...$moreTables): void
     {
         self::$pdo->beginTransaction();
         $hostWork = $this->productManagementService()->create(new CreateProductCommand('HOST-WORK'))->productId;
-        $before = self::rows($table);
+        $before = array_map(self::rows(...), [$table, ...$moreTables]);
 
         try {
             $call();
@@ -151,7 +184,7 @@ final class HostTransactionSavepointTest extends RuntimeTestCase
         }
 
         self::assertTrue(self::$pdo->inTransaction(), 'The package neither commits nor rolls back the Host transaction.');
-        self::assertSame($before, self::rows($table), 'The failed operation left no write in the Host transaction.');
+        self::assertSame($before, array_map(self::rows(...), [$table, ...$moreTables]), 'The failed operation left no write in the Host transaction.');
         self::$pdo->commit();
 
         self::assertSame(1, self::rowCount('maa_product_products', 'id = ' . $hostWork), 'The Host work before the failure is committed.');

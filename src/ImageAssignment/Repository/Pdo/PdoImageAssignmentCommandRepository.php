@@ -31,6 +31,10 @@ use PDOException;
  * {@see ImageAssignmentDefaultConflictException}. Every other {@see PDOException} propagates,
  * including a duplicate default caught by the database unique key during set-default.
  *
+ * The live default of a scope is read through the Product-prefixed identity key, never through the
+ * default-scope key, so that the locking read takes no gap lock that another Product's default
+ * write could need.
+ *
  * @internal Not part of the Public Runtime API.
  */
 final readonly class PdoImageAssignmentCommandRepository implements ImageAssignmentCommandRepositoryInterface
@@ -38,6 +42,8 @@ final readonly class PdoImageAssignmentCommandRepository implements ImageAssignm
     private const string TABLE = 'maa_product_image_assignments';
 
     private const string DEFAULT_SCOPE_KEY = 'uq_maa_product_image_assignments_default_scope';
+
+    private const string PRODUCT_IDENTITY_KEY = 'uq_maa_product_image_assignments_identity';
 
     public function __construct(
         private PDO $pdo,
@@ -130,14 +136,16 @@ final readonly class PdoImageAssignmentCommandRepository implements ImageAssignm
         );
     }
 
-    public function setDefault(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool
+    public function setDefault(int $assignmentId, int $productId, string $scope, DateTimeImmutable $occurredAt): bool
     {
         $timestamp = $occurredAt->format('Y-m-d H:i:s');
-        $clear = $this->pdo->prepare(
-            'UPDATE `' . self::TABLE . '` SET `is_default` = 0, `updated_at` = :updated_at WHERE '
-            . '`ordering_scope` = :scope AND `is_default` = 1 AND `deleted_at` IS NULL AND `id` <> :id',
-        );
-        $clear->execute(['updated_at' => $timestamp, 'scope' => $scope, 'id' => $assignmentId]);
+        $previous = $this->lockLiveDefault($productId, $scope);
+        if ($previous !== null && $previous !== $assignmentId) {
+            $clear = $this->pdo->prepare(
+                'UPDATE `' . self::TABLE . '` SET `is_default` = 0, `updated_at` = :updated_at WHERE `id` = :id',
+            );
+            $clear->execute(['updated_at' => $timestamp, 'id' => $previous]);
+        }
 
         $set = $this->pdo->prepare(
             'UPDATE `' . self::TABLE . '` SET `is_default` = 1, `updated_at` = :updated_at WHERE '
@@ -186,12 +194,13 @@ final readonly class PdoImageAssignmentCommandRepository implements ImageAssignm
         return $statement->rowCount() > 0;
     }
 
-    public function lockLiveDefault(string $scope): ?int
+    public function lockLiveDefault(int $productId, string $scope): ?int
     {
         $statement = $this->pdo->prepare(
-            'SELECT `id` FROM `' . self::TABLE . '` WHERE `default_scope_identity` = :scope FOR UPDATE',
+            'SELECT `id` FROM `' . self::TABLE . '` FORCE INDEX (`' . self::PRODUCT_IDENTITY_KEY . '`) '
+            . 'WHERE `product_id` = :product_id AND `default_scope_identity` = :scope FOR UPDATE',
         );
-        $statement->execute(['scope' => $scope]);
+        $statement->execute(['product_id' => $productId, 'scope' => $scope]);
 
         /** @var array<string, mixed>|false $row */
         $row = $statement->fetch(PDO::FETCH_ASSOC);
@@ -199,7 +208,7 @@ final readonly class PdoImageAssignmentCommandRepository implements ImageAssignm
         return $row === false ? null : RowHydrator::positiveInt($row, 'id');
     }
 
-    public function restoreAsDefault(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool
+    public function restoreAsDefault(int $assignmentId, int $productId, string $scope, DateTimeImmutable $occurredAt): bool
     {
         $statement = $this->pdo->prepare(
             'UPDATE `' . self::TABLE . '` SET `is_default` = 1, `deleted_at` = NULL, `display_order` = :display_order, `updated_at` = :updated_at WHERE '
@@ -213,7 +222,7 @@ final readonly class PdoImageAssignmentCommandRepository implements ImageAssignm
             ]);
         } catch (PDOException $exception) {
             if (DuplicateKey::isOnKey($exception, self::DEFAULT_SCOPE_KEY)) {
-                throw ImageAssignmentDefaultConflictException::forRestoreAsDefault($assignmentId, $this->lockLiveDefault($scope), $exception);
+                throw ImageAssignmentDefaultConflictException::forRestoreAsDefault($assignmentId, $this->lockLiveDefault($productId, $scope), $exception);
             }
 
             throw $exception;

@@ -11,7 +11,9 @@ use Maatify\Product\Tests\Support\ProcessPipes;
 
 /**
  * Runs one public command per child process, each on its own MySQL connection, and returns the
- * printed outcome of each worker.
+ * printed outcome of each worker. Every worker script it starts (`command-worker.php`,
+ * `create-product-worker.php`) follows the same protocol: report `ready` on stdout, wait for one
+ * line on stdin, run, print the outcome.
  *
  * Coordination is an explicit barrier, not timing: every worker connects, builds its services, and
  * reports `ready`; only when all of them are ready does the parent release them, by writing one
@@ -26,15 +28,31 @@ trait ConcurrentWorkers
      */
     private function runCommandWorkers(array $commands): array
     {
+        return $this->runWorkerScript('command-worker.php', array_map(
+            static fn(array $command): array => [$command[0], json_encode($command[1], JSON_THROW_ON_ERROR)],
+            $commands,
+        ));
+    }
+
+    /**
+     * Starts one process of the given `tests/Support` script per argument list, waits until every
+     * one of them has reported `ready`, releases them together, and returns their printed outcomes.
+     *
+     * @param list<list<string>> $argumentLists
+     *
+     * @return list<string>
+     */
+    private function runWorkerScript(string $script, array $argumentLists): array
+    {
         $environment = array_merge(getenv(), ['PRODUCT_TEST_DB_NAME' => self::$database]);
-        $script = dirname(__DIR__, 2) . '/Support/command-worker.php';
+        $path = dirname(__DIR__, 2) . '/Support/' . $script;
 
         $running = [];
-        foreach ($commands as [$operation, $arguments]) {
+        foreach ($argumentLists as $arguments) {
             $stderr = tempnam(sys_get_temp_dir(), 'product-worker-');
             self::assertIsString($stderr);
             $process = proc_open(
-                [PHP_BINARY, $script, $operation, json_encode($arguments, JSON_THROW_ON_ERROR)],
+                [PHP_BINARY, $path, ...$arguments],
                 [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['file', $stderr, 'w']],
                 $pipes,
                 null,

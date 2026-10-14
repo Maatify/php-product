@@ -140,6 +140,7 @@ final class PerCs31DeltaVerifier
         self::scanMultilineArrays($file, $source, $tokens, $violations);
         self::scanHeaderOrder($file, $tokens, $violations);
         self::scanNamespacedDeclarations($file, $tokens, $violations);
+        self::scanPsr1Naming($file, $tokens, $violations);
     }
 
     /**
@@ -243,6 +244,152 @@ final class PerCs31DeltaVerifier
                 );
             }
         }
+    }
+
+    /**
+     * PSR-1 naming, which PER-CS extends: a class, interface, trait, or enum name is StudlyCaps; a
+     * class constant name is upper case with underscore separators; a method name is camelCase.
+     * Enum cases are not constants and are not checked. Magic methods (`__construct` and the like)
+     * keep their reserved double-underscore prefix. Anonymous class bodies are checked like named
+     * ones; functions nested deeper than a class body (closures) are not methods.
+     *
+     * @param list<array{id: int|null, text: string, line: int, offset: int, end: int}> $tokens
+     * @param list<string> $violations
+     */
+    private static function scanPsr1Naming(string $file, array $tokens, array &$violations): void
+    {
+        foreach ($tokens as $index => $token) {
+            if (!in_array($token['id'], [T_CLASS, T_INTERFACE, T_TRAIT, T_ENUM], true)) {
+                continue;
+            }
+            $previous = self::previousMeaningful($tokens, $index - 1);
+            if ($previous !== null && $tokens[$previous]['id'] === T_DOUBLE_COLON) {
+                continue;
+            }
+            $anonymous = $previous !== null && $tokens[$previous]['id'] === T_NEW;
+            $cursor = self::nextMeaningful($tokens, $index + 1);
+            if ($cursor === null) {
+                continue;
+            }
+            if (!$anonymous) {
+                if ($tokens[$cursor]['id'] !== T_STRING) {
+                    continue;
+                }
+                if (preg_match('/\A[A-Z][A-Za-z0-9]*\z/', $tokens[$cursor]['text']) !== 1) {
+                    self::addViolation(
+                        $violations,
+                        $file,
+                        $tokens[$cursor]['line'],
+                        'psr1-class-name',
+                        sprintf('Class, interface, trait, and enum names MUST be declared in StudlyCaps; found "%s".', $tokens[$cursor]['text']),
+                    );
+                }
+            } elseif ($tokens[$cursor]['text'] === '(') {
+                $cursor = self::matching($tokens, $cursor, '(', ')');
+                if ($cursor === null) {
+                    continue;
+                }
+            }
+            $open = self::nextText($tokens, $cursor, '{');
+            $close = $open === null ? null : self::matchingBrace($tokens, $open);
+            if ($open === null || $close === null) {
+                continue;
+            }
+            self::scanClassBodyNames($file, $tokens, $open, $close, $violations);
+        }
+    }
+
+    /**
+     * Checks the constants and methods declared directly in one class-like body.
+     *
+     * @param list<array{id: int|null, text: string, line: int, offset: int, end: int}> $tokens
+     * @param list<string> $violations
+     */
+    private static function scanClassBodyNames(string $file, array $tokens, int $open, int $close, array &$violations): void
+    {
+        $depth = 0;
+        for ($member = $open + 1; $member < $close; $member++) {
+            $text = $tokens[$member]['text'];
+            if (in_array($tokens[$member]['id'], [T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES], true) || ($tokens[$member]['id'] === null && $text === '{')) {
+                $depth++;
+                continue;
+            }
+            if ($tokens[$member]['id'] === null && $text === '}') {
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0) {
+                continue;
+            }
+            if ($tokens[$member]['id'] === T_FUNCTION) {
+                $name = self::nextMeaningful($tokens, $member + 1, $close);
+                if ($name !== null && $tokens[$name]['text'] === '&') {
+                    $name = self::nextMeaningful($tokens, $name + 1, $close);
+                }
+                if ($name === null || $tokens[$name]['text'] === '(') {
+                    continue;
+                }
+                if (preg_match('/\A(?:__)?[a-z][A-Za-z0-9]*\z/', $tokens[$name]['text']) !== 1) {
+                    self::addViolation(
+                        $violations,
+                        $file,
+                        $tokens[$name]['line'],
+                        'psr1-method-name',
+                        sprintf('Method names MUST be declared in camelCase; found "%s".', $tokens[$name]['text']),
+                    );
+                }
+                continue;
+            }
+            if ($tokens[$member]['id'] !== T_CONST) {
+                continue;
+            }
+            $nesting = 0;
+            for ($cursor = $member + 1; $cursor < $close; $cursor++) {
+                $piece = $tokens[$cursor]['text'];
+                if ($tokens[$cursor]['id'] === null && in_array($piece, ['(', '[', '{'], true)) {
+                    $nesting++;
+                } elseif ($tokens[$cursor]['id'] === null && in_array($piece, [')', ']', '}'], true)) {
+                    $nesting--;
+                } elseif ($nesting === 0 && $tokens[$cursor]['id'] === null && $piece === ';') {
+                    break;
+                } elseif ($nesting === 0 && $tokens[$cursor]['id'] === null && $piece === '=') {
+                    $name = self::previousMeaningful($tokens, $cursor - 1);
+                    if ($name !== null && preg_match('/\A[A-Z][A-Z0-9_]*\z/', $tokens[$name]['text']) !== 1) {
+                        self::addViolation(
+                            $violations,
+                            $file,
+                            $tokens[$name]['line'],
+                            'psr1-constant-name',
+                            sprintf('Class constants MUST be declared in upper case with underscore separators; found "%s".', $tokens[$name]['text']),
+                        );
+                    }
+                }
+            }
+            $member = $cursor;
+        }
+    }
+
+    /**
+     * The closing brace that matches an opening `{`, counting the `{` of string interpolation.
+     *
+     * @param list<array{id: int|null, text: string, line: int, offset: int, end: int}> $tokens
+     */
+    private static function matchingBrace(array $tokens, int $open): ?int
+    {
+        $depth = 0;
+        for ($index = $open, $count = count($tokens); $index < $count; $index++) {
+            $id = $tokens[$index]['id'];
+            if (in_array($id, [T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES], true) || ($id === null && $tokens[$index]['text'] === '{')) {
+                $depth++;
+            } elseif ($id === null && $tokens[$index]['text'] === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    return $index;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

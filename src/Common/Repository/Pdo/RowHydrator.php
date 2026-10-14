@@ -49,6 +49,10 @@ final readonly class RowHydrator
     }
 
     /**
+     * A positive identity; a value that is not a digit string, is zero, or is above `PHP_INT_MAX`
+     * (an unsigned BIGINT a PHP integer cannot represent) breaks the contract instead of being
+     * truncated by a cast.
+     *
      * @param array<string, mixed> $row
      *
      * @return positive-int
@@ -59,11 +63,12 @@ final readonly class RowHydrator
         if (!is_int($value) && !is_string($value)) {
             throw ProductStorageFailureFactory::unexpectedColumnType($column);
         }
-        if (!DigitString::matches((string) $value) || (int) $value < 1) {
+        $integer = DigitString::toPositiveInt((string) $value);
+        if ($integer === null) {
             throw ProductStorageFailureFactory::invalidStorageValue($column);
         }
 
-        return (int) $value;
+        return $integer;
     }
 
     /**
@@ -115,14 +120,17 @@ final readonly class RowHydrator
     }
 
     /**
+     * A stored `DATETIME` read in the Host Clock timezone; a value that cannot be parsed breaks the
+     * contract, with the parser's failure kept as the previous exception.
+     *
      * @param array<string, mixed> $row
      */
     public function timestamp(array $row, string $column): DateTimeImmutable
     {
         try {
             return new DateTimeImmutable(self::string($row, $column), $this->clock->getTimezone());
-        } catch (Exception) {
-            throw ProductStorageFailureFactory::invalidStorageValue($column);
+        } catch (Exception $exception) {
+            throw ProductStorageFailureFactory::invalidStorageValue($column, $exception);
         }
     }
 

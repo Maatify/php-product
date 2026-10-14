@@ -7,7 +7,7 @@
  *  - Input:    a Role key, Host-owned Media Asset identities, and exact (role, language, platform) scopes
  *              at the Product level and at the Variant level.
  *  - Calls:    ImageRoleManagementServiceInterface::create(), getByIdForManagement(), getByKeyForManagement(),
- *              listForManagement(), paginateForManagement(),
+ *              listForManagement(), paginateForManagement(), updateStatus(), softDelete(), restore(),
  *              ImageAssignmentManagementServiceInterface::create(), setDefault(), clearDefault(), softDelete(),
  *              restore(), restoreAsDefault(), updateDisplayOrder(), getByIdForManagement(), listForManagement(),
  *              paginateForManagement(),
@@ -17,7 +17,8 @@
  *  - Boundary: a scope is exact (`NULL` is a value, never a wildcard) and holds at most one default;
  *              setDefault() replaces it, clearDefault() and softDelete() promote nothing, restore() never
  *              restores the marker, and restoreAsDefault() never replaces a live default. The package never
- *              resolves a Media Asset and the consumer read never chooses a default.
+ *              resolves a Media Asset and the consumer read never chooses a default. A Role status change,
+ *              soft delete, or restore changes no assignment that uses the Role.
  *
  * Environment: see example 01.
  */
@@ -25,6 +26,7 @@
 declare(strict_types=1);
 
 use Maatify\Persistence\Pdo\Pagination\PageRequest;
+use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Content\Management\Command\CreateProductContentCommand;
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\ImageAssignment\Consumer\Criteria\ImageAssignmentExactScopeCriteriaDTO;
@@ -192,5 +194,17 @@ $variantVisible = $consumerImages->listVisibleByExactScope(new ImageAssignmentEx
 $otherLanguage = $consumerImages->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($productId, null, $roleId, 'ar', 'web'));
 $expect($ids(...$variantVisible->items()) === (string) $variantImage && $otherLanguage->isEmpty(), 'consumer reads are exact');
 echo "consumer (product, gallery, ar, web): none, no language fallback\n";
+
+// Role lifecycle: deactivate, soft-delete, and restore the Role; the assignments that use it are unchanged.
+$roles->updateStatus($roleId, ImageRoleStatusEnum::INACTIVE);
+$expect($roles->getByIdForManagement($roleId)->status === ImageRoleStatusEnum::INACTIVE, 'the Role is inactive');
+$roles->softDelete($roleId);
+$expect($roles->getByIdForManagement($roleId, ProductDeletedStateEnum::DELETED_ONLY)->deletedAt !== null, 'the Role is soft deleted');
+$roles->restore($roleId);
+$restoredRole = $roles->getByIdForManagement($roleId);
+$expect($restoredRole->deletedAt === null && $restoredRole->status === ImageRoleStatusEnum::INACTIVE, 'restore keeps the saved status');
+$kept = $images->getByIdForManagement($second);
+$expect($kept->roleId === $roleId && $kept->isDefault && $kept->deletedAt === null, 'the assignments of the Role are unchanged');
+echo "role {$roleKey}: deactivated, soft deleted, and restored, still inactive; its default assignment {$second} unchanged\n";
 
 echo "OK: example 07 completed\n";

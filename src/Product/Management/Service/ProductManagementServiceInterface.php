@@ -43,6 +43,7 @@ interface ProductManagementServiceInterface
      * It performs no Pricing, Inventory, or other cross-domain work.
      *
      * @throws ProductCodeAlreadyExistsException When the code is already reserved, including by a soft-deleted Product.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function create(CreateProductCommand $command): CreatedProductDTO;
 
@@ -66,6 +67,7 @@ interface ProductManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws ProductNotFoundException When no Product has that identity.
      * @throws ProductBusinessRuleException When the Product is soft deleted, or activation would violate an invariant.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function updateStatus(int $productId, ProductStatusEnum $status): void;
 
@@ -75,6 +77,7 @@ interface ProductManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws ProductNotFoundException When no Product has that identity.
      * @throws ProductBusinessRuleException When the Product is already soft deleted.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function softDelete(int $productId): void;
 
@@ -85,6 +88,7 @@ interface ProductManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws ProductNotFoundException When no Product has that identity.
      * @throws ProductBusinessRuleException When the Product is not soft deleted, or the restored state would violate an invariant.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function restore(int $productId): void;
 
@@ -107,7 +111,7 @@ interface ProductManagementServiceInterface
      * @throws VariantNotFoundException When a `reuseVariantId` names no Variant.
      * @throws VariantCompositionConflictException When a composition exists without a reuse identity, or the named Variant does not match.
      * @throws ProductBusinessRuleException When the Product is soft deleted, or the target violates a structural invariant.
-     * @throws ProductPersistenceException When stored state is inconsistent: a fingerprint that does not match its pairs, or a missing original empty-composition Variant.
+     * @throws ProductPersistenceException When stored state changed or is invalid, including a fingerprint that does not match its pairs or a missing original empty-composition Variant.
      */
     public function reconfigure(ReconfigureProductCommand $command): ProductReconfigurationResultDTO;
 

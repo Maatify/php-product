@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Maatify\Product\ImageAssignment\Consumer\Criteria;
 
 use JsonSerializable;
-use Maatify\Product\Common\Command\CommandTextRules;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Validation\TextInputRules;
 use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 
 /**
@@ -44,8 +44,8 @@ final readonly class ImageAssignmentExactScopeCriteriaDTO implements JsonSeriali
         if ($roleId !== null && $roleId < 1) {
             throw ProductInvalidArgumentException::nonPositiveId('roleId');
         }
-        CommandTextRules::nullableRequiredText($languageCode, 'languageCode', CreateImageAssignmentCommand::MAX_LANGUAGE_CODE_LENGTH);
-        CommandTextRules::nullableRequiredText($platform, 'platform', CreateImageAssignmentCommand::MAX_PLATFORM_LENGTH);
+        TextInputRules::nullableRequiredText($languageCode, 'languageCode', CreateImageAssignmentCommand::MAX_LANGUAGE_CODE_LENGTH);
+        TextInputRules::nullableRequiredText($platform, 'platform', CreateImageAssignmentCommand::MAX_PLATFORM_LENGTH);
         if ($maxResults < 1 || $maxResults > self::MAX_MAX_RESULTS) {
             throw ProductInvalidArgumentException::invalidListLimit($maxResults, self::MAX_MAX_RESULTS);
         }

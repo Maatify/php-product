@@ -7,11 +7,11 @@ namespace Maatify\Product\ImageRole\Management\Service;
 use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
-use Maatify\Product\Common\Command\CommandTextRules;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
+use Maatify\Product\Common\Validation\TextInputRules;
 use Maatify\Product\ImageRole\DTO\CreatedImageRoleDTO;
 use Maatify\Product\ImageRole\DTO\ImageRoleCollectionDTO;
 use Maatify\Product\ImageRole\DTO\ImageRoleDTO;
@@ -120,7 +120,7 @@ final readonly class ImageRoleManagementService implements ImageRoleManagementSe
         string $roleKey,
         ProductDeletedStateEnum $deletedState = ProductDeletedStateEnum::NON_DELETED,
     ): ImageRoleDTO {
-        CommandTextRules::requiredText($roleKey, 'roleKey', CreateImageRoleCommand::MAX_ROLE_KEY_LENGTH);
+        TextInputRules::requiredText($roleKey, 'roleKey', CreateImageRoleCommand::MAX_ROLE_KEY_LENGTH);
         $role = $this->reader->findByKey($roleKey);
         $matches = $role !== null && match ($deletedState) {
             ProductDeletedStateEnum::NON_DELETED => $role->deletedAt === null,

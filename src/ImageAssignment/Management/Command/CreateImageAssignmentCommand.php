@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Maatify\Product\ImageAssignment\Management\Command;
 
 use JsonSerializable;
-use Maatify\Product\Common\Command\CommandTextRules;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Validation\TextInputRules;
 
 /**
  * Validated intent to assign one external Media Asset to a Product (`variantId` null) or to one
@@ -50,8 +50,8 @@ final readonly class CreateImageAssignmentCommand implements JsonSerializable
             throw ProductInvalidArgumentException::nonPositiveId('roleId');
         }
         $this->mediaAssetId = self::mediaAssetId($mediaAssetId);
-        CommandTextRules::nullableRequiredText($languageCode, 'languageCode', self::MAX_LANGUAGE_CODE_LENGTH);
-        CommandTextRules::nullableRequiredText($platform, 'platform', self::MAX_PLATFORM_LENGTH);
+        TextInputRules::nullableRequiredText($languageCode, 'languageCode', self::MAX_LANGUAGE_CODE_LENGTH);
+        TextInputRules::nullableRequiredText($platform, 'platform', self::MAX_PLATFORM_LENGTH);
     }
 
     private static function mediaAssetId(int|string $value): int

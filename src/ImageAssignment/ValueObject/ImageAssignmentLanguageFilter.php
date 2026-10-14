@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Maatify\Product\ImageAssignment\ValueObject;
 
 use JsonSerializable;
-use Maatify\Product\Common\Command\CommandTextRules;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Validation\TextInputRules;
 use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 
 /**
@@ -43,7 +43,7 @@ final readonly class ImageAssignmentLanguageFilter implements JsonSerializable
      */
     public static function exact(string $value): self
     {
-        CommandTextRules::requiredText($value, 'languageCode', CreateImageAssignmentCommand::MAX_LANGUAGE_CODE_LENGTH);
+        TextInputRules::requiredText($value, 'languageCode', CreateImageAssignmentCommand::MAX_LANGUAGE_CODE_LENGTH);
 
         return new self(self::EXACT, $value);
     }

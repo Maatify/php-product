@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Maatify\Product\Content\ValueObject;
 
 use JsonSerializable;
-use Maatify\Product\Common\Command\CommandTextRules;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Validation\TextInputRules;
 
 /**
  * Language selector of the management Content reads, in exactly one of three mutually exclusive
@@ -36,7 +36,7 @@ final readonly class ContentLanguageFilter implements JsonSerializable
      */
     public static function exactLanguage(string $languageCode): self
     {
-        CommandTextRules::requiredText($languageCode, 'languageCode', ExactContentLanguage::MAX_LANGUAGE_CODE_LENGTH);
+        TextInputRules::requiredText($languageCode, 'languageCode', ExactContentLanguage::MAX_LANGUAGE_CODE_LENGTH);
 
         return new self(self::EXACT, $languageCode);
     }

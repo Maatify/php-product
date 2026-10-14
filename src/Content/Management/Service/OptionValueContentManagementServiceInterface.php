@@ -9,6 +9,7 @@ use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Exception\ProductPersistenceException;
 use Maatify\Product\Content\DTO\CreatedOptionValueContentDTO;
 use Maatify\Product\Content\DTO\OptionValueContentCollectionDTO;
 use Maatify\Product\Content\DTO\OptionValueContentDTO;
@@ -37,6 +38,7 @@ interface OptionValueContentManagementServiceInterface
      * @throws ProductBusinessRuleException When the Option Value, its Option, or its Product is soft deleted.
      * @throws OptionValueContentAlreadyExistsException When the identity is taken under the collation, including by
      *                                             a soft-deleted record; restore that record instead.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function create(CreateOptionValueContentCommand $command): CreatedOptionValueContentDTO;
 
@@ -46,6 +48,7 @@ interface OptionValueContentManagementServiceInterface
      *
      * @throws OptionValueContentNotFoundException When no record has that identity.
      * @throws ProductBusinessRuleException When the record or the Option Value, its Option, or its Product is soft deleted.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function update(UpdateOptionValueContentCommand $command): void;
 
@@ -55,6 +58,7 @@ interface OptionValueContentManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws OptionValueContentNotFoundException When no record has that identity.
      * @throws ProductBusinessRuleException When the record or the Option Value, its Option, or its Product is soft deleted, or the deletion would violate an invariant.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function softDelete(int $contentId): void;
 
@@ -65,6 +69,7 @@ interface OptionValueContentManagementServiceInterface
      * @throws OptionValueContentNotFoundException When no record has that identity.
      * @throws ProductBusinessRuleException When the record is not soft deleted, the Option Value, its Option, or its Product is soft deleted, or the
      *                                      restored state would violate an invariant.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function restore(int $contentId): void;
 

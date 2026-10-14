@@ -1,10 +1,12 @@
 <?php
 
 /**
- * Child process for the concurrency test: waits for a shared start instant, then
- * creates one Product through the public factory and prints the outcome.
+ * Child process for the concurrency test: opens its own connection, builds the public service
+ * through the factory, reports `ready` on stdout, and waits for one line on stdin. The parent
+ * releases every worker at once only after all of them are ready, so no timing is assumed. It then
+ * creates one Product and prints the outcome.
  *
- * Usage: php create-product-worker.php <code> <start-at-microtime>
+ * Usage: php create-product-worker.php <code>
  */
 
 declare(strict_types=1);
@@ -18,7 +20,6 @@ require dirname(__DIR__, 2) . '/vendor/autoload.php';
 
 /** @var list<string> $argv */
 $code = $argv[1] ?? '';
-$startAt = (float) ($argv[2] ?? '0');
 
 $env = static function (string $name): string {
     $value = getenv($name);
@@ -34,8 +35,11 @@ $pdo = new PDO(
 );
 $service = ProductFactory::createProductManagementService($pdo, new SystemClock(new DateTimeZone('UTC')));
 
-while (microtime(true) < $startAt) {
-    usleep(200);
+fwrite(STDOUT, "ready\n");
+fflush(STDOUT);
+if (fgets(STDIN) === false) {
+    fwrite(STDERR, 'The release signal never arrived.');
+    exit(1);
 }
 
 try {

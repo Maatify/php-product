@@ -41,10 +41,10 @@ interface ImageAssignmentCommandRepositoryInterface
     public function lockForUpdate(int $assignmentId): ?ImageAssignmentStateDTO;
 
     /**
-     * Clears the default marker of every other non-deleted assignment of the scope, then marks this one
-     * default. The database unique key on the default scope is the final guard.
+     * Clears the default marker of the scope's live default, read as {@see lockLiveDefault()} does,
+     * then marks this one default. The database unique key on the default scope is the final guard.
      */
-    public function setDefault(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool;
+    public function setDefault(int $assignmentId, int $productId, string $scope, DateTimeImmutable $occurredAt): bool;
 
     public function clearDefault(int $assignmentId, DateTimeImmutable $occurredAt): bool;
 
@@ -60,10 +60,11 @@ interface ImageAssignmentCommandRepositoryInterface
     public function restore(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool;
 
     /**
-     * The live default of the exact scope, read with a locking read so it reflects the latest
-     * committed state; null when the scope has no live default.
+     * The live default of the exact scope of the given Product, read with a locking read so it
+     * reflects the latest committed state; null when the scope has no live default. The read locks
+     * only that Product's assignment rows.
      */
-    public function lockLiveDefault(string $scope): ?int;
+    public function lockLiveDefault(int $productId, string $scope): ?int;
 
     /**
      * Restores the assignment as the default of its exact scope, at the end of the scope's live
@@ -72,7 +73,7 @@ interface ImageAssignmentCommandRepositoryInterface
      *
      * @throws ImageAssignmentDefaultConflictException When that key reports a live default in the scope.
      */
-    public function restoreAsDefault(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool;
+    public function restoreAsDefault(int $assignmentId, int $productId, string $scope, DateTimeImmutable $occurredAt): bool;
 
     /**
      * Moves a non-deleted assignment within its exact scope through the shared Ordering API

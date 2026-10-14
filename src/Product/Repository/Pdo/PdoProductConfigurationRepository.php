@@ -24,8 +24,12 @@ use PDO;
  *
  * The snapshot is read with locking reads only, so it reflects the latest committed state
  * even when the Host transaction established an earlier consistent-read snapshot. Lock order:
- * Product row, Options, Option Values, Variants, each by ascending identity; composition pairs
- * and Content labels are read with shared locks after them.
+ * Product row, then its Options, Option Values, and Variants, each returned by ascending identity;
+ * composition pairs and Content labels are read with shared locks after them. Every read after the
+ * Product row goes through a key that starts with the Product identity or with the identities of
+ * the rows already locked, pinned with `FORCE INDEX` so that no plan scans or locks another
+ * Product's entries; beyond the Product's own entries, a read locks only the gaps at the two ends
+ * of its key range.
  *
  * @internal Not part of the Public Runtime API.
  */
@@ -49,8 +53,8 @@ final readonly class PdoProductConfigurationRepository implements ProductConfigu
         }
 
         $options = $this->pdo->prepare(
-            'SELECT `id`, `product_id`, `status`, (`deleted_at` IS NOT NULL) AS `deleted` FROM `maa_product_options` WHERE '
-            . '`product_id` = :product_id ORDER BY `id` ASC FOR UPDATE',
+            'SELECT `id`, `product_id`, `status`, (`deleted_at` IS NOT NULL) AS `deleted` FROM `maa_product_options` '
+            . 'FORCE INDEX (`uq_maa_product_options_product_code`) WHERE `product_id` = :product_id ORDER BY `id` ASC FOR UPDATE',
         );
         $options->execute(['product_id' => $productId]);
         /** @var list<array<string, mixed>> $optionRows */
@@ -58,8 +62,9 @@ final readonly class PdoProductConfigurationRepository implements ProductConfigu
 
         $values = $this->pdo->prepare(
             'SELECT ov.`id`, ov.`option_id`, ov.`status`, (ov.`deleted_at` IS NOT NULL) AS `deleted` '
-            . 'FROM `maa_product_option_values` ov JOIN `maa_product_options` o ON o.`id` = ov.`option_id` WHERE '
-            . 'o.`product_id` = :product_id ORDER BY ov.`id` ASC FOR UPDATE',
+            . 'FROM `maa_product_options` o FORCE INDEX (`uq_maa_product_options_product_code`) '
+            . 'STRAIGHT_JOIN `maa_product_option_values` ov FORCE INDEX (`uq_maa_product_option_values_option_code`) '
+            . 'ON ov.`option_id` = o.`id` WHERE o.`product_id` = :product_id ORDER BY ov.`id` ASC FOR UPDATE',
         );
         $values->execute(['product_id' => $productId]);
         /** @var list<array<string, mixed>> $valueRows */
@@ -67,33 +72,33 @@ final readonly class PdoProductConfigurationRepository implements ProductConfigu
 
         $variants = $this->pdo->prepare(
             'SELECT `id`, `product_id`, `composition_fingerprint`, `status`, (`deleted_at` IS NOT NULL) AS `deleted` '
-            . 'FROM `maa_product_variants` WHERE `product_id` = :product_id ORDER BY `id` ASC FOR UPDATE',
+            . 'FROM `maa_product_variants` FORCE INDEX (`idx_maa_product_variants_product_status_deleted_order`) '
+            . 'WHERE `product_id` = :product_id ORDER BY `id` ASC FOR UPDATE',
         );
         $variants->execute(['product_id' => $productId]);
         /** @var list<array<string, mixed>> $variantRows */
         $variantRows = $variants->fetchAll(PDO::FETCH_ASSOC);
 
-        $pairs = $this->pdo->prepare(
-            'SELECT `variant_id`, `option_id`, `option_value_id` FROM `maa_product_variant_option_values` WHERE '
-            . '`product_id` = :product_id ORDER BY `variant_id` ASC, `option_id` ASC FOR SHARE',
+        $compositions = $this->compositionsOf(array_map(
+            static fn(array $row): int => RowHydrator::positiveInt($row, 'id'),
+            $variantRows,
+        ));
+        $labelledOptions = $this->labelledOwners(
+            'maa_product_option_contents',
+            'option_id',
+            'uq_maa_product_option_contents_identity',
+            array_map(static fn(array $row): int => RowHydrator::positiveInt($row, 'id'), $optionRows),
         );
-        $pairs->execute(['product_id' => $productId]);
-        /** @var list<array<string, mixed>> $pairRows */
-        $pairRows = $pairs->fetchAll(PDO::FETCH_ASSOC);
-        /** @var array<int, list<OptionValueSelection>> $compositions */
-        $compositions = [];
-        foreach ($pairRows as $row) {
-            $compositions[RowHydrator::positiveInt($row, 'variant_id')][] = new OptionValueSelection(
-                RowHydrator::positiveInt($row, 'option_id'),
-                RowHydrator::positiveInt($row, 'option_value_id'),
-            );
-        }
-
-        $labelledOptions = $this->labelledOptions($productId);
-        $labelledValues = $this->labelledOptionValues($productId);
+        $labelledValues = $this->labelledOwners(
+            'maa_product_option_value_contents',
+            'option_value_id',
+            'uq_maa_product_option_value_contents_identity',
+            array_map(static fn(array $row): int => RowHydrator::positiveInt($row, 'id'), $valueRows),
+        );
 
         $name = $this->pdo->prepare(
-            'SELECT 1 FROM `maa_product_product_contents` WHERE `product_id` = :product_id AND `deleted_at` IS NULL '
+            'SELECT 1 FROM `maa_product_product_contents` FORCE INDEX (`uq_maa_product_product_contents_identity`) '
+            . 'WHERE `product_id` = :product_id AND `deleted_at` IS NULL '
             . 'AND `name` REGEXP \'[^[:space:]]\' LIMIT 1 FOR SHARE',
         );
         $name->execute(['product_id' => $productId]);
@@ -257,51 +262,69 @@ final readonly class PdoProductConfigurationRepository implements ProductConfigu
         if ($ids === []) {
             return;
         }
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $statement = $this->pdo->prepare(
-            'UPDATE `' . $table . '` SET `status` = ?, `updated_at` = ? WHERE `deleted_at` IS NULL AND `id` IN (' . $placeholders . ')',
+            'UPDATE `' . $table . '` SET `status` = ?, `updated_at` = ? WHERE `deleted_at` IS NULL AND `id` IN (' . self::placeholders($ids) . ')',
         );
         $statement->execute([$active ? 'active' : 'inactive', $occurredAt->format('Y-m-d H:i:s'), ...$ids]);
     }
 
     /**
-     * Identities of the Product's Options that have a non-deleted, non-empty label.
+     * Composition pairs of the locked Variants, read with shared locks through the
+     * (variant_id, option_id) key so that only those Variants' index ranges are locked.
      *
-     * @return array<int, true>
+     * @param list<int> $variantIds
+     *
+     * @return array<int, list<OptionValueSelection>>
      */
-    private function labelledOptions(int $productId): array
+    private function compositionsOf(array $variantIds): array
     {
-        return $this->labelledOwners(
-            'SELECT DISTINCT c.`option_id` AS `owner` FROM `maa_product_option_contents` c '
-            . 'JOIN `maa_product_options` o ON o.`id` = c.`option_id` WHERE '
-            . 'o.`product_id` = :product_id AND c.`deleted_at` IS NULL AND c.`name` REGEXP \'[^[:space:]]\' FOR SHARE',
-            $productId,
+        if ($variantIds === []) {
+            return [];
+        }
+        $statement = $this->pdo->prepare(
+            'SELECT `variant_id`, `option_id`, `option_value_id` FROM `maa_product_variant_option_values` '
+            . 'FORCE INDEX (`uq_maa_product_variant_option_values_variant_option`) WHERE `variant_id` IN ('
+            . self::placeholders($variantIds) . ') FOR SHARE',
         );
+        $statement->execute($variantIds);
+
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        $compositions = [];
+        foreach ($rows as $row) {
+            $compositions[RowHydrator::positiveInt($row, 'variant_id')][] = new OptionValueSelection(
+                RowHydrator::positiveInt($row, 'option_id'),
+                RowHydrator::positiveInt($row, 'option_value_id'),
+            );
+        }
+        foreach ($compositions as &$composition) {
+            usort($composition, static fn(OptionValueSelection $a, OptionValueSelection $b): int => $a->optionId <=> $b->optionId);
+        }
+        unset($composition);
+
+        return $compositions;
     }
 
     /**
-     * Identities of the Product's Option Values that have a non-deleted, non-empty label.
+     * Identities of the given locked owners that have a non-deleted, non-empty label, read with
+     * shared locks through the owner's (owner_id, language_code_identity) key so that only those
+     * owners' index ranges are locked.
+     *
+     * @param list<int> $ownerIds
      *
      * @return array<int, true>
      */
-    private function labelledOptionValues(int $productId): array
+    private function labelledOwners(string $table, string $ownerColumn, string $identityKey, array $ownerIds): array
     {
-        return $this->labelledOwners(
-            'SELECT DISTINCT c.`option_value_id` AS `owner` FROM `maa_product_option_value_contents` c '
-            . 'JOIN `maa_product_option_values` ov ON ov.`id` = c.`option_value_id` '
-            . 'JOIN `maa_product_options` o ON o.`id` = ov.`option_id` WHERE '
-            . 'o.`product_id` = :product_id AND c.`deleted_at` IS NULL AND c.`name` REGEXP \'[^[:space:]]\' FOR SHARE',
-            $productId,
+        if ($ownerIds === []) {
+            return [];
+        }
+        $statement = $this->pdo->prepare(
+            'SELECT DISTINCT `' . $ownerColumn . '` AS `owner` FROM `' . $table . '` FORCE INDEX (`' . $identityKey . '`) WHERE `'
+            . $ownerColumn . '` IN (' . self::placeholders($ownerIds) . ') AND `deleted_at` IS NULL '
+            . 'AND `name` REGEXP \'[^[:space:]]\' FOR SHARE',
         );
-    }
-
-    /**
-     * @return array<int, true>
-     */
-    private function labelledOwners(string $sql, int $productId): array
-    {
-        $statement = $this->pdo->prepare($sql);
-        $statement->execute(['product_id' => $productId]);
+        $statement->execute($ownerIds);
 
         /** @var list<array<string, mixed>> $rows */
         $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
@@ -311,5 +334,13 @@ final readonly class PdoProductConfigurationRepository implements ProductConfigu
         }
 
         return $owners;
+    }
+
+    /**
+     * @param list<int> $ids
+     */
+    private static function placeholders(array $ids): string
+    {
+        return implode(',', array_fill(0, count($ids), '?'));
     }
 }

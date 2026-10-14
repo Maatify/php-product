@@ -105,7 +105,7 @@ final readonly class ImageAssignmentManagementService implements ImageAssignment
             if ($assignment->isDefault) {
                 return;
             }
-            if (!$this->assignments->setDefault($assignmentId, $assignment->scope, $occurredAt)) {
+            if (!$this->assignments->setDefault($assignmentId, $assignment->productId, $assignment->scope, $occurredAt)) {
                 throw ProductStorageFailureFactory::lockedRowVanished('Image Assignment', $assignmentId);
             }
         });
@@ -188,11 +188,11 @@ final readonly class ImageAssignmentManagementService implements ImageAssignment
             if (!$assignment->deleted) {
                 throw ProductBusinessRuleException::notSoftDeleted('Image Assignment', $assignmentId);
             }
-            $default = $this->assignments->lockLiveDefault($assignment->scope);
+            $default = $this->assignments->lockLiveDefault($assignment->productId, $assignment->scope);
             if ($default !== null) {
                 throw ImageAssignmentDefaultConflictException::forRestoreAsDefault($assignmentId, $default);
             }
-            if (!$this->assignments->restoreAsDefault($assignmentId, $assignment->scope, $occurredAt)) {
+            if (!$this->assignments->restoreAsDefault($assignmentId, $assignment->productId, $assignment->scope, $occurredAt)) {
                 throw ProductStorageFailureFactory::lockedRowVanished('Image Assignment', $assignmentId);
             }
         });

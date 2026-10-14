@@ -9,6 +9,7 @@ use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Exception\ProductPersistenceException;
 use Maatify\Product\Content\DTO\CreatedProductContentDTO;
 use Maatify\Product\Content\DTO\ProductContentCollectionDTO;
 use Maatify\Product\Content\DTO\ProductContentDTO;
@@ -37,6 +38,7 @@ interface ProductContentManagementServiceInterface
      * @throws ProductBusinessRuleException When the Product is soft deleted.
      * @throws ProductContentAlreadyExistsException When the identity is taken under the collation, including by
      *                                             a soft-deleted record; restore that record instead.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function create(CreateProductContentCommand $command): CreatedProductContentDTO;
 
@@ -46,6 +48,7 @@ interface ProductContentManagementServiceInterface
      *
      * @throws ProductContentNotFoundException When no record has that identity.
      * @throws ProductBusinessRuleException When the record or the Product is soft deleted.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function update(UpdateProductContentCommand $command): void;
 
@@ -55,6 +58,7 @@ interface ProductContentManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws ProductContentNotFoundException When no record has that identity.
      * @throws ProductBusinessRuleException When the record or the Product is soft deleted, or the deletion would violate an invariant.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function softDelete(int $contentId): void;
 
@@ -65,6 +69,7 @@ interface ProductContentManagementServiceInterface
      * @throws ProductContentNotFoundException When no record has that identity.
      * @throws ProductBusinessRuleException When the record is not soft deleted, the Product is soft deleted, or the
      *                                      restored state would violate an invariant.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function restore(int $contentId): void;
 

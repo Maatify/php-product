@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Maatify\Product\Content\Management\Command;
 
 use JsonSerializable;
-use Maatify\Product\Common\Command\CommandTextRules;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Validation\TextInputRules;
 use Maatify\Product\Content\ValueObject\ExactContentLanguage;
 
 /**
@@ -44,10 +44,10 @@ final readonly class CreateProductContentCommand implements JsonSerializable
         if ($productId < 1) {
             throw ProductInvalidArgumentException::nonPositiveId('productId');
         }
-        CommandTextRules::nullableRequiredText($languageCode, 'languageCode', ExactContentLanguage::MAX_LANGUAGE_CODE_LENGTH);
-        CommandTextRules::requiredText($name, 'name', self::MAX_NAME_LENGTH);
-        CommandTextRules::optionalText($shortDescription, 'shortDescription', self::MAX_SHORT_DESCRIPTION_LENGTH);
-        CommandTextRules::optionalBytes($description, 'description', self::MAX_DESCRIPTION_BYTES);
+        TextInputRules::nullableRequiredText($languageCode, 'languageCode', ExactContentLanguage::MAX_LANGUAGE_CODE_LENGTH);
+        TextInputRules::requiredText($name, 'name', self::MAX_NAME_LENGTH);
+        TextInputRules::optionalText($shortDescription, 'shortDescription', self::MAX_SHORT_DESCRIPTION_LENGTH);
+        TextInputRules::optionalBytes($description, 'description', self::MAX_DESCRIPTION_BYTES);
     }
 
     /** @return array{productId: int, languageCode: ?string, name: string, shortDescription: ?string, description: ?string} */

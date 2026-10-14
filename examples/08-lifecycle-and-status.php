@@ -4,12 +4,13 @@
  * Example 8: the lifecycle of Products, Variants, Options, and Option Values, and their ordering.
  *
  * Input -> Public Call -> Result -> Boundary:
- *  - Input:    a simple Product to activate, deactivate, delete, and restore, and a configurable Product
- *              with an active configuration plus an inactive Option kept outside it.
+ *  - Input:    a simple Product to activate, deactivate, delete, and restore, a configurable Product
+ *              with an active configuration plus an inactive Option kept outside it, and a configurable
+ *              Product whose every Value is represented by two Variants.
  *  - Calls:    ProductManagementServiceInterface::updateStatus(), softDelete(), restore(), getByIdForManagement(),
  *              reconfigure(), ProductConsumerServiceInterface::getById(),
- *              VariantManagementServiceInterface::softDelete(), restore(), updateDisplayOrder(),
- *              getByIdForManagement(), listByProductIdForManagement(),
+ *              VariantManagementServiceInterface::updateStatus(), softDelete(), restore(), updateDisplayOrder(),
+ *              getByIdForManagement(), listByProductIdForManagement(), paginateByProductIdForManagement(),
  *              OptionManagementServiceInterface::create(), updateStatus(), softDelete(), restore(), getByIdForManagement(),
  *              OptionValueManagementServiceInterface::create(), updateStatus(), softDelete(), restore(),
  *              updateDisplayOrder(), getByIdForManagement(), listByOptionIdForManagement(),
@@ -27,6 +28,7 @@
 
 declare(strict_types=1);
 
+use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Content\Management\Command\CreateOptionContentCommand;
@@ -45,8 +47,10 @@ use Maatify\Product\Product\Management\Command\CreateProductCommand;
 use Maatify\Product\Product\Management\Command\ReconfigureOptionTarget;
 use Maatify\Product\Product\Management\Command\ReconfigureProductCommand;
 use Maatify\Product\Product\Management\Command\ReconfigureVariantTarget;
+use Maatify\Product\Variant\DTO\VariantDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
 use Maatify\Product\Variant\Management\Command\UpdateVariantDisplayOrderCommand;
+use Maatify\Product\Variant\Management\Criteria\VariantListCriteriaDTO;
 use Maatify\Product\Variant\ValueObject\OptionValueSelection;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
 
@@ -229,5 +233,42 @@ foreach ($values->listByOptionIdForManagement($color) as $value) {
 }
 $expect($valueOrder === ['green', 'red', 'blue'], 'green moved to the top of color');
 echo 'color value order: ' . implode(', ', $valueOrder) . "\n";
+
+// 7. Variant status: with every Value represented twice, one Variant can be deactivated on its own, but
+// not a second one that would leave a Value unrepresented; the Variants are paged for management.
+$chair = $products->create(new CreateProductCommand('CHAIR-' . $suffix))->productId;
+$finish = $options->create(new CreateOptionCommand($chair, 'finish'))->optionId;
+$seat = $options->create(new CreateOptionCommand($chair, 'seat'))->optionId;
+$oak = $values->create(new CreateOptionValueCommand($finish, 'oak'))->optionValueId;
+$ash = $values->create(new CreateOptionValueCommand($finish, 'ash'))->optionValueId;
+$wool = $values->create(new CreateOptionValueCommand($seat, 'wool'))->optionValueId;
+$felt = $values->create(new CreateOptionValueCommand($seat, 'felt'))->optionValueId;
+$optionContent->create(new CreateOptionContentCommand($finish, null, 'Finish'));
+$optionContent->create(new CreateOptionContentCommand($seat, null, 'Seat'));
+foreach ([[$oak, 'Oak'], [$ash, 'Ash'], [$wool, 'Wool'], [$felt, 'Felt']] as [$valueId, $label]) {
+    $valueContent->create(new CreateOptionValueContentCommand($valueId, null, $label));
+}
+$compositions = [];
+foreach ([$oak, $ash] as $finishValue) {
+    foreach ([$wool, $felt] as $seatValue) {
+        $compositions[] = new ReconfigureVariantTarget([new OptionValueSelection($finish, $finishValue), new OptionValueSelection($seat, $seatValue)]);
+    }
+}
+[$oakWool, $oakFelt] = $products->reconfigure(new ReconfigureProductCommand(
+    $chair,
+    [new ReconfigureOptionTarget($finish, [$oak, $ash]), new ReconfigureOptionTarget($seat, [$wool, $felt])],
+    $compositions,
+))->createdVariantIds;
+
+$variants->updateStatus($oakWool, VariantStatusEnum::INACTIVE);
+$expect($variants->getByIdForManagement($oakWool)->status === VariantStatusEnum::INACTIVE, 'oak-wool is deactivated; oak and wool stay represented');
+$rejected(static fn() => $variants->updateStatus($oakFelt, VariantStatusEnum::INACTIVE), 'deactivating oak-felt too would leave oak unrepresented');
+$variants->updateStatus($oakWool, VariantStatusEnum::ACTIVE);
+$expect($variants->getByIdForManagement($oakWool)->status === VariantStatusEnum::ACTIVE, 'oak-wool is active again');
+echo "variant {$oakWool}: deactivated and activated again\n";
+
+$variantPage = $variants->paginateByProductIdForManagement($chair, new VariantListCriteriaDTO(status: VariantStatusEnum::ACTIVE), new PageRequest(1, 2));
+$expect(count($variantPage->data) === 2 && $variantPage->filtered === 4 && $variantPage->totalPages === 2, 'the active Variants of the chair, page 1');
+echo "active chair variants page 1/{$variantPage->totalPages}: " . implode(', ', array_map(static fn(VariantDTO $variant): int => $variant->id, $variantPage->data)) . "\n";
 
 echo "OK: example 08 completed\n";

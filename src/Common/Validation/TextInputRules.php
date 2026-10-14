@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Maatify\Product\Common\Command;
+namespace Maatify\Product\Common\Validation;
 
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 
 /**
- * Shared text rules that Commands and value objects apply at construction.
+ * Shared text rules that Commands, Criteria, value objects, and Services apply to text input.
  *
  * Whitespace means any Unicode whitespace or separator (`\s` and `\p{Z}`), and a character
  * length counts UTF-8 characters. No rule trims or rewrites the value it checks.
  *
  * @internal Not part of the Public Runtime API.
  */
-final class CommandTextRules
+final class TextInputRules
 {
     private function __construct() {}
 

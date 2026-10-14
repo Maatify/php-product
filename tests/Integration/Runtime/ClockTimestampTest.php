@@ -9,7 +9,9 @@ use DateTimeZone;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Content\Management\Command\CreateProductContentCommand;
 use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageRole\Management\Command\CreateImageRoleCommand;
 use Maatify\Product\Option\Management\Command\CreateOptionCommand;
+use Maatify\Product\OptionValue\Management\Command\CreateOptionValueCommand;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Management\Command\CreateProductCommand;
 use Maatify\SharedCommon\Contracts\ClockInterface;
@@ -56,6 +58,21 @@ final class ClockTimestampTest extends RuntimeTestCase
         self::assertInClockTime(self::CREATED, $elsewhere->createdAt, 'America/New_York');
     }
 
+    public function testVariantDeletionTimestampComesFromTheClockAndHydratesInItsTimezone(): void
+    {
+        $created = $this->namedProduct('P-VARIANT');
+        $color = $this->preparedOption($created->productId, 'color', 'Color');
+        $red = $this->preparedValue($color, 'red', 'Red');
+        $this->productManagementService()->reconfigure(self::reconfiguration($created->productId, [$color => [$red]], [[[[$color, $red]]]]));
+
+        $this->variantManagementService(self::deleteClock())->softDelete($created->variantId);
+
+        self::assertSame(self::DELETED, self::storedTimestamps('maa_product_variants', $created->variantId)[2]);
+        $deletedAt = $this->variantManagementService(self::createClock())->getByIdForManagement($created->variantId, ProductDeletedStateEnum::DELETED_ONLY)->deletedAt;
+        self::assertNotNull($deletedAt);
+        self::assertInClockTime(self::DELETED, $deletedAt, self::TOKYO);
+    }
+
     public function testOptionTimestampsComeFromTheClockAndHydrateInItsTimezone(): void
     {
         $productId = $this->productManagementService()->create(new CreateProductCommand('P-OPTION'))->productId;
@@ -69,6 +86,44 @@ final class ClockTimestampTest extends RuntimeTestCase
         $deletedAt = $this->optionManagementService(self::createClock())->getByIdForManagement($optionId, ProductDeletedStateEnum::DELETED_ONLY)->deletedAt;
         self::assertNotNull($deletedAt);
         self::assertInClockTime(self::DELETED, $deletedAt, self::TOKYO);
+    }
+
+    public function testOptionValueTimestampsComeFromTheClockAndHydrateInItsTimezone(): void
+    {
+        $productId = $this->productManagementService()->create(new CreateProductCommand('P-VALUE'))->productId;
+        $optionId = $this->optionManagementService()->create(new CreateOptionCommand($productId, 'color'))->optionId;
+        $valueId = $this->optionValueManagementService(self::createClock())->create(new CreateOptionValueCommand($optionId, 'red'))->optionValueId;
+
+        self::assertSame([self::CREATED, self::CREATED, null], self::storedTimestamps('maa_product_option_values', $valueId));
+        self::assertInClockTime(self::CREATED, $this->optionValueManagementService(self::createClock())->getByIdForManagement($valueId)->createdAt, self::TOKYO);
+
+        $this->optionValueManagementService(self::deleteClock())->softDelete($valueId);
+        self::assertSame([self::CREATED, self::DELETED, self::DELETED], self::storedTimestamps('maa_product_option_values', $valueId));
+        $deletedAt = $this->optionValueManagementService(self::createClock())->getByIdForManagement($valueId, ProductDeletedStateEnum::DELETED_ONLY)->deletedAt;
+        self::assertNotNull($deletedAt);
+        self::assertInClockTime(self::DELETED, $deletedAt, self::TOKYO);
+    }
+
+    public function testImageRoleTimestampsComeFromTheClockAndHydrateInItsTimezone(): void
+    {
+        $roleId = $this->imageRoleManagementService(self::createClock())->create(new CreateImageRoleCommand('gallery'))->roleId;
+
+        self::assertSame([self::CREATED, self::CREATED, null], self::storedTimestamps('maa_product_image_roles', $roleId));
+        $role = $this->imageRoleManagementService(self::createClock())->getByIdForManagement($roleId);
+        self::assertInClockTime(self::CREATED, $role->createdAt, self::TOKYO);
+        self::assertInClockTime(self::CREATED, $role->updatedAt, self::TOKYO);
+
+        $this->imageRoleManagementService(self::deleteClock())->softDelete($roleId);
+        self::assertSame([self::CREATED, self::DELETED, self::DELETED], self::storedTimestamps('maa_product_image_roles', $roleId));
+        $deleted = $this->imageRoleManagementService(self::createClock())->getByIdForManagement($roleId, ProductDeletedStateEnum::DELETED_ONLY);
+        self::assertNotNull($deleted->deletedAt);
+        self::assertInClockTime(self::DELETED, $deleted->deletedAt, self::TOKYO);
+        self::assertInClockTime(self::DELETED, $deleted->updatedAt, self::TOKYO);
+
+        $elsewhere = $this->imageRoleManagementService(self::fixedClock(self::CREATED, 'America/New_York'))
+            ->getByIdForManagement($roleId, ProductDeletedStateEnum::DELETED_ONLY);
+        self::assertNotNull($elsewhere->deletedAt);
+        self::assertInClockTime(self::DELETED, $elsewhere->deletedAt, 'America/New_York');
     }
 
     public function testImageAssignmentTimestampsComeFromTheClockAndHydrateInItsTimezone(): void

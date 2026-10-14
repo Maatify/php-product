@@ -167,8 +167,8 @@ final class RestoreAsDefaultTest extends RuntimeTestCase
         $at = new DateTimeImmutable(self::LATER_TS, new DateTimeZone('UTC'));
 
         // The service rejects this case before writing; the repository alone proves the final guard.
-        $this->assertNoWrite(self::TABLE, function () use ($repository, $deleted, $live, $scope, $at): void {
-            $conflict = $this->assertThrows(ImageAssignmentDefaultConflictException::class, fn() => $repository->restoreAsDefault($deleted, $scope, $at));
+        $this->assertNoWrite(self::TABLE, function () use ($repository, $deleted, $live, $scope, $at, $p): void {
+            $conflict = $this->assertThrows(ImageAssignmentDefaultConflictException::class, fn() => $repository->restoreAsDefault($deleted, $p->productId, $scope, $at));
             $previous = $conflict->getPrevious();
             self::assertInstanceOf(PDOException::class, $previous);
             self::assertSame(1062, $previous->errorInfo[1] ?? null);

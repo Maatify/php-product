@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Maatify\Product\Content\Management\Command;
 
 use JsonSerializable;
-use Maatify\Product\Common\Command\CommandTextRules;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Validation\TextInputRules;
 
 /**
  * Validated intent to replace every content field of one Product Content record. The owner and
@@ -32,9 +32,9 @@ final readonly class UpdateProductContentCommand implements JsonSerializable
         if ($contentId < 1) {
             throw ProductInvalidArgumentException::nonPositiveId('contentId');
         }
-        CommandTextRules::requiredText($name, 'name', CreateProductContentCommand::MAX_NAME_LENGTH);
-        CommandTextRules::optionalText($shortDescription, 'shortDescription', CreateProductContentCommand::MAX_SHORT_DESCRIPTION_LENGTH);
-        CommandTextRules::optionalBytes($description, 'description', CreateProductContentCommand::MAX_DESCRIPTION_BYTES);
+        TextInputRules::requiredText($name, 'name', CreateProductContentCommand::MAX_NAME_LENGTH);
+        TextInputRules::optionalText($shortDescription, 'shortDescription', CreateProductContentCommand::MAX_SHORT_DESCRIPTION_LENGTH);
+        TextInputRules::optionalBytes($description, 'description', CreateProductContentCommand::MAX_DESCRIPTION_BYTES);
     }
 
     /** @return array{contentId: int, name: string, shortDescription: ?string, description: ?string} */

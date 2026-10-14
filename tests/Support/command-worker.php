@@ -12,6 +12,7 @@
  *   set-default          {"assignmentId": int}
  *   restore-as-default   {"assignmentId": int}
  *   create-assignment    {"productId": int, "mediaAssetId": int, "roleId": int|null}
+ *   move-assignment      {"assignmentId": int, "position": int}
  *   product-status       {"productId": int, "status": "active"|"inactive"}
  *   variant-status       {"variantId": int, "status": "active"|"inactive"}
  *   variant-sku          {"variantId": int, "sku": string}
@@ -29,6 +30,7 @@ use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentDefaultConflictException;
 use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\Management\Command\UpdateImageAssignmentDisplayOrderCommand;
 use Maatify\Product\Option\Management\Command\UpdateOptionDisplayOrderCommand;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Management\Command\ReconfigureOptionTarget;
@@ -124,6 +126,10 @@ try {
             $roleId = $arguments['roleId'] ?? null;
             $created = $assignments->create(new CreateImageAssignmentCommand($int('productId'), null, $int('mediaAssetId'), is_int($roleId) ? $roleId : null));
             echo 'ok:' . $created->assignmentId;
+            break;
+        case 'move-assignment':
+            $assignments->updateDisplayOrder(new UpdateImageAssignmentDisplayOrderCommand($int('assignmentId'), $int('position')));
+            echo 'ok:' . $int('assignmentId');
             break;
         case 'product-status':
             $products->updateStatus($int('productId'), ProductStatusEnum::from($string('status')));

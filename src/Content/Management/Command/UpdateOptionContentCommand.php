@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Maatify\Product\Content\Management\Command;
 
 use JsonSerializable;
-use Maatify\Product\Common\Command\CommandTextRules;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Validation\TextInputRules;
 
 /**
  * Validated intent to replace the name of one Option Content record. The owner and the
@@ -27,7 +27,7 @@ final readonly class UpdateOptionContentCommand implements JsonSerializable
         if ($contentId < 1) {
             throw ProductInvalidArgumentException::nonPositiveId('contentId');
         }
-        CommandTextRules::requiredText($name, 'name', CreateOptionContentCommand::MAX_NAME_LENGTH);
+        TextInputRules::requiredText($name, 'name', CreateOptionContentCommand::MAX_NAME_LENGTH);
     }
 
     /** @return array{contentId: int, name: string} */

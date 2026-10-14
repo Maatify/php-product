@@ -9,6 +9,7 @@ use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Exception\ProductPersistenceException;
 use Maatify\Product\ImageRole\DTO\CreatedImageRoleDTO;
 use Maatify\Product\ImageRole\DTO\ImageRoleCollectionDTO;
 use Maatify\Product\ImageRole\DTO\ImageRoleDTO;
@@ -31,6 +32,7 @@ interface ImageRoleManagementServiceInterface
      * Creates an active Image Role.
      *
      * @throws ImageRoleKeyAlreadyExistsException When the key is already reserved, including by a soft-deleted Role.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function create(CreateImageRoleCommand $command): CreatedImageRoleDTO;
 
@@ -40,6 +42,7 @@ interface ImageRoleManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws ImageRoleNotFoundException When no Role has that identity.
      * @throws ProductBusinessRuleException When the Role is soft deleted.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function updateStatus(int $roleId, ImageRoleStatusEnum $status): void;
 
@@ -49,6 +52,7 @@ interface ImageRoleManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws ImageRoleNotFoundException When no Role has that identity.
      * @throws ProductBusinessRuleException When the Role is already soft deleted.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function softDelete(int $roleId): void;
 
@@ -58,6 +62,7 @@ interface ImageRoleManagementServiceInterface
      * @throws ProductInvalidArgumentException When the identity is not a positive integer.
      * @throws ImageRoleNotFoundException When no Role has that identity.
      * @throws ProductBusinessRuleException When the Role is not soft deleted.
+     * @throws ProductPersistenceException When stored state changed or is invalid.
      */
     public function restore(int $roleId): void;
 

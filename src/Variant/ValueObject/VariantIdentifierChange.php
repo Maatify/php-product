@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Maatify\Product\Variant\ValueObject;
 
 use JsonSerializable;
-use Maatify\Product\Common\Command\CommandTextRules;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Common\Validation\TextInputRules;
 
 /**
  * The intended change of one secondary Variant identifier (SKU or barcode), in exactly one of
@@ -45,7 +45,7 @@ final readonly class VariantIdentifierChange implements JsonSerializable
      */
     public static function set(string $value): self
     {
-        CommandTextRules::requiredText($value, 'value', self::MAX_LENGTH);
+        TextInputRules::requiredText($value, 'value', self::MAX_LENGTH);
 
         return new self(self::SET, $value);
     }

@@ -60,5 +60,27 @@ final class DigitStringTest extends TestCase
     public function testTheFailureValueOfLastInsertIdIsNotADigitString(): void
     {
         self::assertFalse(DigitString::matches(false));
+        self::assertNull(DigitString::toPositiveInt(false));
+    }
+
+    /**
+     * @return iterable<string, array{string, int|null}>
+     */
+    public static function positiveIntegers(): iterable
+    {
+        yield 'one' => ['1', 1];
+        yield 'leading zeroes' => ['007', 7];
+        yield 'PHP_INT_MAX' => [(string) PHP_INT_MAX, PHP_INT_MAX];
+        yield 'zero' => ['0', null];
+        yield 'zeroes' => ['000', null];
+        yield 'one above PHP_INT_MAX' => ['9223372036854775808', null];
+        yield 'unsigned BIGINT maximum' => ['18446744073709551615', null];
+        yield 'not a digit string' => ['-1', null];
+    }
+
+    #[DataProvider('positiveIntegers')]
+    public function testToPositiveIntConvertsOnlyAValueBetweenOneAndTheIntegerMaximum(string $value, ?int $expected): void
+    {
+        self::assertSame($expected, DigitString::toPositiveInt($value));
     }
 }

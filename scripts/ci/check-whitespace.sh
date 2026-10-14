@@ -26,8 +26,15 @@ fi
 
 if md_candidates="$(git grep -nI -E '[[:blank:]]$' -- '*.md' ':(exclude)vendor')"; then
     # Keep only lines that are NOT "<non-space>" followed by exactly two spaces.
-    md_defects="$(printf '%s\n' "$md_candidates" | grep -v -E '^[^:]+:[0-9]+:.*[^[:space:]]  $' || true)"
-    if [[ -n "$md_defects" ]]; then
+    # grep exits 0 when it keeps a line, 1 when every candidate is a hard break, and
+    # 2 or more on an error, which fails the gate.
+    md_status=0
+    md_defects="$(printf '%s\n' "$md_candidates" | grep -v -E '^[^:]+:[0-9]+:.*[^[:space:]]  $')" || md_status=$?
+    if [[ "$md_status" -gt 1 ]]; then
+        echo 'Unable to filter Markdown trailing-whitespace candidates.' >&2
+        exit 1
+    fi
+    if [[ "$md_status" -eq 0 ]]; then
         echo 'Markdown whitespace defects (only exactly two trailing spaces, a hard break, are allowed):' >&2
         printf '%s\n' "$md_defects" >&2
         failed=1

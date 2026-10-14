@@ -29,7 +29,7 @@ random, run-scoped database password.
 | PHP syntax | `bash scripts/ci/check-php-syntax.sh` | PHP Syntax Check |
 | Autoload (strict PSR-4) | `composer dump-autoload --optimize --strict-psr` | Static Analysis, Unit, Integration |
 | Static analysis (PHPStan max over `src`, `tests`, and `examples`, no baseline or suppressions) | `composer analyse` | Static Analysis (PHPStan) |
-| Coding style (PER-CS 3.1, non-mutating; the repository delta verifier also checks the header block order and that every class-like type is namespaced) | `composer format:check` | PHP Coding Style (PER 3.1) |
+| Coding style (PER-CS 3.1, non-mutating; the repository delta verifier also checks the header block order, that every class-like type is namespaced, and PSR-1 naming: StudlyCaps class-like names, upper-case class constants, camelCase methods) | `composer format:check` | PHP Coding Style (PER 3.1) |
 | Unit suite (no Docker needed) | `composer test:unit` | Unit (PHP 8.4 and 8.5) |
 | Integration suite on real MySQL | `composer test:integration` (`composer test` runs Unit then the same Integration orchestration) | Integration (PHP x MySQL matrix) |
 | Lowest supported dependencies | `composer update --prefer-lowest --prefer-stable` then `composer analyse` and `composer test` | Lowest Supported Dependencies |
@@ -68,7 +68,9 @@ contract, composition selections), the composition fingerprint vectors, the in-m
 DTO invariants, Service orchestration with test doubles,
 the `ProductPersistenceException` consumer contract, identity stability (no package SQL statement sets an
 identity column and no service method replaces one), the digit-string rule used for stored identities (equal to
-the `ctype` digit check without requiring that extension), every `*DTO` type implementing `JsonSerializable`,
+the `ctype` digit check without requiring that extension) and its range check (a stored identity above
+`PHP_INT_MAX` is rejected, not truncated), an unparsable stored timestamp keeping the parser's failure as
+the previous exception, every `*DTO` type implementing `JsonSerializable`,
 and the Package Reference conformity test, which fails when the "Implemented Public API" table and the code
 disagree (a listed type or method that does not exist, an undocumented public method of a service or the
 factory, or a public type that is neither listed nor internal) or when a capability row of the inventory names
@@ -105,11 +107,15 @@ no method or a method that does not exist.
     `Y-m-d H:i:s`, and DTO timestamps are hydrated in the reading Clock's timezone (`Asia/Tokyo`
     and `America/New_York` in the test) with no normalization (`ClockTimestampTest`).
   - Transactions: rollback of a failed operation the package started; inside a caller-owned
-    transaction, savepoint rollback of a failed operation (Product creation, reconfiguration,
-    Content create and soft delete, `setDefault()` including the previous default it already cleared,
-    Variant `updateStatus()` and `updateIdentifiers()`, `restoreAsDefault()`), with the Host
-    transaction left active, the Host's other work preserved, and the Host's commit or rollback
-    deciding the rest (`HostTransactionAtomicityTest`, `HostTransactionSavepointTest`); locking reads
+    transaction, savepoint rollback of an operation that fails after its own writes (Product creation
+    after both rows, `HostTransactionAtomicityTest`; `reconfigure()` after its status writes and the
+    new Variant row, and `setDefault()` after it cleared the previous default,
+    `HostTransactionSavepointTest`) and of an operation that fails on its write (Content create and
+    soft delete, Variant `updateStatus()`, and `updateIdentifiers()` on a real duplicate key,
+    `HostTransactionSavepointTest`), while a `reconfigure()` or `restoreAsDefault()` rejected before
+    any write leaves nothing behind (`ProductReconfigurationTest`, `RestoreAsDefaultTest`); in every
+    case the Host transaction stays active, the Host's other work is preserved, and the Host's commit
+    or rollback decides the rest; locking reads
     that validate the latest committed state inside a Host transaction holding an older snapshot
     (`LockingReadSnapshotTest`); and a real deadlock (driver error 1213) between two Host
     transactions, lost inside a package call, propagated as the original `PDOException` with the Host
@@ -120,19 +126,24 @@ no method or a method that does not exist.
     dispensable but not both (one winner, one `FC-INV`), moves of several Options of one Product
     (positions unique and contiguous), activation against deletion of the only Product name (never an
     active Product without a name), one SKU on two Variants (one winner, one typed conflict), and
-    `setDefault()` against `create()` on one Role across Products (never a deadlock).
+    `setDefault()` against a move of the scope's current default within one Product (both succeed,
+    serialized by the Product lock). Across Products, concurrent `reconfigure()` calls that each create
+    a Variant, concurrent `restoreAsDefault()` calls, and concurrent `setDefault()` calls all succeed
+    with no deadlock, because every locking read of a mutation is keyed by the locked Product's own
+    identities (`ConcurrentCrossProductLockTest`).
 
 Every Runtime test rolls back a transaction left open on the shared connection in its `tearDown()`,
 so no transaction leaks into the next test.
 
 **Resolved regressions** each keep a recurrence test in the suites above; there is no separate
-`test:regression` entry. Among them: `49d521e` (Product creation atomic inside a Host-owned
-transaction) by `tests/Integration/Runtime/HostTransactionAtomicityTest.php`; `4712da6` (the Product
-code search escaped independently of the Host `sql_mode`) by the `NO_BACKSLASH_ESCAPES` case of
-`tests/Integration/Runtime/ManagementListTest.php`; and `5c6442a` (the identity guard scans every
-`UPDATE`, and duplicate keys are classified by key name only) by `tests/Unit/IdentityStabilityTest.php`,
-`tests/Unit/Common/Repository/Pdo/DuplicateKeyTest.php`, and
-`VariantIdentifiersTest::testTheConflictIsClassifiedByTheViolatedKeyNotByTheValue`.
+`test:regression` entry. Among them: Product creation stays atomic inside a Host-owned transaction
+(`HostTransactionAtomicityTest`); the Product code search is escaped independently of the Host
+`sql_mode` (the `NO_BACKSLASH_ESCAPES` case of `ManagementListTest`); the identity guard scans every
+`UPDATE`, and duplicate keys are classified by key name only (`IdentityStabilityTest`,
+`DuplicateKeyTest`, and `VariantIdentifiersTest::testTheConflictIsClassifiedByTheViolatedKeyNotByTheValue`);
+the configuration snapshot and the live-default reads lock only the locked Product's own rows, so
+writers on different Products never deadlock (`ConcurrentCrossProductLockTest`); and a stored
+identity above `PHP_INT_MAX` is rejected instead of truncated (`RowHydratorTest`).
 
 ## Consumer Verification Harness
 
@@ -143,7 +154,10 @@ are not autoloadable), installs the delivered `schema/product.sql`, and runs the
 `ProductFactory` -> create, name the Product through Content, activate, read the Content as a
 consumer (exact language, no fallback), reject deleting the last name of an active Product, prepare
 Options and Values with their Content labels, reconfigure, resolve a composition, assign images and
-replace the default, soft-delete and restore, against a real MySQL service. It runs
+replace the default, soft-delete and restore, against a real MySQL service. It also runs one real
+race: four processes of the same harness script, on the same consumer autoloader, released together
+by a barrier on stdin, create one Product code; exactly one wins and every other gets the typed
+conflict. It runs
 twice from clean consumer roots, uses the same Compose lifecycle as Integration, and is part of
 the stable `Final Gate`.
 

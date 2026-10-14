@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Common\Exception;
 
+use Throwable;
+
 /**
  * Builds the package's {@see ProductPersistenceException} for its own storage adapters.
  *
@@ -29,11 +31,14 @@ final class ProductStorageFailureFactory
 
     /**
      * A stored column holds a value the package cannot interpret.
+     *
+     * @param Throwable|null $previous The failure that rejected the value, when one was raised.
      */
-    public static function invalidStorageValue(string $column): ProductPersistenceException
+    public static function invalidStorageValue(string $column, ?Throwable $previous = null): ProductPersistenceException
     {
         return new ProductPersistenceException(
             sprintf('Product storage column "%s" contains an invalid value.', $column),
+            previous: $previous,
         );
     }
 

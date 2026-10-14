@@ -329,7 +329,7 @@ final class ImageAssignmentServiceTest extends TestCase
                 return $this->test->assignmentFixture();
             }
 
-            public function setDefault(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool
+            public function setDefault(int $assignmentId, int $productId, string $scope, DateTimeImmutable $occurredAt): bool
             {
                 $this->calls->record('assignment:set-default:' . $assignmentId);
 
@@ -357,14 +357,14 @@ final class ImageAssignmentServiceTest extends TestCase
                 return true;
             }
 
-            public function lockLiveDefault(string $scope): ?int
+            public function lockLiveDefault(int $productId, string $scope): ?int
             {
                 $this->calls->record('assignment:lock-default:' . $scope);
 
                 return $this->test->liveDefaultFixture();
             }
 
-            public function restoreAsDefault(int $assignmentId, string $scope, DateTimeImmutable $occurredAt): bool
+            public function restoreAsDefault(int $assignmentId, int $productId, string $scope, DateTimeImmutable $occurredAt): bool
             {
                 $this->calls->record('assignment:restore-as-default:' . $assignmentId);
 
