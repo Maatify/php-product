@@ -6,15 +6,15 @@ namespace Maatify\Product\Tests\Integration\Runtime;
 
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\Product\Command\CreateProductCommand;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
+use Maatify\Product\Variant\Consumer\Criteria\VariantVisibleListCriteriaDTO;
+use Maatify\Product\Variant\Consumer\Service\VariantConsumerServiceInterface;
 use Maatify\Product\Variant\DTO\VariantCollectionDTO;
 use Maatify\Product\Variant\DTO\VariantCompositionPairDTO;
 use Maatify\Product\Variant\DTO\VariantDTO;
-use Maatify\Product\Variant\DTO\VariantListCriteriaDTO;
-use Maatify\Product\Variant\DTO\VariantVisibleListCriteriaDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
 use Maatify\Product\Variant\Exception\VariantNotFoundException;
-use Maatify\Product\Variant\Service\VariantServiceInterface;
+use Maatify\Product\Variant\Management\Criteria\VariantListCriteriaDTO;
 use Throwable;
 
 /**
@@ -27,12 +27,13 @@ final class VariantReadTest extends RuntimeTestCase
 
     public function testTheSimpleProductVariantIsHiddenFromConsumersUntilTheProductIsActive(): void
     {
-        $created = $this->productService()->create(new CreateProductCommand('SIMPLE'));
-        $variants = $this->variantService();
+        $created = $this->productManagementService()->create(new CreateProductCommand('SIMPLE'));
+        $variants = $this->variantManagementService();
+        $consumerVariants = $this->variantConsumerService();
 
-        self::assertTrue($variants->listByProductId($created->productId)->isEmpty(), 'An inactive Product hides its Variants.');
+        self::assertTrue($consumerVariants->listByProductId($created->productId)->isEmpty(), 'An inactive Product hides its Variants.');
         try {
-            $variants->getById($created->variantId);
+            $consumerVariants->getById($created->variantId);
             self::fail('The Variant of an inactive Product is not consumer-visible.');
         } catch (VariantNotFoundException) {
         }
@@ -45,9 +46,9 @@ final class VariantReadTest extends RuntimeTestCase
         self::assertSame('UTC', $managed->createdAt->getTimezone()->getName());
 
         $this->execute("UPDATE maa_product_products SET status = 'active' WHERE id = :i", ['i' => $created->productId]);
-        $visible = $variants->getById($created->variantId);
+        $visible = $consumerVariants->getById($created->variantId);
         self::assertSame($created->variantId, $visible->id);
-        self::assertCount(1, $variants->listByProductId($created->productId));
+        self::assertCount(1, $consumerVariants->listByProductId($created->productId));
     }
 
     public function testAConfigurableVariantIsVisibleOnlyWithExactActiveCoverage(): void
@@ -64,8 +65,9 @@ final class VariantReadTest extends RuntimeTestCase
         $partial = $this->variant($product, 'partial', 2, [[$color, $blue]]);
         $empty = $this->variant($product, 'empty', 3, []);
 
-        $service = $this->variantService();
-        $visible = $service->listByProductId($product);
+        $service = $this->variantManagementService();
+        $consumer = $this->variantConsumerService();
+        $visible = $consumer->listByProductId($product);
 
         self::assertSame([$full], array_map(static fn(VariantDTO $v): int => $v->id, $visible->items()));
         self::assertSame(
@@ -76,7 +78,7 @@ final class VariantReadTest extends RuntimeTestCase
         self::assertSame($partial, $service->getByIdForManagement($partial)->id, 'Management reads ignore visibility.');
         self::assertSame($empty, $service->getByIdForManagement($empty)->id);
         foreach ([$partial, $empty] as $hidden) {
-            $this->assertNotVisible($service, $hidden);
+            $this->assertNotVisible($consumer, $hidden);
         }
     }
 
@@ -86,7 +88,7 @@ final class VariantReadTest extends RuntimeTestCase
         $color = $this->option($product, 'color', 'active', 'Color');
         $red = $this->value($color, 'red', 'active', 'Red');
         $variant = $this->variant($product, 'v', 1, [[$color, $red]]);
-        $service = $this->variantService();
+        $service = $this->variantConsumerService();
         self::assertSame($variant, $service->getById($variant)->id);
 
         $this->execute("UPDATE maa_product_option_values SET status = 'inactive' WHERE id = :i", ['i' => $red]);
@@ -112,9 +114,9 @@ final class VariantReadTest extends RuntimeTestCase
 
     public function testAnInactiveOrDeletedVariantOrProductHidesTheVariantAndTheList(): void
     {
-        $created = $this->productService()->create(new CreateProductCommand('LIFE'));
+        $created = $this->productManagementService()->create(new CreateProductCommand('LIFE'));
         $this->execute("UPDATE maa_product_products SET status = 'active' WHERE id = :i", ['i' => $created->productId]);
-        $service = $this->variantService();
+        $service = $this->variantConsumerService();
         self::assertSame($created->variantId, $service->getById($created->variantId)->id);
 
         $this->execute("UPDATE maa_product_variants SET status = 'inactive' WHERE id = :i", ['i' => $created->variantId]);
@@ -137,7 +139,8 @@ final class VariantReadTest extends RuntimeTestCase
         $first = $this->variant($product, 'a', 2, []);
         $second = $this->variant($product, 'b', 1, [], 'inactive');
         $third = $this->variant($product, 'c', 1, [], 'active', self::TS);
-        $service = $this->variantService();
+        $service = $this->variantManagementService();
+        $consumer = $this->variantConsumerService();
 
         $ids = static fn(VariantCollectionDTO $collection): array => array_map(static fn(VariantDTO $v): int => $v->id, $collection->items());
 
@@ -146,7 +149,7 @@ final class VariantReadTest extends RuntimeTestCase
         self::assertSame([$third], $ids($service->listByProductIdForManagement($product, new VariantListCriteriaDTO(null, ProductDeletedStateEnum::DELETED_ONLY))));
         self::assertSame([$second, $third, $first], $ids($service->listByProductIdForManagement($product, new VariantListCriteriaDTO(null, ProductDeletedStateEnum::INCLUDE_DELETED))));
         self::assertSame([$second], $ids($service->listByProductIdForManagement($product, new VariantListCriteriaDTO(null, ProductDeletedStateEnum::INCLUDE_DELETED, 1))));
-        self::assertCount(1, $service->listByProductId($product, new VariantVisibleListCriteriaDTO(1)));
+        self::assertCount(1, $consumer->listByProductId($product, new VariantVisibleListCriteriaDTO(1)));
 
         $this->expectException(VariantNotFoundException::class);
         $service->getByIdForManagement($third);
@@ -166,33 +169,35 @@ final class VariantReadTest extends RuntimeTestCase
         $red = $this->value($color, 'red', 'active', 'Red');
         $blue = $this->value($color, 'blue', 'active', 'Blue');
         $redVariant = $this->variant($product, 'red', 1, [[$color, $red]]);
-        $service = $this->variantService();
+        $service = $this->variantManagementService();
+        $consumer = $this->variantConsumerService();
 
-        $this->assertNotVisible($service, $redVariant, 'The Product has an active Value (blue) that no active Variant represents, so the get hides its Variants.');
-        self::assertTrue($service->listByProductId($product)->isEmpty(), 'The consumer list hides the Variants of the same Product for the same reason.');
+        $this->assertNotVisible($consumer, $redVariant, 'The Product has an active Value (blue) that no active Variant represents, so the get hides its Variants.');
+        self::assertTrue($consumer->listByProductId($product)->isEmpty(), 'The consumer list hides the Variants of the same Product for the same reason.');
         self::assertSame($redVariant, $service->getByIdForManagement($redVariant)->id, 'Management reads show the stored state.');
         self::assertSame([$redVariant], array_map(static fn(VariantDTO $v): int => $v->id, $service->listByProductIdForManagement($product)->items()));
 
         $blueVariant = $this->variant($product, 'blue', 2, [[$color, $blue]]);
-        self::assertSame($redVariant, $service->getById($redVariant)->id, 'Once every active Value is represented, the Variants are visible again.');
-        self::assertSame([$redVariant, $blueVariant], array_map(static fn(VariantDTO $v): int => $v->id, $service->listByProductId($product)->items()));
+        self::assertSame($redVariant, $consumer->getById($redVariant)->id, 'Once every active Value is represented, the Variants are visible again.');
+        self::assertSame([$redVariant, $blueVariant], array_map(static fn(VariantDTO $v): int => $v->id, $consumer->listByProductId($product)->items()));
 
         $this->execute('DELETE FROM maa_product_variant_option_values WHERE variant_id = :v', ['v' => $blueVariant]);
         $this->execute('DELETE FROM maa_product_variants WHERE id = :v', ['v' => $blueVariant]);
-        $this->assertNotVisible($service, $redVariant, 'Removing the representing Variant hides the Product again.');
+        $this->assertNotVisible($consumer, $redVariant, 'Removing the representing Variant hides the Product again.');
         $this->execute("UPDATE maa_product_option_values SET status = 'inactive' WHERE id = :i", ['i' => $blue]);
-        self::assertSame($redVariant, $service->getById($redVariant)->id, 'Deactivating the unrepresented Value restores the correct result.');
-        self::assertSame([$redVariant], array_map(static fn(VariantDTO $v): int => $v->id, $service->listByProductId($product)->items()));
+        self::assertSame($redVariant, $consumer->getById($redVariant)->id, 'Deactivating the unrepresented Value restores the correct result.');
+        self::assertSame([$redVariant], array_map(static fn(VariantDTO $v): int => $v->id, $consumer->listByProductId($product)->items()));
     }
 
     public function testInvalidIdentitiesAndLimitsAreRejected(): void
     {
-        $service = $this->variantService();
+        $service = $this->variantManagementService();
+        $consumer = $this->variantConsumerService();
 
         foreach ([
-            static fn() => $service->getById(0),
+            static fn() => $consumer->getById(0),
             static fn() => $service->getByIdForManagement(-1),
-            static fn() => $service->listByProductId(0),
+            static fn() => $consumer->listByProductId(0),
             static fn() => $service->listByProductIdForManagement(0),
             static fn() => new VariantVisibleListCriteriaDTO(0),
             static fn() => new VariantListCriteriaDTO(null, ProductDeletedStateEnum::NON_DELETED, 101),
@@ -205,10 +210,10 @@ final class VariantReadTest extends RuntimeTestCase
             }
         }
         $this->expectException(VariantNotFoundException::class);
-        $service->getById(999999);
+        $consumer->getById(999999);
     }
 
-    private function assertNotVisible(VariantServiceInterface $service, int $variantId, string $message = ''): void
+    private function assertNotVisible(VariantConsumerServiceInterface $service, int $variantId, string $message = ''): void
     {
         try {
             $service->getById($variantId);
@@ -220,7 +225,7 @@ final class VariantReadTest extends RuntimeTestCase
 
     private function activeProduct(string $code): int
     {
-        $created = $this->productService()->create(new CreateProductCommand($code));
+        $created = $this->productManagementService()->create(new CreateProductCommand($code));
         $this->execute("UPDATE maa_product_products SET status = 'active' WHERE id = :i", ['i' => $created->productId]);
         // The Variant created with the Product is the empty composition; remove it so each test controls the graph.
         $this->execute('DELETE FROM maa_product_variants WHERE id = :i', ['i' => $created->variantId]);

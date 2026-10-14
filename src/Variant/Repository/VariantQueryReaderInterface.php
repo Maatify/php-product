@@ -8,10 +8,10 @@ use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Option\DTO\OptionStateDTO;
 use Maatify\Product\OptionValue\DTO\OptionValueStateDTO;
+use Maatify\Product\Variant\Consumer\Criteria\VariantVisibleListCriteriaDTO;
 use Maatify\Product\Variant\DTO\VariantDTO;
-use Maatify\Product\Variant\DTO\VariantListCriteriaDTO;
 use Maatify\Product\Variant\DTO\VariantStateDTO;
-use Maatify\Product\Variant\DTO\VariantVisibleListCriteriaDTO;
+use Maatify\Product\Variant\Management\Criteria\VariantListCriteriaDTO;
 
 /**
  * Read port for stored Variants. It performs no write and holds no lock.

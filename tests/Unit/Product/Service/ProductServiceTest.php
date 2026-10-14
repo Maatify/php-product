@@ -8,14 +8,15 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
-use Maatify\Product\Product\Command\CreateProductCommand;
+use Maatify\Product\Product\Consumer\Service\ProductConsumerService;
 use Maatify\Product\Product\DTO\ProductDTO;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
+use Maatify\Product\Product\Management\Service\ProductManagementService;
 use Maatify\Product\Product\Repository\ProductCommandRepositoryInterface;
 use Maatify\Product\Product\Repository\ProductQueryReaderInterface;
-use Maatify\Product\Product\Service\ProductService;
 use Maatify\Product\Tests\Support\CallLog;
 use Maatify\Product\Tests\Support\UnusedProductConfigurationRepository;
 use Maatify\Product\Tests\Support\UnusedProductLifecycleWrites;
@@ -130,14 +131,14 @@ final class ProductServiceTest extends TestCase
     {
         $dto = $this->dto(ProductStatusEnum::ACTIVE, null);
 
-        self::assertSame($dto, $this->service(reader: $this->readerOf($dto))->getById(5));
+        self::assertSame($dto, $this->consumer($this->readerOf($dto))->getById(5));
     }
 
     public function testGetByIdHidesInactiveAndSoftDeletedProducts(): void
     {
         foreach ([$this->dto(ProductStatusEnum::INACTIVE, null), $this->dto(ProductStatusEnum::ACTIVE, new \DateTimeImmutable('2026-01-02'))] as $dto) {
             try {
-                $this->service(reader: $this->readerOf($dto))->getById(5);
+                $this->consumer($this->readerOf($dto))->getById(5);
                 self::fail('A non-visible Product must not be returned.');
             } catch (ProductNotFoundException) {
             }
@@ -188,7 +189,7 @@ final class ProductServiceTest extends TestCase
     public function testNonPositiveIdentitiesAreRejected(): void
     {
         foreach ([
-            fn() => $this->service()->getById(0),
+            fn() => $this->consumer()->getById(0),
             fn() => $this->service()->getByIdForManagement(-1),
         ] as $call) {
             try {
@@ -203,14 +204,14 @@ final class ProductServiceTest extends TestCase
     public function testGetByIdThrowsNotFoundForAnUnknownIdentity(): void
     {
         $this->expectException(ProductNotFoundException::class);
-        $this->service()->getById(404);
+        $this->consumer()->getById(404);
     }
 
     private function service(
         ?ProductCommandRepositoryInterface $products = null,
         ?VariantCommandRepositoryInterface $variants = null,
         ?ProductQueryReaderInterface $reader = null,
-    ): ProductService {
+    ): ProductManagementService {
         $calls = $this->calls;
 
         $products ??= new class ($calls) implements ProductCommandRepositoryInterface {
@@ -237,14 +238,7 @@ final class ProductServiceTest extends TestCase
                 return 22;
             }
         };
-        $reader ??= new class implements ProductQueryReaderInterface {
-            use UnusedProductListReads;
-
-            public function findById(int $productId): ?ProductDTO
-            {
-                return null;
-            }
-        };
+        $reader ??= self::emptyReader();
         $transactions = new class ($calls) implements SavepointTransactionRunnerInterface {
             public function __construct(private CallLog $calls) {}
 
@@ -269,6 +263,23 @@ final class ProductServiceTest extends TestCase
             }
         };
 
-        return new ProductService($products, $variants, $reader, new UnusedProductConfigurationRepository(), $transactions, $clock);
+        return new ProductManagementService($products, $variants, $reader, new UnusedProductConfigurationRepository(), $transactions, $clock);
+    }
+
+    private function consumer(?ProductQueryReaderInterface $reader = null): ProductConsumerService
+    {
+        return new ProductConsumerService($reader ?? self::emptyReader());
+    }
+
+    private static function emptyReader(): ProductQueryReaderInterface
+    {
+        return new class implements ProductQueryReaderInterface {
+            use UnusedProductListReads;
+
+            public function findById(int $productId): ?ProductDTO
+            {
+                return null;
+            }
+        };
     }
 }

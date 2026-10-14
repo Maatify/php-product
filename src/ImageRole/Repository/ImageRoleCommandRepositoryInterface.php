@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Maatify\Product\ImageRole\Repository;
 
 use DateTimeImmutable;
-use Maatify\Product\ImageRole\Command\CreateImageRoleCommand;
 use Maatify\Product\ImageRole\DTO\ImageRoleStateDTO;
 use Maatify\Product\ImageRole\Enum\ImageRoleStatusEnum;
 use Maatify\Product\ImageRole\Exception\ImageRoleKeyAlreadyExistsException;
+use Maatify\Product\ImageRole\Management\Command\CreateImageRoleCommand;
 
 /**
  * Write port for Image Role persistence. The calling Service owns the transaction.

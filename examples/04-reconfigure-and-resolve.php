@@ -8,12 +8,12 @@ declare(strict_types=1);
  * Input -> Public Call -> Result -> Boundary:
  *  - Input:    prepared Options and Values (created inactive) with their labels, a Product name, and
  *              the combinations the Host offers.
- *  - Calls:    OptionServiceInterface::create(), OptionValueServiceInterface::create(),
- *              ProductContentServiceInterface::create(), OptionContentServiceInterface::create(),
- *              OptionValueContentServiceInterface::create(), listVisible(),
- *              OptionServiceInterface::updateDisplayOrder(),
- *              ProductServiceInterface::reconfigure(), updateStatus(),
- *              VariantServiceInterface::resolveByComposition().
+ *  - Calls:    OptionManagementServiceInterface::create(), OptionValueManagementServiceInterface::create(),
+ *              ProductContentManagementServiceInterface::create(), OptionContentManagementServiceInterface::create(),
+ *              OptionValueContentManagementServiceInterface::create(), ProductContentConsumerServiceInterface::listVisible(),
+ *              OptionManagementServiceInterface::updateDisplayOrder(),
+ *              ProductManagementServiceInterface::reconfigure(), updateStatus(),
+ *              VariantConsumerServiceInterface::resolveByComposition().
  *  - Result:   a ProductReconfigurationResultDTO with the created and deactivated Variant identities,
  *              and the VariantDTO a complete selection resolves to.
  *  - Boundary: reconfiguration is one atomic Product-local operation over a complete target state; an
@@ -25,20 +25,20 @@ declare(strict_types=1);
  */
 
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\Content\Command\CreateOptionContentCommand;
-use Maatify\Product\Content\Command\CreateOptionValueContentCommand;
-use Maatify\Product\Content\Command\CreateProductContentCommand;
+use Maatify\Product\Content\Management\Command\CreateOptionContentCommand;
+use Maatify\Product\Content\Management\Command\CreateOptionValueContentCommand;
+use Maatify\Product\Content\Management\Command\CreateProductContentCommand;
 use Maatify\Product\Content\ValueObject\ExactContentLanguage;
 use Maatify\Product\Factory\ProductFactory;
-use Maatify\Product\Option\Command\CreateOptionCommand;
-use Maatify\Product\Option\Command\UpdateOptionDisplayOrderCommand;
-use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
-use Maatify\Product\Product\Command\CreateProductCommand;
-use Maatify\Product\Product\Command\ReconfigureOptionTarget;
-use Maatify\Product\Product\Command\ReconfigureProductCommand;
-use Maatify\Product\Product\Command\ReconfigureVariantTarget;
+use Maatify\Product\Option\Management\Command\CreateOptionCommand;
+use Maatify\Product\Option\Management\Command\UpdateOptionDisplayOrderCommand;
+use Maatify\Product\OptionValue\Management\Command\CreateOptionValueCommand;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
-use Maatify\Product\Variant\DTO\VariantCompositionCriteriaDTO;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
+use Maatify\Product\Product\Management\Command\ReconfigureOptionTarget;
+use Maatify\Product\Product\Management\Command\ReconfigureProductCommand;
+use Maatify\Product\Product\Management\Command\ReconfigureVariantTarget;
+use Maatify\Product\Variant\Consumer\Criteria\VariantCompositionCriteriaDTO;
 use Maatify\Product\Variant\Exception\VariantCompositionConflictException;
 use Maatify\Product\Variant\ValueObject\OptionValueSelection;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
@@ -63,13 +63,14 @@ $pdo = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false],
 );
 $clock = new SystemClock(new DateTimeZone('UTC'));
-$products = ProductFactory::createProductService($pdo, $clock);
-$options = ProductFactory::createOptionService($pdo, $clock);
-$values = ProductFactory::createOptionValueService($pdo, $clock);
-$variants = ProductFactory::createVariantService($pdo, $clock);
-$productContent = ProductFactory::createProductContentService($pdo, $clock);
-$optionContent = ProductFactory::createOptionContentService($pdo, $clock);
-$valueContent = ProductFactory::createOptionValueContentService($pdo, $clock);
+$products = ProductFactory::createProductManagementService($pdo, $clock);
+$options = ProductFactory::createOptionManagementService($pdo, $clock);
+$values = ProductFactory::createOptionValueManagementService($pdo, $clock);
+$consumerVariants = ProductFactory::createVariantConsumerService($pdo, $clock);
+$productContent = ProductFactory::createProductContentManagementService($pdo, $clock);
+$consumerProductContent = ProductFactory::createProductContentConsumerService($pdo, $clock);
+$optionContent = ProductFactory::createOptionContentManagementService($pdo, $clock);
+$valueContent = ProductFactory::createOptionValueContentManagementService($pdo, $clock);
 
 $created = $products->create(new CreateProductCommand('SHIRT-' . bin2hex(random_bytes(4))));
 $productId = $created->productId;
@@ -111,22 +112,22 @@ echo 'created Variants: ' . implode(', ', $result->createdVariantIds) . '; deact
 $products->updateStatus($productId, ProductStatusEnum::ACTIVE);
 
 // The shopper picks blue and M, in any order; resolution returns the one visible Variant.
-$resolved = $variants->resolveByComposition($productId, new VariantCompositionCriteriaDTO([
+$resolved = $consumerVariants->resolveByComposition($productId, new VariantCompositionCriteriaDTO([
     new OptionValueSelection($size, $medium),
     new OptionValueSelection($color, $blue),
 ]));
 echo "resolved variant: {$resolved->id}\n";
 
 // Content reads are exact: Arabic exists, English does not, and nothing falls back to the unlocalized name.
-$arabic = $productContent->listVisible($productId, ExactContentLanguage::exactLanguage('ar'));
-$english = $productContent->listVisible($productId, ExactContentLanguage::exactLanguage('en'));
+$arabic = $consumerProductContent->listVisible($productId, ExactContentLanguage::exactLanguage('ar'));
+$english = $consumerProductContent->listVisible($productId, ExactContentLanguage::exactLanguage('en'));
 if (count($arabic) !== 1 || !$english->isEmpty()) {
     throw new RuntimeException('Content reads must be exact.');
 }
 echo 'name (ar): ' . $arabic->items()[0]->name . "; name (en): none\n";
 
 try {
-    $variants->resolveByComposition($productId, new VariantCompositionCriteriaDTO([new OptionValueSelection($color, $red)]));
+    $consumerVariants->resolveByComposition($productId, new VariantCompositionCriteriaDTO([new OptionValueSelection($color, $red)]));
     throw new RuntimeException('A partial selection must be rejected.');
 } catch (ProductInvalidArgumentException) {
     echo "partial selection: rejected\n";
@@ -149,6 +150,6 @@ $back = $products->reconfigure(new ReconfigureProductCommand($productId, [], [ne
 if ($back->reactivatedVariantIds !== [$created->variantId] || count($back->deactivatedVariantIds) !== 2) {
     throw new RuntimeException('Unexpected transition result.');
 }
-echo 'back to simple: ' . $variants->resolveByComposition($productId, new VariantCompositionCriteriaDTO())->id . "\n";
+echo 'back to simple: ' . $consumerVariants->resolveByComposition($productId, new VariantCompositionCriteriaDTO())->id . "\n";
 
 echo "OK: example 04 completed\n";

@@ -11,25 +11,25 @@ use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Persistence\Pdo\Transaction\SavepointTransactionRunnerInterface;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
-use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
-use Maatify\Product\ImageAssignment\Command\UpdateImageAssignmentDisplayOrderCommand;
+use Maatify\Product\ImageAssignment\Consumer\Criteria\ImageAssignmentExactScopeCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
-use Maatify\Product\ImageAssignment\DTO\ImageAssignmentExactScopeCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentIdentityDTO;
-use Maatify\Product\ImageAssignment\DTO\ImageAssignmentListCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentNotFoundException;
+use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\Management\Command\UpdateImageAssignmentDisplayOrderCommand;
+use Maatify\Product\ImageAssignment\Management\Criteria\ImageAssignmentListCriteriaDTO;
+use Maatify\Product\ImageAssignment\Management\Service\ImageAssignmentManagementService;
 use Maatify\Product\ImageAssignment\Repository\ImageAssignmentCommandRepositoryInterface;
 use Maatify\Product\ImageAssignment\Repository\ImageAssignmentQueryReaderInterface;
-use Maatify\Product\ImageAssignment\Service\ImageAssignmentService;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentScope;
-use Maatify\Product\ImageRole\Command\CreateImageRoleCommand;
 use Maatify\Product\ImageRole\DTO\ImageRoleStateDTO;
 use Maatify\Product\ImageRole\Enum\ImageRoleStatusEnum;
+use Maatify\Product\ImageRole\Management\Command\CreateImageRoleCommand;
 use Maatify\Product\ImageRole\Repository\ImageRoleCommandRepositoryInterface;
-use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\DTO\ProductLifecycleStateDTO;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
 use Maatify\Product\Product\Repository\ProductCommandRepositoryInterface;
 use Maatify\Product\Tests\Support\CallLog;
 use Maatify\Product\Variant\DTO\VariantLifecycleStateDTO;
@@ -237,7 +237,7 @@ final class ImageAssignmentServiceTest extends TestCase
         return new ImageAssignmentStateDTO(self::ASSIGNMENT, self::PRODUCT, self::VARIANT, self::ROLE, 'scope', $isDefault, $deleted);
     }
 
-    private function service(): ImageAssignmentService
+    private function service(): ImageAssignmentManagementService
     {
         $calls = $this->calls;
         $test = $this;
@@ -450,7 +450,7 @@ final class ImageAssignmentServiceTest extends TestCase
             }
         };
 
-        return new ImageAssignmentService($assignments, $reader, $products, $variants, $roles, $transactions, $clock);
+        return new ImageAssignmentManagementService($assignments, $reader, $products, $variants, $roles, $transactions, $clock);
     }
 
     /** Fixture accessor for the fakes. */

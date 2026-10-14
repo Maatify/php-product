@@ -7,7 +7,7 @@ namespace Maatify\Product\Option\Repository;
 use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Option\DTO\OptionDTO;
-use Maatify\Product\Option\DTO\OptionListCriteriaDTO;
+use Maatify\Product\Option\Management\Criteria\OptionListCriteriaDTO;
 
 /**
  * Read port for stored Options. It performs no write and holds no lock.

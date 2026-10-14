@@ -12,9 +12,9 @@ declare(strict_types=1);
  */
 
 use Maatify\Product\Factory\ProductFactory;
-use Maatify\Product\Product\Command\ReconfigureOptionTarget;
-use Maatify\Product\Product\Command\ReconfigureProductCommand;
-use Maatify\Product\Product\Command\ReconfigureVariantTarget;
+use Maatify\Product\Product\Management\Command\ReconfigureOptionTarget;
+use Maatify\Product\Product\Management\Command\ReconfigureProductCommand;
+use Maatify\Product\Product\Management\Command\ReconfigureVariantTarget;
 use Maatify\Product\Variant\Exception\VariantCompositionConflictException;
 use Maatify\Product\Variant\ValueObject\OptionValueSelection;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
@@ -65,13 +65,13 @@ try {
             }
             /** @var int $productId */
             $productId = $arguments['productId'];
-            $result = ProductFactory::createProductService($pdo, $clock)->reconfigure(new ReconfigureProductCommand($productId, $options, $variants));
+            $result = ProductFactory::createProductManagementService($pdo, $clock)->reconfigure(new ReconfigureProductCommand($productId, $options, $variants));
             echo 'ok:' . implode(',', $result->createdVariantIds);
             break;
         case 'set-default':
             /** @var int $assignmentId */
             $assignmentId = $arguments['assignmentId'];
-            ProductFactory::createImageAssignmentService($pdo, $clock)->setDefault($assignmentId);
+            ProductFactory::createImageAssignmentManagementService($pdo, $clock)->setDefault($assignmentId);
             echo 'ok:' . $assignmentId;
             break;
         default:

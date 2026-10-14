@@ -4,21 +4,21 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Tests\Integration\Runtime;
 
-use Maatify\Product\Content\Command\CreateProductContentCommand;
 use Maatify\Product\Content\Exception\ProductContentAlreadyExistsException;
-use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
+use Maatify\Product\Content\Management\Command\CreateProductContentCommand;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentAlreadyExistsException;
-use Maatify\Product\ImageRole\Command\CreateImageRoleCommand;
+use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageRole\Exception\ImageRoleKeyAlreadyExistsException;
-use Maatify\Product\Option\Command\CreateOptionCommand;
+use Maatify\Product\ImageRole\Management\Command\CreateImageRoleCommand;
 use Maatify\Product\Option\Exception\OptionCodeAlreadyExistsException;
-use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
+use Maatify\Product\Option\Management\Command\CreateOptionCommand;
 use Maatify\Product\OptionValue\Exception\OptionValueCodeAlreadyExistsException;
-use Maatify\Product\Product\Command\CreateProductCommand;
+use Maatify\Product\OptionValue\Management\Command\CreateOptionValueCommand;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
-use Maatify\Product\Variant\Command\UpdateVariantIdentifiersCommand;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
 use Maatify\Product\Variant\Exception\VariantBarcodeAlreadyExistsException;
 use Maatify\Product\Variant\Exception\VariantSkuAlreadyExistsException;
+use Maatify\Product\Variant\Management\Command\UpdateVariantIdentifiersCommand;
 use Maatify\Product\Variant\ValueObject\VariantIdentifierChange;
 use PDOException;
 use Throwable;
@@ -34,7 +34,7 @@ final class CollationIdentityTest extends RuntimeTestCase
 {
     public function testProductCodesCompareAccentAndTrailingSpaceInsensitively(): void
     {
-        $products = $this->productService();
+        $products = $this->productManagementService();
         $cafe = $products->create(new CreateProductCommand('Café'))->productId;
         $this->assertTypedConflict(ProductCodeAlreadyExistsException::class, fn() => $products->create(new CreateProductCommand('Cafe')));
         $padded = $products->create(new CreateProductCommand('TEA '))->productId;
@@ -48,14 +48,14 @@ final class CollationIdentityTest extends RuntimeTestCase
 
     public function testOptionAndValueCodesCompareAccentAndTrailingSpaceInsensitively(): void
     {
-        $productId = $this->productService()->create(new CreateProductCommand('P'))->productId;
-        $options = $this->optionService();
+        $productId = $this->productManagementService()->create(new CreateProductCommand('P'))->productId;
+        $options = $this->optionManagementService();
         $optionId = $options->create(new CreateOptionCommand($productId, 'Couleur'))->optionId;
         $this->assertTypedConflict(OptionCodeAlreadyExistsException::class, fn() => $options->create(new CreateOptionCommand($productId, 'Coüleur')));
         $options->create(new CreateOptionCommand($productId, 'size '));
         $this->assertTypedConflict(OptionCodeAlreadyExistsException::class, fn() => $options->create(new CreateOptionCommand($productId, 'size')));
 
-        $values = $this->optionValueService();
+        $values = $this->optionValueManagementService();
         $values->create(new CreateOptionValueCommand($optionId, 'crème'));
         $this->assertTypedConflict(OptionValueCodeAlreadyExistsException::class, fn() => $values->create(new CreateOptionValueCommand($optionId, 'creme')));
         $values->create(new CreateOptionValueCommand($optionId, 'red '));
@@ -64,7 +64,7 @@ final class CollationIdentityTest extends RuntimeTestCase
 
     public function testRoleKeysCompareAccentAndTrailingSpaceInsensitively(): void
     {
-        $roles = $this->imageRoleService();
+        $roles = $this->imageRoleManagementService();
         $hero = $roles->create(new CreateImageRoleCommand('héro'))->roleId;
         $this->assertTypedConflict(ImageRoleKeyAlreadyExistsException::class, fn() => $roles->create(new CreateImageRoleCommand('hero')));
         $thumb = $roles->create(new CreateImageRoleCommand('thumb '))->roleId;
@@ -77,9 +77,9 @@ final class CollationIdentityTest extends RuntimeTestCase
 
     public function testSkuAndBarcodeCompareAccentAndTrailingSpaceInsensitively(): void
     {
-        $a = $this->productService()->create(new CreateProductCommand('A'))->variantId;
-        $b = $this->productService()->create(new CreateProductCommand('B'))->variantId;
-        $variants = $this->variantService();
+        $a = $this->productManagementService()->create(new CreateProductCommand('A'))->variantId;
+        $b = $this->productManagementService()->create(new CreateProductCommand('B'))->variantId;
+        $variants = $this->variantManagementService();
         $set = static fn(int $variant, ?string $sku, ?string $barcode): UpdateVariantIdentifiersCommand => new UpdateVariantIdentifiersCommand(
             $variant,
             $sku === null ? VariantIdentifierChange::unchanged() : VariantIdentifierChange::set($sku),
@@ -98,14 +98,14 @@ final class CollationIdentityTest extends RuntimeTestCase
 
     public function testContentLanguageAndAssignmentScopesCompareAccentAndTrailingSpaceInsensitively(): void
     {
-        $productId = $this->productService()->create(new CreateProductCommand('P'))->productId;
-        $content = $this->productContentService();
+        $productId = $this->productManagementService()->create(new CreateProductCommand('P'))->productId;
+        $content = $this->productContentManagementService();
         $content->create(new CreateProductContentCommand($productId, 'fé', 'Name'));
         $this->assertTypedConflict(ProductContentAlreadyExistsException::class, fn() => $content->create(new CreateProductContentCommand($productId, 'fe', 'Name')));
         $content->create(new CreateProductContentCommand($productId, 'en ', 'Name'));
         $this->assertTypedConflict(ProductContentAlreadyExistsException::class, fn() => $content->create(new CreateProductContentCommand($productId, 'en', 'Name')));
 
-        $assignments = $this->imageAssignmentService();
+        $assignments = $this->imageAssignmentManagementService();
         $assignments->create(new CreateImageAssignmentCommand($productId, null, 1, null, 'fé', 'wéb'));
         $this->assertTypedConflict(ImageAssignmentAlreadyExistsException::class, fn() => $assignments->create(new CreateImageAssignmentCommand($productId, null, 1, null, 'fe', 'wéb')), 'Language accents.');
         $this->assertTypedConflict(ImageAssignmentAlreadyExistsException::class, fn() => $assignments->create(new CreateImageAssignmentCommand($productId, null, 1, null, 'fé', 'web')), 'Platform accents.');

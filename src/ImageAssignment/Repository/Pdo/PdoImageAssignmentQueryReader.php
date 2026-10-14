@@ -6,11 +6,11 @@ namespace Maatify\Product\ImageAssignment\Repository\Pdo;
 
 use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Pagination\PageResult;
-use Maatify\Product\Common\Pdo\ManagementListQuery;
-use Maatify\Product\Common\Pdo\RowHydrator;
+use Maatify\Product\Common\Repository\Pdo\ManagementListQuery;
+use Maatify\Product\Common\Repository\Pdo\RowHydrator;
+use Maatify\Product\ImageAssignment\Consumer\Criteria\ImageAssignmentExactScopeCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
-use Maatify\Product\ImageAssignment\DTO\ImageAssignmentExactScopeCriteriaDTO;
-use Maatify\Product\ImageAssignment\DTO\ImageAssignmentListCriteriaDTO;
+use Maatify\Product\ImageAssignment\Management\Criteria\ImageAssignmentListCriteriaDTO;
 use Maatify\Product\ImageAssignment\Repository\ImageAssignmentQueryReaderInterface;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 use PDO;

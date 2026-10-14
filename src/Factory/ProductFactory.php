@@ -7,46 +7,66 @@ namespace Maatify\Product\Factory;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
 use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
+use Maatify\Product\Content\Consumer\Service\OptionContentConsumerService;
+use Maatify\Product\Content\Consumer\Service\OptionContentConsumerServiceInterface;
+use Maatify\Product\Content\Consumer\Service\OptionValueContentConsumerService;
+use Maatify\Product\Content\Consumer\Service\OptionValueContentConsumerServiceInterface;
+use Maatify\Product\Content\Consumer\Service\ProductContentConsumerService;
+use Maatify\Product\Content\Consumer\Service\ProductContentConsumerServiceInterface;
 use Maatify\Product\Content\Enum\ContentOwnerEnum;
+use Maatify\Product\Content\Management\Service\OptionContentManagementService;
+use Maatify\Product\Content\Management\Service\OptionContentManagementServiceInterface;
+use Maatify\Product\Content\Management\Service\OptionValueContentManagementService;
+use Maatify\Product\Content\Management\Service\OptionValueContentManagementServiceInterface;
+use Maatify\Product\Content\Management\Service\ProductContentManagementService;
+use Maatify\Product\Content\Management\Service\ProductContentManagementServiceInterface;
 use Maatify\Product\Content\Repository\Pdo\PdoContentCommandRepository;
 use Maatify\Product\Content\Repository\Pdo\PdoContentQueryReader;
 use Maatify\Product\Content\Service\ContentLifecycle;
-use Maatify\Product\Content\Service\OptionContentService;
-use Maatify\Product\Content\Service\OptionContentServiceInterface;
-use Maatify\Product\Content\Service\OptionValueContentService;
-use Maatify\Product\Content\Service\OptionValueContentServiceInterface;
-use Maatify\Product\Content\Service\ProductContentService;
-use Maatify\Product\Content\Service\ProductContentServiceInterface;
+use Maatify\Product\ImageAssignment\Consumer\Service\ImageAssignmentConsumerService;
+use Maatify\Product\ImageAssignment\Consumer\Service\ImageAssignmentConsumerServiceInterface;
+use Maatify\Product\ImageAssignment\Management\Service\ImageAssignmentManagementService;
+use Maatify\Product\ImageAssignment\Management\Service\ImageAssignmentManagementServiceInterface;
 use Maatify\Product\ImageAssignment\Repository\Pdo\PdoImageAssignmentCommandRepository;
 use Maatify\Product\ImageAssignment\Repository\Pdo\PdoImageAssignmentQueryReader;
-use Maatify\Product\ImageAssignment\Service\ImageAssignmentService;
-use Maatify\Product\ImageAssignment\Service\ImageAssignmentServiceInterface;
+use Maatify\Product\ImageRole\Management\Service\ImageRoleManagementService;
+use Maatify\Product\ImageRole\Management\Service\ImageRoleManagementServiceInterface;
 use Maatify\Product\ImageRole\Repository\Pdo\PdoImageRoleCommandRepository;
 use Maatify\Product\ImageRole\Repository\Pdo\PdoImageRoleQueryReader;
-use Maatify\Product\ImageRole\Service\ImageRoleService;
-use Maatify\Product\ImageRole\Service\ImageRoleServiceInterface;
+use Maatify\Product\Option\Consumer\Service\OptionConsumerService;
+use Maatify\Product\Option\Consumer\Service\OptionConsumerServiceInterface;
+use Maatify\Product\Option\Management\Service\OptionManagementService;
+use Maatify\Product\Option\Management\Service\OptionManagementServiceInterface;
 use Maatify\Product\Option\Repository\Pdo\PdoOptionCommandRepository;
 use Maatify\Product\Option\Repository\Pdo\PdoOptionQueryReader;
-use Maatify\Product\Option\Service\OptionService;
-use Maatify\Product\Option\Service\OptionServiceInterface;
+use Maatify\Product\OptionValue\Consumer\Service\OptionValueConsumerService;
+use Maatify\Product\OptionValue\Consumer\Service\OptionValueConsumerServiceInterface;
+use Maatify\Product\OptionValue\Management\Service\OptionValueManagementService;
+use Maatify\Product\OptionValue\Management\Service\OptionValueManagementServiceInterface;
 use Maatify\Product\OptionValue\Repository\Pdo\PdoOptionValueCommandRepository;
 use Maatify\Product\OptionValue\Repository\Pdo\PdoOptionValueQueryReader;
-use Maatify\Product\OptionValue\Service\OptionValueService;
-use Maatify\Product\OptionValue\Service\OptionValueServiceInterface;
+use Maatify\Product\Product\Consumer\Service\ProductConsumerService;
+use Maatify\Product\Product\Consumer\Service\ProductConsumerServiceInterface;
+use Maatify\Product\Product\Management\Service\ProductManagementService;
+use Maatify\Product\Product\Management\Service\ProductManagementServiceInterface;
 use Maatify\Product\Product\Repository\Pdo\PdoProductCommandRepository;
 use Maatify\Product\Product\Repository\Pdo\PdoProductConfigurationRepository;
 use Maatify\Product\Product\Repository\Pdo\PdoProductQueryReader;
-use Maatify\Product\Product\Service\ProductService;
-use Maatify\Product\Product\Service\ProductServiceInterface;
+use Maatify\Product\Variant\Consumer\Service\VariantConsumerService;
+use Maatify\Product\Variant\Consumer\Service\VariantConsumerServiceInterface;
+use Maatify\Product\Variant\Management\Service\VariantManagementService;
+use Maatify\Product\Variant\Management\Service\VariantManagementServiceInterface;
 use Maatify\Product\Variant\Repository\Pdo\PdoVariantCommandRepository;
 use Maatify\Product\Variant\Repository\Pdo\PdoVariantQueryReader;
-use Maatify\Product\Variant\Service\VariantService;
-use Maatify\Product\Variant\Service\VariantServiceInterface;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 use PDO;
 
 /**
  * Framework-neutral construction of the public Product services.
+ *
+ * Every capability has a Management service (creation, lifecycle, and management reads) and,
+ * when it has a consumer read, a separate Consumer service that returns only consumer-visible
+ * records and writes nothing.
  *
  * The Host supplies the PDO connection to a database where `schema/product.sql`
  * has been installed, and its Clock. The factory holds no container, state, or
@@ -64,16 +84,16 @@ final class ProductFactory
     private function __construct() {}
 
     /**
-     * Builds the Product service: creation, reads, lifecycle, and reconfiguration.
+     * Builds the Product Management service: creation, management reads, lifecycle, and reconfiguration.
      *
      * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
      */
-    public static function createProductService(PDO $pdo, ClockInterface $clock): ProductServiceInterface
+    public static function createProductManagementService(PDO $pdo, ClockInterface $clock): ProductManagementServiceInterface
     {
         self::requireExceptionMode($pdo);
         $ordering = new ScopedOrderingManager();
 
-        return new ProductService(
+        return new ProductManagementService(
             new PdoProductCommandRepository($pdo),
             new PdoVariantCommandRepository($pdo, $ordering),
             new PdoProductQueryReader($pdo, $clock),
@@ -84,16 +104,28 @@ final class ProductFactory
     }
 
     /**
-     * Builds the Variant service: reads, composition resolution, and lifecycle.
+     * Builds the Product Consumer service: the consumer-visible Product read.
      *
      * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
      */
-    public static function createVariantService(PDO $pdo, ClockInterface $clock): VariantServiceInterface
+    public static function createProductConsumerService(PDO $pdo, ClockInterface $clock): ProductConsumerServiceInterface
+    {
+        self::requireExceptionMode($pdo);
+
+        return new ProductConsumerService(new PdoProductQueryReader($pdo, $clock));
+    }
+
+    /**
+     * Builds the Variant Management service: management reads and lifecycle.
+     *
+     * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
+     */
+    public static function createVariantManagementService(PDO $pdo, ClockInterface $clock): VariantManagementServiceInterface
     {
         self::requireExceptionMode($pdo);
         $ordering = new ScopedOrderingManager();
 
-        return new VariantService(
+        return new VariantManagementService(
             new PdoVariantQueryReader($pdo, $clock),
             new PdoVariantCommandRepository($pdo, $ordering),
             new PdoProductConfigurationRepository($pdo, $ordering),
@@ -103,16 +135,28 @@ final class ProductFactory
     }
 
     /**
-     * Builds the Option service: creation, lifecycle, and management lookup.
+     * Builds the Variant Consumer service: consumer-visible reads and composition resolution.
      *
      * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
      */
-    public static function createOptionService(PDO $pdo, ClockInterface $clock): OptionServiceInterface
+    public static function createVariantConsumerService(PDO $pdo, ClockInterface $clock): VariantConsumerServiceInterface
+    {
+        self::requireExceptionMode($pdo);
+
+        return new VariantConsumerService(new PdoVariantQueryReader($pdo, $clock));
+    }
+
+    /**
+     * Builds the Option Management service: creation, lifecycle, and management reads.
+     *
+     * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
+     */
+    public static function createOptionManagementService(PDO $pdo, ClockInterface $clock): OptionManagementServiceInterface
     {
         self::requireExceptionMode($pdo);
         $ordering = new ScopedOrderingManager();
 
-        return new OptionService(
+        return new OptionManagementService(
             new PdoOptionCommandRepository($pdo, $ordering),
             new PdoOptionQueryReader($pdo, $clock),
             new PdoProductCommandRepository($pdo),
@@ -123,16 +167,28 @@ final class ProductFactory
     }
 
     /**
-     * Builds the Option Value service: creation, lifecycle, and management lookup.
+     * Builds the Option Consumer service: the selectable Options of a Product.
      *
      * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
      */
-    public static function createOptionValueService(PDO $pdo, ClockInterface $clock): OptionValueServiceInterface
+    public static function createOptionConsumerService(PDO $pdo, ClockInterface $clock): OptionConsumerServiceInterface
+    {
+        self::requireExceptionMode($pdo);
+
+        return new OptionConsumerService(new PdoOptionQueryReader($pdo, $clock));
+    }
+
+    /**
+     * Builds the Option Value Management service: creation, lifecycle, and management reads.
+     *
+     * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
+     */
+    public static function createOptionValueManagementService(PDO $pdo, ClockInterface $clock): OptionValueManagementServiceInterface
     {
         self::requireExceptionMode($pdo);
         $ordering = new ScopedOrderingManager();
 
-        return new OptionValueService(
+        return new OptionValueManagementService(
             new PdoOptionValueCommandRepository($pdo, $ordering),
             new PdoOptionValueQueryReader($pdo, $clock),
             new PdoOptionCommandRepository($pdo, $ordering),
@@ -144,15 +200,28 @@ final class ProductFactory
     }
 
     /**
-     * Builds the Image Role service: creation, lifecycle, and management lookup.
+     * Builds the Option Value Consumer service: the selectable Values of an Option.
      *
      * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
      */
-    public static function createImageRoleService(PDO $pdo, ClockInterface $clock): ImageRoleServiceInterface
+    public static function createOptionValueConsumerService(PDO $pdo, ClockInterface $clock): OptionValueConsumerServiceInterface
     {
         self::requireExceptionMode($pdo);
 
-        return new ImageRoleService(
+        return new OptionValueConsumerService(new PdoOptionValueQueryReader($pdo, $clock));
+    }
+
+    /**
+     * Builds the Image Role Management service: creation, lifecycle, and management reads. Image
+     * Roles have no consumer read.
+     *
+     * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
+     */
+    public static function createImageRoleManagementService(PDO $pdo, ClockInterface $clock): ImageRoleManagementServiceInterface
+    {
+        self::requireExceptionMode($pdo);
+
+        return new ImageRoleManagementService(
             new PdoImageRoleCommandRepository($pdo),
             new PdoImageRoleQueryReader($pdo, $clock),
             new PdoSavepointTransactionRunner($pdo),
@@ -161,16 +230,16 @@ final class ProductFactory
     }
 
     /**
-     * Builds the Image Assignment service: creation, default operations, lifecycle, and management lookup.
+     * Builds the Image Assignment Management service: creation, default operations, lifecycle, and management reads.
      *
      * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
      */
-    public static function createImageAssignmentService(PDO $pdo, ClockInterface $clock): ImageAssignmentServiceInterface
+    public static function createImageAssignmentManagementService(PDO $pdo, ClockInterface $clock): ImageAssignmentManagementServiceInterface
     {
         self::requireExceptionMode($pdo);
         $ordering = new ScopedOrderingManager();
 
-        return new ImageAssignmentService(
+        return new ImageAssignmentManagementService(
             new PdoImageAssignmentCommandRepository($pdo, $ordering),
             new PdoImageAssignmentQueryReader($pdo, $clock),
             new PdoProductCommandRepository($pdo),
@@ -182,33 +251,75 @@ final class ProductFactory
     }
 
     /**
-     * Builds the Product Content service: name and descriptions per language, lifecycle, and reads.
+     * Builds the Image Assignment Consumer service: the visible assignments of one exact scope.
      *
      * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
      */
-    public static function createProductContentService(PDO $pdo, ClockInterface $clock): ProductContentServiceInterface
+    public static function createImageAssignmentConsumerService(PDO $pdo, ClockInterface $clock): ImageAssignmentConsumerServiceInterface
     {
-        return new ProductContentService(self::contentLifecycle($pdo, $clock, ContentOwnerEnum::PRODUCT));
+        self::requireExceptionMode($pdo);
+
+        return new ImageAssignmentConsumerService(new PdoImageAssignmentQueryReader($pdo, $clock));
     }
 
     /**
-     * Builds the Option Content service: labels per language, lifecycle, and reads.
+     * Builds the Product Content Management service: name and descriptions per language, lifecycle, and management reads.
      *
      * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
      */
-    public static function createOptionContentService(PDO $pdo, ClockInterface $clock): OptionContentServiceInterface
+    public static function createProductContentManagementService(PDO $pdo, ClockInterface $clock): ProductContentManagementServiceInterface
     {
-        return new OptionContentService(self::contentLifecycle($pdo, $clock, ContentOwnerEnum::OPTION));
+        return new ProductContentManagementService(self::contentLifecycle($pdo, $clock, ContentOwnerEnum::PRODUCT));
     }
 
     /**
-     * Builds the Option Value Content service: labels per language, lifecycle, and reads.
+     * Builds the Product Content Consumer service: the visible record of one exact language.
      *
      * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
      */
-    public static function createOptionValueContentService(PDO $pdo, ClockInterface $clock): OptionValueContentServiceInterface
+    public static function createProductContentConsumerService(PDO $pdo, ClockInterface $clock): ProductContentConsumerServiceInterface
     {
-        return new OptionValueContentService(self::contentLifecycle($pdo, $clock, ContentOwnerEnum::OPTION_VALUE));
+        return new ProductContentConsumerService(self::contentLifecycle($pdo, $clock, ContentOwnerEnum::PRODUCT));
+    }
+
+    /**
+     * Builds the Option Content Management service: labels per language, lifecycle, and management reads.
+     *
+     * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
+     */
+    public static function createOptionContentManagementService(PDO $pdo, ClockInterface $clock): OptionContentManagementServiceInterface
+    {
+        return new OptionContentManagementService(self::contentLifecycle($pdo, $clock, ContentOwnerEnum::OPTION));
+    }
+
+    /**
+     * Builds the Option Content Consumer service: the visible record of one exact language.
+     *
+     * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
+     */
+    public static function createOptionContentConsumerService(PDO $pdo, ClockInterface $clock): OptionContentConsumerServiceInterface
+    {
+        return new OptionContentConsumerService(self::contentLifecycle($pdo, $clock, ContentOwnerEnum::OPTION));
+    }
+
+    /**
+     * Builds the Option Value Content Management service: labels per language, lifecycle, and management reads.
+     *
+     * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
+     */
+    public static function createOptionValueContentManagementService(PDO $pdo, ClockInterface $clock): OptionValueContentManagementServiceInterface
+    {
+        return new OptionValueContentManagementService(self::contentLifecycle($pdo, $clock, ContentOwnerEnum::OPTION_VALUE));
+    }
+
+    /**
+     * Builds the Option Value Content Consumer service: the visible record of one exact language.
+     *
+     * @throws ProductInvalidArgumentException When the connection does not report errors as exceptions.
+     */
+    public static function createOptionValueContentConsumerService(PDO $pdo, ClockInterface $clock): OptionValueContentConsumerServiceInterface
+    {
+        return new OptionValueContentConsumerService(self::contentLifecycle($pdo, $clock, ContentOwnerEnum::OPTION_VALUE));
     }
 
     private static function contentLifecycle(PDO $pdo, ClockInterface $clock, ContentOwnerEnum $owner): ContentLifecycle

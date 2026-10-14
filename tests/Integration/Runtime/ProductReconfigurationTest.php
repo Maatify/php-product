@@ -10,11 +10,11 @@ use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Common\Exception\ProductPersistenceException;
 use Maatify\Product\Option\Enum\OptionStatusEnum;
 use Maatify\Product\OptionValue\Enum\OptionValueStatusEnum;
-use Maatify\Product\Product\Command\CreateProductCommand;
-use Maatify\Product\Product\Command\ReconfigureOptionTarget;
-use Maatify\Product\Product\Command\ReconfigureProductCommand;
-use Maatify\Product\Product\Command\ReconfigureVariantTarget;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
+use Maatify\Product\Product\Management\Command\ReconfigureOptionTarget;
+use Maatify\Product\Product\Management\Command\ReconfigureProductCommand;
+use Maatify\Product\Product\Management\Command\ReconfigureVariantTarget;
 use Maatify\Product\Variant\DTO\VariantDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
 use Maatify\Product\Variant\Exception\VariantCompositionConflictException;
@@ -84,15 +84,16 @@ final class ProductReconfigurationTest extends RuntimeTestCase
     {
         return array_map(
             static fn(VariantDTO $v): int => $v->id,
-            $this->variantService()->listByProductIdForManagement($this->product, new \Maatify\Product\Variant\DTO\VariantListCriteriaDTO(VariantStatusEnum::ACTIVE))->items(),
+            $this->variantManagementService()->listByProductIdForManagement($this->product, new \Maatify\Product\Variant\Management\Criteria\VariantListCriteriaDTO(VariantStatusEnum::ACTIVE))->items(),
         );
     }
 
     public function testSimpleToConfigurableAndBackReusesTheOriginalEmptyVariant(): void
     {
         $this->prepared();
-        $products = $this->productService();
-        $variants = $this->variantService();
+        $products = $this->productManagementService();
+        $variants = $this->variantManagementService();
+        $consumerVariants = $this->variantConsumerService();
 
         $result = $products->reconfigure(self::reconfiguration(
             $this->product,
@@ -114,9 +115,9 @@ final class ProductReconfigurationTest extends RuntimeTestCase
         self::assertNull($created->barcode);
         self::assertSame(2, $created->displayOrder, 'Positions continue after the empty Variant.');
         self::assertSame(3, $variants->getByIdForManagement($blueL)->displayOrder);
-        self::assertSame(OptionStatusEnum::ACTIVE, $this->optionService()->getByIdForManagement($this->color)->status);
+        self::assertSame(OptionStatusEnum::ACTIVE, $this->optionManagementService()->getByIdForManagement($this->color)->status);
         $this->activateProduct($this->product);
-        self::assertSame([$redM, $blueL], array_map(static fn(VariantDTO $v): int => $v->id, $variants->listByProductId($this->product)->items()));
+        self::assertSame([$redM, $blueL], array_map(static fn(VariantDTO $v): int => $v->id, $consumerVariants->listByProductId($this->product)->items()));
 
         $back = $products->reconfigure(self::reconfiguration($this->product, [], [$this->emptyTarget($this->empty)]));
         self::assertSame([], $back->createdVariantIds);
@@ -124,16 +125,16 @@ final class ProductReconfigurationTest extends RuntimeTestCase
         self::assertSame([$redM, $blueL], $back->deactivatedVariantIds);
         self::assertSame([$this->color, $this->size], $back->deactivatedOptionIds);
         self::assertSame([], $back->deactivatedOptionValueIds, 'Values of a retired Option are retained as history unchanged.');
-        self::assertSame(OptionValueStatusEnum::ACTIVE, $this->optionValueService()->getByIdForManagement($this->red)->status);
+        self::assertSame(OptionValueStatusEnum::ACTIVE, $this->optionValueManagementService()->getByIdForManagement($this->red)->status);
         self::assertSame(1, self::rowCount('maa_product_variants', 'product_id = ' . $this->product . " AND composition_fingerprint = '" . hash('sha256', 'v1') . "'"), 'Never a second empty-composition identity.');
-        self::assertSame([$this->empty], array_map(static fn(VariantDTO $v): int => $v->id, $variants->listByProductId($this->product)->items()));
+        self::assertSame([$this->empty], array_map(static fn(VariantDTO $v): int => $v->id, $consumerVariants->listByProductId($this->product)->items()));
         self::assertSame(3, self::rowCount('maa_product_variants', 'product_id = ' . $this->product), 'History is kept.');
     }
 
     public function testAnExistingCompositionIsReusedOnlyWhenItsIdentityIsNamed(): void
     {
         $this->prepared();
-        $products = $this->productService();
+        $products = $this->productManagementService();
         $other = $this->namedProduct('OTHER');
         $all = [$this->color => [$this->red, $this->blue], $this->size => [$this->m, $this->l]];
         [$redM, $blueL] = $products->reconfigure(self::reconfiguration($this->product, $all, [$this->target($this->red, $this->m), $this->target($this->blue, $this->l)]))->createdVariantIds;
@@ -160,8 +161,8 @@ final class ProductReconfigurationTest extends RuntimeTestCase
     public function testHistoricalAndSoftDeletedVariantsComeBackOnlyByExplicitIdentity(): void
     {
         $this->prepared();
-        $products = $this->productService();
-        $variants = $this->variantService();
+        $products = $this->productManagementService();
+        $variants = $this->variantManagementService();
         $all = [$this->color => [$this->red, $this->blue], $this->size => [$this->m, $this->l]];
         [$redM, $blueL, $redL] = $products->reconfigure(self::reconfiguration($this->product, $all, [$this->target($this->red, $this->m), $this->target($this->blue, $this->l), $this->target($this->red, $this->l)]))->createdVariantIds;
 
@@ -189,7 +190,7 @@ final class ProductReconfigurationTest extends RuntimeTestCase
     public function testTheTransitionToSimpleFailsClosedWhenTheOriginalEmptyVariantIsMissing(): void
     {
         $this->prepared();
-        $products = $this->productService();
+        $products = $this->productManagementService();
         $all = [$this->color => [$this->red], $this->size => [$this->m]];
         [$redM] = $products->reconfigure(self::reconfiguration($this->product, $all, [$this->target($this->red, $this->m)]))->createdVariantIds;
 
@@ -198,14 +199,14 @@ final class ProductReconfigurationTest extends RuntimeTestCase
         $this->execute('DELETE FROM maa_product_variants WHERE id = :i', ['i' => $this->empty]);
         $this->assertThrows(ProductPersistenceException::class, fn() => $products->reconfigure(self::reconfiguration($this->product, [], [$this->emptyTarget(null)])), 'The original identity is missing: fail closed, never create a second one.');
         self::assertSame([$redM], $this->activeVariantIds(), 'The failed transition changed nothing.');
-        self::assertSame(OptionStatusEnum::ACTIVE, $this->optionService()->getByIdForManagement($this->color)->status);
+        self::assertSame(OptionStatusEnum::ACTIVE, $this->optionManagementService()->getByIdForManagement($this->color)->status);
         self::assertSame(0, self::rowCount('maa_product_variants', "composition_fingerprint = '" . hash('sha256', 'v1') . "'"));
     }
 
     public function testInvalidTargetsAreRejectedAsAWholeWithTheSettledClasses(): void
     {
         $this->prepared();
-        $products = $this->productService();
+        $products = $this->productManagementService();
         $other = $this->namedProduct('OTHER');
         $otherOption = $this->preparedOption($other->productId, 'color', 'Color');
         $otherValue = $this->preparedValue($otherOption, 'red', 'Red');
@@ -213,10 +214,10 @@ final class ProductReconfigurationTest extends RuntimeTestCase
         $unlabelledValue = $this->preparedValue($unlabelledOption, 'wood');
         $this->labelOption($unlabelledOption, 'Material');
         $deletedValue = $this->preparedValue($this->color, 'green', 'Green');
-        $this->optionValueService()->softDelete($deletedValue);
+        $this->optionValueManagementService()->softDelete($deletedValue);
         $deletedOption = $this->preparedOption($this->product, 'finish', 'Finish');
         $finishValue = $this->preparedValue($deletedOption, 'matte', 'Matte');
-        $this->optionService()->softDelete($deletedOption);
+        $this->optionManagementService()->softDelete($deletedOption);
         $all = [$this->color => [$this->red, $this->blue], $this->size => [$this->m, $this->l]];
 
         $businessRule = [
@@ -255,7 +256,7 @@ final class ProductReconfigurationTest extends RuntimeTestCase
     public function testAStoredFingerprintThatDoesNotMatchItsPairsIsAPersistenceFailure(): void
     {
         $this->prepared();
-        $products = $this->productService();
+        $products = $this->productManagementService();
         $all = [$this->color => [$this->red, $this->blue], $this->size => [$this->m, $this->l]];
         [$redM, $blueL] = $products->reconfigure(self::reconfiguration($this->product, $all, [$this->target($this->red, $this->m), $this->target($this->blue, $this->l)]))->createdVariantIds;
         $this->execute('UPDATE maa_product_variant_option_values SET option_value_id = :l WHERE variant_id = :v AND option_id = :o', ['l' => $this->l, 'v' => $redM, 'o' => $this->size]);
@@ -266,7 +267,7 @@ final class ProductReconfigurationTest extends RuntimeTestCase
     public function testAFailureInsideAHostTransactionLeavesTheHostWorkIntactAndTheConfigurationUnchanged(): void
     {
         $this->prepared();
-        $products = $this->productService();
+        $products = $this->productManagementService();
         $all = [$this->color => [$this->red, $this->blue], $this->size => [$this->m, $this->l]];
 
         self::$pdo->beginTransaction();
@@ -278,7 +279,7 @@ final class ProductReconfigurationTest extends RuntimeTestCase
 
         self::assertSame($hostWork->productId, $products->getByIdForManagement($hostWork->productId)->id, 'Host work before the failed call survived.');
         self::assertSame($result->createdVariantIds, $this->activeVariantIds(), 'The later successful call inside the same Host transaction was committed by the Host.');
-        self::assertSame(OptionStatusEnum::ACTIVE, $this->optionService()->getByIdForManagement($this->size)->status);
+        self::assertSame(OptionStatusEnum::ACTIVE, $this->optionManagementService()->getByIdForManagement($this->size)->status);
 
         self::$pdo->beginTransaction();
         $products->reconfigure(self::reconfiguration($this->product, [], [$this->emptyTarget($this->empty)]));
@@ -290,7 +291,7 @@ final class ProductReconfigurationTest extends RuntimeTestCase
     public function testAStorageFailureAfterTheStatusWritesRollsTheWholeOperationBack(): void
     {
         $this->prepared();
-        $products = $this->productService();
+        $products = $this->productManagementService();
         self::$pdo->exec(
             'CREATE TRIGGER `' . self::FAILING_TRIGGER . '` BEFORE INSERT ON `maa_product_variants` '
             . "FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced Variant failure'",
@@ -304,10 +305,10 @@ final class ProductReconfigurationTest extends RuntimeTestCase
             self::assertStringContainsString('forced Variant failure', $caught->getMessage());
         }
         self::assertFalse(self::$pdo->inTransaction());
-        self::assertSame(OptionStatusEnum::INACTIVE, $this->optionService()->getByIdForManagement($this->color)->status, 'The Option activation written before the failure was rolled back.');
-        self::assertSame(OptionValueStatusEnum::INACTIVE, $this->optionValueService()->getByIdForManagement($this->red)->status);
-        self::assertSame(VariantStatusEnum::ACTIVE, $this->variantService()->getByIdForManagement($this->empty)->status, 'The empty Variant deactivation was rolled back.');
+        self::assertSame(OptionStatusEnum::INACTIVE, $this->optionManagementService()->getByIdForManagement($this->color)->status, 'The Option activation written before the failure was rolled back.');
+        self::assertSame(OptionValueStatusEnum::INACTIVE, $this->optionValueManagementService()->getByIdForManagement($this->red)->status);
+        self::assertSame(VariantStatusEnum::ACTIVE, $this->variantManagementService()->getByIdForManagement($this->empty)->status, 'The empty Variant deactivation was rolled back.');
         self::assertSame([$this->empty], $this->activeVariantIds());
-        self::assertSame($this->empty, $this->variantService()->getByIdForManagement($this->empty, ProductDeletedStateEnum::NON_DELETED)->id);
+        self::assertSame($this->empty, $this->variantManagementService()->getByIdForManagement($this->empty, ProductDeletedStateEnum::NON_DELETED)->id);
     }
 }

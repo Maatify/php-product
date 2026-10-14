@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Maatify\Product\ImageAssignment\Repository;
 
 use DateTimeImmutable;
-use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentIdentityDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentStateDTO;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentAlreadyExistsException;
+use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentScope;
 
 /**

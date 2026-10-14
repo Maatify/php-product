@@ -7,28 +7,28 @@ namespace Maatify\Product\Tests\Integration\Runtime;
 use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
-use Maatify\Product\ImageAssignment\DTO\ImageAssignmentListCriteriaDTO;
+use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\Management\Criteria\ImageAssignmentListCriteriaDTO;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentLanguageFilter;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentPlatformFilter;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentRoleFilter;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentTargetFilter;
-use Maatify\Product\ImageRole\Command\CreateImageRoleCommand;
-use Maatify\Product\ImageRole\DTO\ImageRoleListCriteriaDTO;
 use Maatify\Product\ImageRole\Enum\ImageRoleStatusEnum;
 use Maatify\Product\ImageRole\Exception\ImageRoleNotFoundException;
-use Maatify\Product\Option\Command\CreateOptionCommand;
-use Maatify\Product\Option\DTO\OptionListCriteriaDTO;
+use Maatify\Product\ImageRole\Management\Command\CreateImageRoleCommand;
+use Maatify\Product\ImageRole\Management\Criteria\ImageRoleListCriteriaDTO;
 use Maatify\Product\Option\Enum\OptionStatusEnum;
-use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
-use Maatify\Product\OptionValue\DTO\OptionValueListCriteriaDTO;
+use Maatify\Product\Option\Management\Command\CreateOptionCommand;
+use Maatify\Product\Option\Management\Criteria\OptionListCriteriaDTO;
 use Maatify\Product\OptionValue\Enum\OptionValueStatusEnum;
-use Maatify\Product\Product\Command\CreateProductCommand;
-use Maatify\Product\Product\DTO\ProductListCriteriaDTO;
+use Maatify\Product\OptionValue\Management\Command\CreateOptionValueCommand;
+use Maatify\Product\OptionValue\Management\Criteria\OptionValueListCriteriaDTO;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
-use Maatify\Product\Variant\DTO\VariantListCriteriaDTO;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
+use Maatify\Product\Product\Management\Criteria\ProductListCriteriaDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
+use Maatify\Product\Variant\Management\Criteria\VariantListCriteriaDTO;
 
 /**
  * Management lists, search, pagination, business-key reads, and the exact image-assignment
@@ -40,7 +40,7 @@ final class ManagementListTest extends RuntimeTestCase
 {
     public function testProductsAreListedSearchedAndPaginated(): void
     {
-        $service = $this->productService();
+        $service = $this->productManagementService();
         $ids = [];
         foreach (['ALPHA', 'beta', 'A%B', 'A_B', 'A\\B', 'A!B', 'GAMMA'] as $code) {
             $ids[$code] = $service->create(new CreateProductCommand($code))->productId;
@@ -103,8 +103,8 @@ final class ManagementListTest extends RuntimeTestCase
         foreach (['red', 'green', 'blue'] as $code) {
             $values[] = $this->preparedValue($color, $code, ucfirst($code));
         }
-        $this->productService()->reconfigure(self::reconfiguration($p->productId, [$color => $values], array_map(static fn(int $v): array => [[[$color, $v]]], $values)));
-        $service = $this->variantService();
+        $this->productManagementService()->reconfigure(self::reconfiguration($p->productId, [$color => $values], array_map(static fn(int $v): array => [[[$color, $v]]], $values)));
+        $service = $this->variantManagementService();
 
         $first = $service->paginateByProductIdForManagement($p->productId, new VariantListCriteriaDTO(), new PageRequest(1, 3));
         self::assertSame([4, 4, 2, 'display_order'], [$first->total, $first->filtered, $first->totalPages, $first->sortBy]);
@@ -125,8 +125,8 @@ final class ManagementListTest extends RuntimeTestCase
     {
         $p = $this->namedProduct('P');
         $q = $this->namedProduct('Q');
-        $options = $this->optionService();
-        $values = $this->optionValueService();
+        $options = $this->optionManagementService();
+        $values = $this->optionValueManagementService();
         [$a, $b, $c] = array_map(fn(string $code): int => $options->create(new CreateOptionCommand($p->productId, $code))->optionId, ['a', 'b', 'c']);
         $options->create(new CreateOptionCommand($q->productId, 'other'));
         $options->softDelete($b);
@@ -160,7 +160,7 @@ final class ManagementListTest extends RuntimeTestCase
 
     public function testRolesAreListedByBinaryKeyAndFoundByKey(): void
     {
-        $roles = $this->imageRoleService();
+        $roles = $this->imageRoleManagementService();
         $ids = [];
         foreach (['a', 'Z', 'm', 'gone'] as $key) {
             $ids[$key] = $roles->create(new CreateImageRoleCommand($key))->roleId;
@@ -188,8 +188,8 @@ final class ManagementListTest extends RuntimeTestCase
     {
         $p = $this->namedProduct('P');
         $q = $this->namedProduct('Q');
-        $hero = $this->imageRoleService()->create(new CreateImageRoleCommand('hero'))->roleId;
-        $service = $this->imageAssignmentService();
+        $hero = $this->imageRoleManagementService()->create(new CreateImageRoleCommand('hero'))->roleId;
+        $service = $this->imageAssignmentManagementService();
         $p1 = $service->create(new CreateImageAssignmentCommand($p->productId, null, 1))->assignmentId;
         $p2 = $service->create(new CreateImageAssignmentCommand($p->productId, null, 2, $hero, 'en', 'web'))->assignmentId;
         $p3 = $service->create(new CreateImageAssignmentCommand($p->productId, null, 3, null, 'en'))->assignmentId;

@@ -6,15 +6,15 @@ namespace Maatify\Product\Tests\Unit;
 
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\ImageAssignment\DTO\ImageAssignmentListCriteriaDTO;
+use Maatify\Product\ImageAssignment\Management\Criteria\ImageAssignmentListCriteriaDTO;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentLanguageFilter;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentPlatformFilter;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentRoleFilter;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentTargetFilter;
-use Maatify\Product\ImageRole\DTO\ImageRoleListCriteriaDTO;
-use Maatify\Product\Option\DTO\OptionListCriteriaDTO;
-use Maatify\Product\OptionValue\DTO\OptionValueListCriteriaDTO;
-use Maatify\Product\Product\DTO\ProductListCriteriaDTO;
+use Maatify\Product\ImageRole\Management\Criteria\ImageRoleListCriteriaDTO;
+use Maatify\Product\Option\Management\Criteria\OptionListCriteriaDTO;
+use Maatify\Product\OptionValue\Management\Criteria\OptionValueListCriteriaDTO;
+use Maatify\Product\Product\Management\Criteria\ProductListCriteriaDTO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

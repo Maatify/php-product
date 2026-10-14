@@ -6,7 +6,7 @@ namespace Maatify\Product\Tests\Unit\Product\Command;
 
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Exception\ProductExceptionInterface;
-use Maatify\Product\Product\Command\CreateProductCommand;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

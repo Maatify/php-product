@@ -8,14 +8,14 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
 use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
-use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
+use Maatify\Product\Product\Management\Service\ProductManagementService;
 use Maatify\Product\Product\Repository\Pdo\PdoProductCommandRepository;
 use Maatify\Product\Product\Repository\Pdo\PdoProductConfigurationRepository;
 use Maatify\Product\Product\Repository\Pdo\PdoProductQueryReader;
-use Maatify\Product\Product\Service\ProductService;
-use Maatify\Product\Variant\Repository\Pdo\PdoVariantCommandRepository;
 use Maatify\Product\Tests\Support\UnusedVariantLifecycleWrites;
+use Maatify\Product\Variant\Repository\Pdo\PdoVariantCommandRepository;
 use Maatify\Product\Variant\Repository\VariantCommandRepositoryInterface;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
 use PDOException;
@@ -107,7 +107,7 @@ final class HostTransactionAtomicityTest extends RuntimeTestCase
 
     public function testHostWorkAroundAFailedCallSurvivesAndOnlyCompleteProductsAreCommitted(): void
     {
-        $ok = $this->productService();
+        $ok = $this->productManagementService();
         $failing = $this->serviceWithVariants($this->variantsFailingBeforeTheWrite(new RuntimeException('variant write failed')));
 
         self::$pdo->beginTransaction();
@@ -130,7 +130,7 @@ final class HostTransactionAtomicityTest extends RuntimeTestCase
 
     public function testAHostRollbackAfterAFailedCallLeavesNothing(): void
     {
-        $ok = $this->productService();
+        $ok = $this->productManagementService();
         $failing = $this->serviceWithVariants($this->variantsFailingBeforeTheWrite(new RuntimeException('variant write failed')));
 
         self::$pdo->beginTransaction();
@@ -186,7 +186,7 @@ final class HostTransactionAtomicityTest extends RuntimeTestCase
 
     public function testADuplicateCodeInsideAHostTransactionKeepsTheHostsEarlierWork(): void
     {
-        $service = $this->productService();
+        $service = $this->productManagementService();
 
         self::$pdo->beginTransaction();
         $service->create(new CreateProductCommand('P-DUP'));
@@ -211,7 +211,7 @@ final class HostTransactionAtomicityTest extends RuntimeTestCase
         );
 
         try {
-            $service = $this->productService();
+            $service = $this->productManagementService();
 
             self::$pdo->beginTransaction();
             try {
@@ -245,7 +245,7 @@ final class HostTransactionAtomicityTest extends RuntimeTestCase
 
         try {
             try {
-                $this->productService()->create(new CreateProductCommand('P-OWNED-TRIGGER'));
+                $this->productManagementService()->create(new CreateProductCommand('P-OWNED-TRIGGER'));
                 self::fail('The Variant failure must propagate.');
             } catch (Throwable $caught) {
                 self::assertInstanceOf(PDOException::class, $caught);
@@ -258,9 +258,9 @@ final class HostTransactionAtomicityTest extends RuntimeTestCase
         self::assertSame(0, self::rowCount('maa_product_products'));
     }
 
-    private function serviceWithVariants(VariantCommandRepositoryInterface $variants): ProductService
+    private function serviceWithVariants(VariantCommandRepositoryInterface $variants): ProductManagementService
     {
-        return new ProductService(
+        return new ProductManagementService(
             new PdoProductCommandRepository(self::$pdo),
             $variants,
             new PdoProductQueryReader(self::$pdo, new SystemClock(new DateTimeZone('UTC'))),

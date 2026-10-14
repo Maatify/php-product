@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Maatify\Product\Tests\Unit\Variant\ValueObject;
 
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\Variant\DTO\VariantCompositionCriteriaDTO;
+use Maatify\Product\Variant\Consumer\Criteria\VariantCompositionCriteriaDTO;
 use Maatify\Product\Variant\ValueObject\OptionValueSelection;
 use PHPUnit\Framework\TestCase;
 

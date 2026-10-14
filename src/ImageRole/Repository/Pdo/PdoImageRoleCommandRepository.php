@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Maatify\Product\ImageRole\Repository\Pdo;
 
-use Maatify\Product\Common\Pdo\DuplicateKey;
 use DateTimeImmutable;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
-use Maatify\Product\Common\Pdo\RowHydrator;
-use Maatify\Product\ImageRole\Command\CreateImageRoleCommand;
+use Maatify\Product\Common\Repository\Pdo\DuplicateKey;
+use Maatify\Product\Common\Repository\Pdo\RowHydrator;
 use Maatify\Product\ImageRole\DTO\ImageRoleStateDTO;
 use Maatify\Product\ImageRole\Enum\ImageRoleStatusEnum;
 use Maatify\Product\ImageRole\Exception\ImageRoleKeyAlreadyExistsException;
+use Maatify\Product\ImageRole\Management\Command\CreateImageRoleCommand;
 use Maatify\Product\ImageRole\Repository\ImageRoleCommandRepositoryInterface;
 use PDO;
 use PDOException;

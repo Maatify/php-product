@@ -7,7 +7,7 @@ namespace Maatify\Product\ImageRole\Repository;
 use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\ImageRole\DTO\ImageRoleDTO;
-use Maatify\Product\ImageRole\DTO\ImageRoleListCriteriaDTO;
+use Maatify\Product\ImageRole\Management\Criteria\ImageRoleListCriteriaDTO;
 
 /**
  * Read port for stored Image Roles. It performs no write and holds no lock.

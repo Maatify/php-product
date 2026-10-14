@@ -10,8 +10,8 @@ declare(strict_types=1);
  */
 
 use Maatify\Product\Factory\ProductFactory;
-use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
 
 require dirname(__DIR__, 2) . '/vendor/autoload.php';
@@ -32,7 +32,7 @@ $pdo = new PDO(
     $env('PRODUCT_TEST_DB_PASSWORD'),
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false],
 );
-$service = ProductFactory::createProductService($pdo, new SystemClock(new DateTimeZone('UTC')));
+$service = ProductFactory::createProductManagementService($pdo, new SystemClock(new DateTimeZone('UTC')));
 
 while (microtime(true) < $startAt) {
     usleep(200);

@@ -32,7 +32,7 @@ Framework-agnostic PHP library for Product and Variant identity on MySQL: a stab
 - **Composition resolution.** `resolveByComposition()` turns a shopper's typed `(optionId, optionValueId)` choices into the one consumer-visible Variant, in any pair order, and fails closed with a typed exception.
 - **One lifecycle contract.** Soft delete and restore for Products, Variants, Options, Option Values, Content, Image Roles, and Image Assignments, and a status change for Products, Variants, and Image Roles (Options and Option Values change status only through `reconfigure()`; Content and Image Assignments have no status): a soft-deleted row accepts nothing but restore, a soft-deleted owner blocks its children, restore keeps the saved status and revalidates the invariants, and inactivity alone blocks no management operation.
 - **Exact Content.** Product names and descriptions and Option and Option Value labels are Content records per language, with `null` as the single unlocalized record; reads select an exact language, the unlocalized record, or (for management only) all languages, and never fall back.
-- **Two reads with one meaning each.** `getById()` is the consumer read (active, not deleted, structurally valid); `getByIdForManagement()` filters only by soft-deletion state.
+- **Separate Management and Consumer contracts.** Every capability has a Management service (creation, lifecycle, and management reads) and, when it has a consumer read, a Consumer service that returns only consumer-visible records and writes nothing. `getById()` on a Consumer service is the consumer read (active, not deleted, structurally valid); `getByIdForManagement()` on a Management service filters only by soft-deletion state.
 - **Host-owned boundaries.** The Host supplies the PDO connection and the Clock. The package performs no Pricing, Inventory, Supplier, Category, or media storage work.
 - **Database-enforced invariants.** `schema/product.sql` defines ten tables with foreign keys, case-sensitive status checks, and exact-scope uniqueness, verified against real MySQL, including concurrent writers.
 
@@ -73,14 +73,17 @@ mysql your_database < schema/product.sql
 
 ```php
 use Maatify\Product\Factory\ProductFactory;
-use Maatify\Product\Product\Command\CreateProductCommand;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
 
 // $pdo: your PDO connection with PDO::ERRMODE_EXCEPTION, on a database that has schema/product.sql.
-$products = ProductFactory::createProductService($pdo, new SystemClock(new DateTimeZone('UTC')));
+$clock = new SystemClock(new DateTimeZone('UTC'));
+$products = ProductFactory::createProductManagementService($pdo, $clock);
+$catalog = ProductFactory::createProductConsumerService($pdo, $clock);
 
 $created = $products->create(new CreateProductCommand('SIMPLE-1')); // Product + its Variant
 $product = $products->getByIdForManagement($created->productId);    // inactive until activated
+// $catalog->getById($created->productId) raises ProductNotFoundException until the Product is active.
 ```
 
 Runnable versions are in [`examples/`](examples/); the walkthroughs are in the [Usage Guide](docs/guides/USAGE_GUIDE.md).
@@ -91,14 +94,19 @@ This is an overview; the complete inventory and the stable contract are in the [
 
 | Type | Role |
 |---|---|
-| `Factory\ProductFactory` | The only construction entry point: `createProductService()`, `createVariantService()`, `createOptionService()`, `createOptionValueService()`, `createImageRoleService()`, `createImageAssignmentService()`, `createProductContentService()`, `createOptionContentService()`, and `createOptionValueContentService()`. |
-| `Product\Service\ProductServiceInterface` | `create()`, `getById()`, `getByIdForManagement()`, `getByCodeForManagement()`, `listForManagement()`, `paginateForManagement()`, `updateStatus()`, `softDelete()`, `restore()`, `reconfigure()`. |
-| `Variant\Service\VariantServiceInterface` | `getById()`, `getByIdForManagement()`, `listByProductId()`, `listByProductIdForManagement()`, `paginateByProductIdForManagement()`, `resolveByComposition()`, `updateStatus()`, `updateIdentifiers()`, `updateDisplayOrder()`, `softDelete()`, `restore()`. |
-| `Option\Service\OptionServiceInterface`, `OptionValue\Service\OptionValueServiceInterface` | `create()`, `updateDisplayOrder()`, `softDelete()`, `restore()`, `getByIdForManagement()`, the owner-scoped `list…ForManagement()` and `paginate…ForManagement()`, and the consumer `listVisibleByProductId()` / `listVisibleByOptionId()`. |
-| `ImageRole\Service\ImageRoleServiceInterface` | `create()`, `updateStatus()`, `softDelete()`, `restore()`, `getByIdForManagement()`, `getByKeyForManagement()`, `listForManagement()`, `paginateForManagement()`. |
-| `ImageAssignment\Service\ImageAssignmentServiceInterface` | `create()`, `setDefault()`, `clearDefault()`, `updateDisplayOrder()`, `softDelete()`, `restore()`, `getByIdForManagement()`, `listForManagement()`, `paginateForManagement()`, `listVisibleByExactScope()`. |
-| `Content\Service\ProductContentServiceInterface`, `Content\Service\OptionContentServiceInterface`, `Content\Service\OptionValueContentServiceInterface` | `create()`, `update()`, `softDelete()`, `restore()`, `getByIdForManagement()`, `listForManagement()`, `paginateForManagement()`, `listVisible()`. |
-| Commands | `CreateProductCommand`, `ReconfigureProductCommand` (with `ReconfigureOptionTarget`, `ReconfigureVariantTarget`), `CreateOptionCommand`, `CreateOptionValueCommand`, `CreateImageRoleCommand`, `CreateImageAssignmentCommand`, `UpdateVariantIdentifiersCommand` (with `Variant\ValueObject\VariantIdentifierChange`), the `Update*DisplayOrderCommand` of Variants, Options, Option Values, and Image Assignments, the `Create*ContentCommand` and `Update*ContentCommand` of each Content owner; `Content\ValueObject\ContentLanguageFilter` and `Content\ValueObject\ExactContentLanguage` for language selection; `Variant\ValueObject\OptionValueSelection` and `Variant\DTO\VariantCompositionCriteriaDTO` for compositions. |
+| `Factory\ProductFactory` | The only construction entry point: a `create{X}ManagementService()` for every capability (`Product`, `Variant`, `Option`, `OptionValue`, `ImageRole`, `ImageAssignment`, `ProductContent`, `OptionContent`, `OptionValueContent`) and a `create{X}ConsumerService()` for every capability except `ImageRole`, which has no consumer read. |
+| `Product\Management\Service\ProductManagementServiceInterface` | `create()`, `getByIdForManagement()`, `getByCodeForManagement()`, `listForManagement()`, `paginateForManagement()`, `updateStatus()`, `softDelete()`, `restore()`, `reconfigure()`. |
+| `Product\Consumer\Service\ProductConsumerServiceInterface` | `getById()`. |
+| `Variant\Management\Service\VariantManagementServiceInterface` | `getByIdForManagement()`, `listByProductIdForManagement()`, `paginateByProductIdForManagement()`, `updateStatus()`, `updateIdentifiers()`, `updateDisplayOrder()`, `softDelete()`, `restore()`. |
+| `Variant\Consumer\Service\VariantConsumerServiceInterface` | `getById()`, `listByProductId()`, `resolveByComposition()`. |
+| `Option\Management\Service\OptionManagementServiceInterface`, `OptionValue\Management\Service\OptionValueManagementServiceInterface` | `create()`, `updateDisplayOrder()`, `softDelete()`, `restore()`, `getByIdForManagement()`, and the owner-scoped `list…ForManagement()` and `paginate…ForManagement()`. |
+| `Option\Consumer\Service\OptionConsumerServiceInterface`, `OptionValue\Consumer\Service\OptionValueConsumerServiceInterface` | `listVisibleByProductId()` / `listVisibleByOptionId()`. |
+| `ImageRole\Management\Service\ImageRoleManagementServiceInterface` | `create()`, `updateStatus()`, `softDelete()`, `restore()`, `getByIdForManagement()`, `getByKeyForManagement()`, `listForManagement()`, `paginateForManagement()`. |
+| `ImageAssignment\Management\Service\ImageAssignmentManagementServiceInterface` | `create()`, `setDefault()`, `clearDefault()`, `updateDisplayOrder()`, `softDelete()`, `restore()`, `getByIdForManagement()`, `listForManagement()`, `paginateForManagement()`. |
+| `ImageAssignment\Consumer\Service\ImageAssignmentConsumerServiceInterface` | `listVisibleByExactScope()`. |
+| `Content\Management\Service\ProductContentManagementServiceInterface`, `Content\Management\Service\OptionContentManagementServiceInterface`, `Content\Management\Service\OptionValueContentManagementServiceInterface` | `create()`, `update()`, `softDelete()`, `restore()`, `getByIdForManagement()`, `listForManagement()`, `paginateForManagement()`. |
+| `Content\Consumer\Service\ProductContentConsumerServiceInterface`, `Content\Consumer\Service\OptionContentConsumerServiceInterface`, `Content\Consumer\Service\OptionValueContentConsumerServiceInterface` | `listVisible()`. |
+| Commands | `CreateProductCommand`, `ReconfigureProductCommand` (with `ReconfigureOptionTarget`, `ReconfigureVariantTarget`), `CreateOptionCommand`, `CreateOptionValueCommand`, `CreateImageRoleCommand`, `CreateImageAssignmentCommand`, `UpdateVariantIdentifiersCommand` (with `Variant\ValueObject\VariantIdentifierChange`), the `Update*DisplayOrderCommand` of Variants, Options, Option Values, and Image Assignments, the `Create*ContentCommand` and `Update*ContentCommand` of each Content owner; `Content\ValueObject\ContentLanguageFilter` and `Content\ValueObject\ExactContentLanguage` for language selection; `Variant\ValueObject\OptionValueSelection` and `Variant\Consumer\Criteria\VariantCompositionCriteriaDTO` for compositions. |
 | DTOs and enums | Typed results (`CreatedProductDTO`, `ProductDTO`, `ProductReconfigurationResultDTO`, `VariantDTO` and its collection and criteria types, the list criteria and collection types of every family, the exact image-assignment selectors (`ImageAssignmentTargetFilter`, `ImageAssignmentRoleFilter`, `ImageAssignmentLanguageFilter`, `ImageAssignmentPlatformFilter`), `OptionDTO`, `OptionValueDTO`, `ImageRoleDTO`, `ImageAssignmentDTO`, the Content DTOs with their collection and criteria types, and the `Created*DTO` identities), the status enums of each family, and `Common\Enum\ProductDeletedStateEnum`. |
 | Exceptions | Named failures for not-found, conflict, validation (`ProductInvalidArgumentException`), business-rule (`ProductBusinessRuleException`), and storage-contract (`ProductPersistenceException`) conditions; all implement `Exception\ProductExceptionInterface`. |
 

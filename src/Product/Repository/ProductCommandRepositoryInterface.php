@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Maatify\Product\Product\Repository;
 
 use DateTimeImmutable;
-use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\DTO\ProductLifecycleStateDTO;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
 
 /**
  * Write port for Product persistence.

@@ -18,25 +18,26 @@ declare(strict_types=1);
 use Composer\InstalledVersions;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\Content\Command\CreateOptionContentCommand;
-use Maatify\Product\Content\Command\CreateOptionValueContentCommand;
-use Maatify\Product\Content\Command\CreateProductContentCommand;
 use Maatify\Product\Content\Exception\ProductContentAlreadyExistsException;
+use Maatify\Product\Content\Management\Command\CreateOptionContentCommand;
+use Maatify\Product\Content\Management\Command\CreateOptionValueContentCommand;
+use Maatify\Product\Content\Management\Command\CreateProductContentCommand;
 use Maatify\Product\Content\ValueObject\ExactContentLanguage;
 use Maatify\Product\Factory\ProductFactory;
-use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
-use Maatify\Product\ImageRole\Command\CreateImageRoleCommand;
-use Maatify\Product\Option\Command\CreateOptionCommand;
-use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
-use Maatify\Product\Product\Command\CreateProductCommand;
-use Maatify\Product\Product\Command\ReconfigureOptionTarget;
-use Maatify\Product\Product\Command\ReconfigureProductCommand;
-use Maatify\Product\Product\Command\ReconfigureVariantTarget;
+use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageRole\Management\Command\CreateImageRoleCommand;
+use Maatify\Product\Option\Management\Command\CreateOptionCommand;
+use Maatify\Product\OptionValue\Management\Command\CreateOptionValueCommand;
+use Maatify\Product\Product\Consumer\Service\ProductConsumerServiceInterface;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
-use Maatify\Product\Product\Service\ProductServiceInterface;
-use Maatify\Product\Variant\DTO\VariantCompositionCriteriaDTO;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
+use Maatify\Product\Product\Management\Command\ReconfigureOptionTarget;
+use Maatify\Product\Product\Management\Command\ReconfigureProductCommand;
+use Maatify\Product\Product\Management\Command\ReconfigureVariantTarget;
+use Maatify\Product\Product\Management\Service\ProductManagementServiceInterface;
+use Maatify\Product\Variant\Consumer\Criteria\VariantCompositionCriteriaDTO;
 use Maatify\Product\Variant\Exception\VariantCompositionConflictException;
 use Maatify\Product\Variant\Exception\VariantNotFoundException;
 use Maatify\Product\Variant\ValueObject\OptionValueSelection;
@@ -71,7 +72,7 @@ check(!is_link((string) $installPath), 'package was copied, not symlinked from t
 
 // Production PSR-4 autoload: the public classes resolve from the installed package.
 $installRoot = (string) realpath((string) $installPath);
-foreach ([ProductFactory::class, CreateProductCommand::class, ProductServiceInterface::class, ProductStatusEnum::class] as $class) {
+foreach ([ProductFactory::class, CreateProductCommand::class, ProductManagementServiceInterface::class, ProductConsumerServiceInterface::class, ProductStatusEnum::class] as $class) {
     $file = (new ReflectionClass($class))->getFileName();
     check(
         is_string($file) && str_starts_with((string) realpath($file), $installRoot . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR),
@@ -111,7 +112,8 @@ try {
     check($tables !== false && (int) $tables->fetchColumn() === 10, 'the installed schema creates the ten Product tables');
 
     // Realistic workflow: Host input -> public API -> service -> database -> observable result.
-    $service = ProductFactory::createProductService($pdo, new SystemClock(new DateTimeZone('UTC')));
+    $service = ProductFactory::createProductManagementService($pdo, new SystemClock(new DateTimeZone('UTC')));
+    $consumer = ProductFactory::createProductConsumerService($pdo, new SystemClock(new DateTimeZone('UTC')));
 
     $created = $service->create(new CreateProductCommand('SIMPLE-1'));
     check($created->productId > 0 && $created->variantId > 0, 'creating a Product returns its Product and Variant identities');
@@ -139,14 +141,14 @@ try {
     check($count !== false && (int) $count->fetchColumn() === 2, 'the conflicting create left no extra Product behind');
 
     try {
-        $service->getById($created->productId);
+        $consumer->getById($created->productId);
         check(false, 'an inactive Product must not be consumer-visible');
     } catch (ProductNotFoundException) {
         check(true, 'an inactive Product is hidden from the consumer read');
     }
 
     try {
-        $service->getById(999999);
+        $consumer->getById(999999);
         check(false, 'an unknown Product must not be found');
     } catch (ProductNotFoundException) {
         check(true, 'an unknown Product raises the not-found exception');
@@ -154,19 +156,21 @@ try {
 
     // Lifecycle, reconfiguration, resolution, and image assignments through the public API.
     $clock = new SystemClock(new DateTimeZone('UTC'));
-    $options = ProductFactory::createOptionService($pdo, $clock);
-    $values = ProductFactory::createOptionValueService($pdo, $clock);
-    $variants = ProductFactory::createVariantService($pdo, $clock);
+    $options = ProductFactory::createOptionManagementService($pdo, $clock);
+    $values = ProductFactory::createOptionValueManagementService($pdo, $clock);
+    $variants = ProductFactory::createVariantManagementService($pdo, $clock);
+    $consumerVariants = ProductFactory::createVariantConsumerService($pdo, $clock);
     $productId = $created->productId;
-    $productContent = ProductFactory::createProductContentService($pdo, $clock);
-    $optionContent = ProductFactory::createOptionContentService($pdo, $clock);
-    $valueContent = ProductFactory::createOptionValueContentService($pdo, $clock);
+    $productContent = ProductFactory::createProductContentManagementService($pdo, $clock);
+    $consumerProductContent = ProductFactory::createProductContentConsumerService($pdo, $clock);
+    $optionContent = ProductFactory::createOptionContentManagementService($pdo, $clock);
+    $valueContent = ProductFactory::createOptionValueContentManagementService($pdo, $clock);
     $nameId = $productContent->create(new CreateProductContentCommand($productId, null, 'Simple one'))->contentId;
-    check($productContent->listVisible($productId, ExactContentLanguage::unlocalizedOnly())->isEmpty(), 'Content of an inactive Product is not consumer-visible');
+    check($consumerProductContent->listVisible($productId, ExactContentLanguage::unlocalizedOnly())->isEmpty(), 'Content of an inactive Product is not consumer-visible');
     $service->updateStatus($productId, ProductStatusEnum::ACTIVE);
-    check($service->getById($productId)->status === ProductStatusEnum::ACTIVE, 'a named Product with a valid configuration can be activated');
-    check(count($productContent->listVisible($productId, ExactContentLanguage::unlocalizedOnly())) === 1, 'the unlocalized name of an active Product is consumer-visible');
-    check($productContent->listVisible($productId, ExactContentLanguage::exactLanguage('en'))->isEmpty(), 'an exact-language read never falls back to the unlocalized name');
+    check($consumer->getById($productId)->status === ProductStatusEnum::ACTIVE, 'a named Product with a valid configuration can be activated');
+    check(count($consumerProductContent->listVisible($productId, ExactContentLanguage::unlocalizedOnly())) === 1, 'the unlocalized name of an active Product is consumer-visible');
+    check($consumerProductContent->listVisible($productId, ExactContentLanguage::exactLanguage('en'))->isEmpty(), 'an exact-language read never falls back to the unlocalized name');
     try {
         $productContent->softDelete($nameId);
         check(false, 'the last name of an active Product cannot be soft deleted');
@@ -179,7 +183,7 @@ try {
     } catch (ProductContentAlreadyExistsException) {
         check(true, 'the unlocalized Content identity is unique');
     }
-    check($variants->resolveByComposition($productId, new VariantCompositionCriteriaDTO())->id === $created->variantId, 'an empty selection resolves the simple Variant');
+    check($consumerVariants->resolveByComposition($productId, new VariantCompositionCriteriaDTO())->id === $created->variantId, 'an empty selection resolves the simple Variant');
 
     $color = $options->create(new CreateOptionCommand($productId, 'color'))->optionId;
     $red = $values->create(new CreateOptionValueCommand($color, 'red'))->optionValueId;
@@ -195,9 +199,9 @@ try {
     ]));
     check(count($result->createdVariantIds) === 2 && $result->deactivatedVariantIds === [$created->variantId], 'reconfiguration creates the new Variants and deactivates the empty one');
     [$redVariant, $blueVariant] = $result->createdVariantIds;
-    check($variants->resolveByComposition($productId, new VariantCompositionCriteriaDTO([new OptionValueSelection($color, $blue)]))->id === $blueVariant, 'a complete selection resolves to its Variant');
+    check($consumerVariants->resolveByComposition($productId, new VariantCompositionCriteriaDTO([new OptionValueSelection($color, $blue)]))->id === $blueVariant, 'a complete selection resolves to its Variant');
     try {
-        $variants->resolveByComposition($productId, new VariantCompositionCriteriaDTO());
+        $consumerVariants->resolveByComposition($productId, new VariantCompositionCriteriaDTO());
         check(false, 'an incomplete selection must be rejected');
     } catch (ProductInvalidArgumentException) {
         check(true, 'an incomplete selection is a validation failure');
@@ -217,14 +221,14 @@ try {
     $back = $service->reconfigure(new ReconfigureProductCommand($productId, [], [new ReconfigureVariantTarget([], $created->variantId)]));
     check($back->reactivatedVariantIds === [$created->variantId] && $back->deactivatedVariantIds === [$redVariant, $blueVariant], 'the transition back to simple reuses the original empty Variant');
     try {
-        $variants->resolveByComposition($productId, new VariantCompositionCriteriaDTO([new OptionValueSelection($color, $red)]));
+        $consumerVariants->resolveByComposition($productId, new VariantCompositionCriteriaDTO([new OptionValueSelection($color, $red)]));
         check(false, 'a retired Option must not be selectable');
     } catch (ProductInvalidArgumentException) {
         check(true, 'a retired Option is not selectable');
     }
 
-    $roles = ProductFactory::createImageRoleService($pdo, $clock);
-    $assignments = ProductFactory::createImageAssignmentService($pdo, $clock);
+    $roles = ProductFactory::createImageRoleManagementService($pdo, $clock);
+    $assignments = ProductFactory::createImageAssignmentManagementService($pdo, $clock);
     $hero = $roles->create(new CreateImageRoleCommand('hero'))->roleId;
     $first = $assignments->create(new CreateImageAssignmentCommand($productId, null, 501, $hero))->assignmentId;
     $second = $assignments->create(new CreateImageAssignmentCommand($productId, null, '502', $hero))->assignmentId;
@@ -242,9 +246,9 @@ try {
         check(true, 'a soft-deleted Product accepts nothing but restore');
     }
     $service->restore($productId);
-    check($service->getById($productId)->status === ProductStatusEnum::ACTIVE, 'restore preserves the saved status');
+    check($consumer->getById($productId)->status === ProductStatusEnum::ACTIVE, 'restore preserves the saved status');
     try {
-        $variants->getById($redVariant);
+        $consumerVariants->getById($redVariant);
         check(false, 'an inactive Variant must not be consumer-visible');
     } catch (VariantNotFoundException) {
         check(true, 'an inactive Variant is hidden from consumers');

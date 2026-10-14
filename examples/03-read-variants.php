@@ -7,8 +7,9 @@ declare(strict_types=1);
  *
  * Input -> Public Call -> Result -> Boundary:
  *  - Input:    a Product code supplied by the Host.
- *  - Calls:    ProductServiceInterface::create(), VariantServiceInterface::getByIdForManagement(),
- *              listByProductIdForManagement(), listByProductId(), updateIdentifiers().
+ *  - Calls:    ProductManagementServiceInterface::create(), VariantManagementServiceInterface::getByIdForManagement(),
+ *              listByProductIdForManagement(), updateIdentifiers(), VariantConsumerServiceInterface::getById(),
+ *              listByProductId().
  *  - Result:   a VariantDTO and VariantCollectionDTO; consumer reads return only visible Variants.
  *  - Boundary: a Variant is consumer-visible only while its Product and the Variant are active
  *              and its composition is valid; activating a Product is the Host's concern here. A SKU or
@@ -18,11 +19,11 @@ declare(strict_types=1);
  */
 
 use Maatify\Product\Factory\ProductFactory;
-use Maatify\Product\Product\Command\CreateProductCommand;
-use Maatify\Product\Variant\Command\UpdateVariantIdentifiersCommand;
-use Maatify\Product\Variant\DTO\VariantListCriteriaDTO;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
 use Maatify\Product\Variant\Exception\VariantNotFoundException;
+use Maatify\Product\Variant\Management\Command\UpdateVariantIdentifiersCommand;
+use Maatify\Product\Variant\Management\Criteria\VariantListCriteriaDTO;
 use Maatify\Product\Variant\ValueObject\VariantIdentifierChange;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
 
@@ -46,8 +47,9 @@ $pdo = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false],
 );
 $clock = new SystemClock(new DateTimeZone('UTC'));
-$products = ProductFactory::createProductService($pdo, $clock);
-$variants = ProductFactory::createVariantService($pdo, $clock);
+$products = ProductFactory::createProductManagementService($pdo, $clock);
+$variants = ProductFactory::createVariantManagementService($pdo, $clock);
+$consumerVariants = ProductFactory::createVariantConsumerService($pdo, $clock);
 
 $created = $products->create(new CreateProductCommand('VARIANTS-' . bin2hex(random_bytes(4))));
 
@@ -59,15 +61,15 @@ $list = $variants->listByProductIdForManagement($created->productId, new Variant
 echo 'management list (active): ' . count($list) . "\n";
 
 // Consumer read: the Product is inactive, so nothing is visible.
-echo 'consumer list while the Product is inactive: ' . count($variants->listByProductId($created->productId)) . "\n";
+echo 'consumer list while the Product is inactive: ' . count($consumerVariants->listByProductId($created->productId)) . "\n";
 try {
-    $variants->getById($created->variantId);
+    $consumerVariants->getById($created->variantId);
     throw new RuntimeException('The Variant of an inactive Product must not be consumer-visible.');
 } catch (VariantNotFoundException) {
     echo "consumer read: not visible\n";
 }
 
-if (count($list) !== 1 || count($variants->listByProductId($created->productId)) !== 0) {
+if (count($list) !== 1 || count($consumerVariants->listByProductId($created->productId)) !== 0) {
     throw new RuntimeException('Unexpected Variant read results.');
 }
 

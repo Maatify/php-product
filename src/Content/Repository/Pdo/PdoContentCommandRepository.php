@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Content\Repository\Pdo;
 
-use Maatify\Product\Common\Pdo\DuplicateKey;
 use DateTimeImmutable;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
-use Maatify\Product\Common\Pdo\RowHydrator;
+use Maatify\Product\Common\Repository\Pdo\DuplicateKey;
+use Maatify\Product\Common\Repository\Pdo\RowHydrator;
 use Maatify\Product\Content\DTO\ContentFieldsDTO;
 use Maatify\Product\Content\DTO\ContentIdentityDTO;
 use Maatify\Product\Content\DTO\ContentStateDTO;

@@ -19,7 +19,7 @@ final class VariantLifecycleTest extends RuntimeTestCase
     public function testTheLastValidActiveVariantCanNeitherBeDeactivatedNorDeleted(): void
     {
         $created = $this->namedProduct('SIMPLE');
-        $service = $this->variantService();
+        $service = $this->variantManagementService();
 
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $service->updateStatus($created->variantId, VariantStatusEnum::INACTIVE));
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $service->softDelete($created->variantId));
@@ -28,7 +28,7 @@ final class VariantLifecycleTest extends RuntimeTestCase
 
         $this->assertNoWrite(
             'maa_product_variants',
-            fn() => $this->variantService(self::laterClock())->updateStatus($created->variantId, VariantStatusEnum::ACTIVE),
+            fn() => $this->variantManagementService(self::laterClock())->updateStatus($created->variantId, VariantStatusEnum::ACTIVE),
             'A same-status request writes nothing.',
         );
     }
@@ -42,8 +42,8 @@ final class VariantLifecycleTest extends RuntimeTestCase
         $blue = $this->preparedValue($color, 'blue', 'Blue');
         $m = $this->preparedValue($size, 'm', 'M');
         $l = $this->preparedValue($size, 'l', 'L');
-        $products = $this->productService();
-        $service = $this->variantService();
+        $products = $this->productManagementService();
+        $service = $this->variantManagementService();
 
         [$redM, $blueL, $redL] = $products->reconfigure(self::reconfiguration(
             $created->productId,
@@ -78,8 +78,9 @@ final class VariantLifecycleTest extends RuntimeTestCase
         $blue = $this->preparedValue($color, 'blue', 'Blue');
         $m = $this->preparedValue($size, 'm', 'M');
         $l = $this->preparedValue($size, 'l', 'L');
-        $products = $this->productService();
-        $service = $this->variantService();
+        $products = $this->productManagementService();
+        $service = $this->variantManagementService();
+        $consumer = $this->variantConsumerService();
         [$redM, $redL, $blueM, $blueL] = $products->reconfigure(self::reconfiguration(
             $created->productId,
             [$color => [$red, $blue], $size => [$m, $l]],
@@ -99,7 +100,7 @@ final class VariantLifecycleTest extends RuntimeTestCase
         $service->restore($redL);
         self::assertSame(VariantStatusEnum::ACTIVE, $service->getByIdForManagement($redL)->status, 'Restore preserves the saved status.');
         $this->activateProduct($created->productId);
-        self::assertCount(4, $service->listByProductId($created->productId), 'All four Variants are visible again.');
+        self::assertCount(4, $consumer->listByProductId($created->productId), 'All four Variants are visible again.');
 
         // A deleted Variant whose composition no longer matches the configuration cannot be restored.
         $service->softDelete($redL);
@@ -112,7 +113,7 @@ final class VariantLifecycleTest extends RuntimeTestCase
 
     public function testUnknownIdentitiesAreNotFound(): void
     {
-        $service = $this->variantService();
+        $service = $this->variantManagementService();
         $this->assertThrows(VariantNotFoundException::class, fn() => $service->updateStatus(999999, VariantStatusEnum::ACTIVE));
         $this->assertThrows(VariantNotFoundException::class, fn() => $service->softDelete(999999));
         $this->assertThrows(VariantNotFoundException::class, fn() => $service->restore(999999));

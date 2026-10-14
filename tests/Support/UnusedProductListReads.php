@@ -8,7 +8,7 @@ use LogicException;
 use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Product\DTO\ProductDTO;
-use Maatify\Product\Product\DTO\ProductListCriteriaDTO;
+use Maatify\Product\Product\Management\Criteria\ProductListCriteriaDTO;
 
 /**
  * Code lookup and list reads of {@see \Maatify\Product\Product\Repository\ProductQueryReaderInterface}

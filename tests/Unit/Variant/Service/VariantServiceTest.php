@@ -13,15 +13,16 @@ use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Tests\Support\UnusedProductConfigurationRepository;
 use Maatify\Product\Tests\Support\UnusedVariantLifecycleWrites;
+use Maatify\Product\Variant\Consumer\Criteria\VariantVisibleListCriteriaDTO;
+use Maatify\Product\Variant\Consumer\Service\VariantConsumerService;
 use Maatify\Product\Variant\DTO\VariantDTO;
-use Maatify\Product\Variant\DTO\VariantListCriteriaDTO;
 use Maatify\Product\Variant\DTO\VariantStateDTO;
-use Maatify\Product\Variant\DTO\VariantVisibleListCriteriaDTO;
 use Maatify\Product\Variant\Enum\VariantStatusEnum;
 use Maatify\Product\Variant\Exception\VariantNotFoundException;
+use Maatify\Product\Variant\Management\Criteria\VariantListCriteriaDTO;
+use Maatify\Product\Variant\Management\Service\VariantManagementService;
 use Maatify\Product\Variant\Repository\VariantCommandRepositoryInterface;
 use Maatify\Product\Variant\Repository\VariantQueryReaderInterface;
-use Maatify\Product\Variant\Service\VariantService;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -32,7 +33,7 @@ final class VariantServiceTest extends TestCase
         $live = $this->variant(null);
         $reader = $this->reader(visible: $live, all: null);
 
-        self::assertSame($live, (self::service($reader))->getById(5));
+        self::assertSame($live, (self::consumer($reader))->getById(5));
     }
 
     public function testGetByIdThrowsNotFoundWhenTheVariantIsNotVisible(): void
@@ -40,7 +41,7 @@ final class VariantServiceTest extends TestCase
         $reader = $this->reader(visible: null, all: $this->variant(null));
 
         $this->expectException(VariantNotFoundException::class);
-        (self::service($reader))->getById(5);
+        (self::consumer($reader))->getById(5);
     }
 
     public function testManagementReadFiltersOnlyByDeletedState(): void
@@ -66,20 +67,22 @@ final class VariantServiceTest extends TestCase
     {
         $variant = $this->variant(null);
         $service = self::service($this->reader($variant, $variant, [$variant]));
+        $consumer = self::consumer($this->reader($variant, $variant, [$variant]));
 
-        self::assertSame([$variant], $service->listByProductId(1)->items());
+        self::assertSame([$variant], $consumer->listByProductId(1)->items());
         self::assertSame([$variant], $service->listByProductIdForManagement(1, new VariantListCriteriaDTO(VariantStatusEnum::ACTIVE))->items());
-        self::assertCount(1, $service->listByProductId(1, new VariantVisibleListCriteriaDTO(1)));
+        self::assertCount(1, $consumer->listByProductId(1, new VariantVisibleListCriteriaDTO(1)));
     }
 
     public function testNonPositiveIdentitiesAreRejectedBeforeAnyRead(): void
     {
         $service = self::service($this->reader(null, null));
+        $consumer = self::consumer($this->reader(null, null));
 
         foreach ([
-            static fn() => $service->getById(0),
+            static fn() => $consumer->getById(0),
             static fn() => $service->getByIdForManagement(0),
-            static fn() => $service->listByProductId(-3),
+            static fn() => $consumer->listByProductId(-3),
             static fn() => $service->listByProductIdForManagement(0),
         ] as $call) {
             try {
@@ -152,7 +155,12 @@ final class VariantServiceTest extends TestCase
         };
     }
 
-    private static function service(VariantQueryReaderInterface $reader): VariantService
+    private static function consumer(VariantQueryReaderInterface $reader): VariantConsumerService
+    {
+        return new VariantConsumerService($reader);
+    }
+
+    private static function service(VariantQueryReaderInterface $reader): VariantManagementService
     {
         $variants = new class implements VariantCommandRepositoryInterface {
             use UnusedVariantLifecycleWrites;
@@ -180,6 +188,6 @@ final class VariantServiceTest extends TestCase
             }
         };
 
-        return new VariantService($reader, $variants, new UnusedProductConfigurationRepository(), $transactions, $clock);
+        return new VariantManagementService($reader, $variants, new UnusedProductConfigurationRepository(), $transactions, $clock);
     }
 }

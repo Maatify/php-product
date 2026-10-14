@@ -4,30 +4,38 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Tests\Integration\Runtime;
 
+use DateTimeImmutable;
 use DateTimeZone;
-use Maatify\Product\Content\Service\OptionContentServiceInterface;
-use Maatify\Product\Content\Service\OptionValueContentServiceInterface;
-use Maatify\Product\Content\Service\ProductContentServiceInterface;
+use Maatify\Product\Content\Consumer\Service\OptionContentConsumerServiceInterface;
+use Maatify\Product\Content\Consumer\Service\OptionValueContentConsumerServiceInterface;
+use Maatify\Product\Content\Consumer\Service\ProductContentConsumerServiceInterface;
+use Maatify\Product\Content\Management\Service\OptionContentManagementServiceInterface;
+use Maatify\Product\Content\Management\Service\OptionValueContentManagementServiceInterface;
+use Maatify\Product\Content\Management\Service\ProductContentManagementServiceInterface;
 use Maatify\Product\Factory\ProductFactory;
-use Maatify\Product\ImageAssignment\Service\ImageAssignmentServiceInterface;
-use Maatify\Product\ImageRole\Service\ImageRoleServiceInterface;
-use Maatify\Product\Option\Command\CreateOptionCommand;
-use Maatify\Product\Option\Service\OptionServiceInterface;
-use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
-use Maatify\Product\OptionValue\Service\OptionValueServiceInterface;
-use Maatify\Product\Product\Command\CreateProductCommand;
-use Maatify\Product\Product\Command\ReconfigureOptionTarget;
-use Maatify\Product\Product\Command\ReconfigureProductCommand;
-use Maatify\Product\Product\Command\ReconfigureVariantTarget;
+use Maatify\Product\ImageAssignment\Consumer\Service\ImageAssignmentConsumerServiceInterface;
+use Maatify\Product\ImageAssignment\Management\Service\ImageAssignmentManagementServiceInterface;
+use Maatify\Product\ImageRole\Management\Service\ImageRoleManagementServiceInterface;
+use Maatify\Product\Option\Consumer\Service\OptionConsumerServiceInterface;
+use Maatify\Product\Option\Management\Command\CreateOptionCommand;
+use Maatify\Product\Option\Management\Service\OptionManagementServiceInterface;
+use Maatify\Product\OptionValue\Consumer\Service\OptionValueConsumerServiceInterface;
+use Maatify\Product\OptionValue\Management\Command\CreateOptionValueCommand;
+use Maatify\Product\OptionValue\Management\Service\OptionValueManagementServiceInterface;
+use Maatify\Product\Product\Consumer\Service\ProductConsumerServiceInterface;
 use Maatify\Product\Product\DTO\CreatedProductDTO;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
-use Maatify\Product\Product\Service\ProductServiceInterface;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
+use Maatify\Product\Product\Management\Command\ReconfigureOptionTarget;
+use Maatify\Product\Product\Management\Command\ReconfigureProductCommand;
+use Maatify\Product\Product\Management\Command\ReconfigureVariantTarget;
+use Maatify\Product\Product\Management\Service\ProductManagementServiceInterface;
 use Maatify\Product\Tests\Integration\DatabaseTestCase;
-use Maatify\Product\Variant\Service\VariantServiceInterface;
+use Maatify\Product\Variant\Consumer\Service\VariantConsumerServiceInterface;
+use Maatify\Product\Variant\Management\Service\VariantManagementServiceInterface;
 use Maatify\Product\Variant\ValueObject\OptionValueSelection;
 use Maatify\SharedCommon\Contracts\ClockInterface;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
-use DateTimeImmutable;
 use PDO;
 use Throwable;
 
@@ -109,49 +117,89 @@ abstract class RuntimeTestCase extends DatabaseTestCase
         return $statement->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    protected function productService(?ClockInterface $clock = null): ProductServiceInterface
+    protected function productManagementService(?ClockInterface $clock = null): ProductManagementServiceInterface
     {
-        return ProductFactory::createProductService(self::$pdo, $clock ?? self::clock());
+        return ProductFactory::createProductManagementService(self::$pdo, $clock ?? self::clock());
     }
 
-    protected function variantService(?ClockInterface $clock = null): VariantServiceInterface
+    protected function productConsumerService(?ClockInterface $clock = null): ProductConsumerServiceInterface
     {
-        return ProductFactory::createVariantService(self::$pdo, $clock ?? self::clock());
+        return ProductFactory::createProductConsumerService(self::$pdo, $clock ?? self::clock());
     }
 
-    protected function optionService(?ClockInterface $clock = null): OptionServiceInterface
+    protected function variantManagementService(?ClockInterface $clock = null): VariantManagementServiceInterface
     {
-        return ProductFactory::createOptionService(self::$pdo, $clock ?? self::clock());
+        return ProductFactory::createVariantManagementService(self::$pdo, $clock ?? self::clock());
     }
 
-    protected function optionValueService(?ClockInterface $clock = null): OptionValueServiceInterface
+    protected function variantConsumerService(?ClockInterface $clock = null): VariantConsumerServiceInterface
     {
-        return ProductFactory::createOptionValueService(self::$pdo, $clock ?? self::clock());
+        return ProductFactory::createVariantConsumerService(self::$pdo, $clock ?? self::clock());
     }
 
-    protected function imageRoleService(?ClockInterface $clock = null): ImageRoleServiceInterface
+    protected function optionManagementService(?ClockInterface $clock = null): OptionManagementServiceInterface
     {
-        return ProductFactory::createImageRoleService(self::$pdo, $clock ?? self::clock());
+        return ProductFactory::createOptionManagementService(self::$pdo, $clock ?? self::clock());
     }
 
-    protected function imageAssignmentService(?ClockInterface $clock = null): ImageAssignmentServiceInterface
+    protected function optionConsumerService(?ClockInterface $clock = null): OptionConsumerServiceInterface
     {
-        return ProductFactory::createImageAssignmentService(self::$pdo, $clock ?? self::clock());
+        return ProductFactory::createOptionConsumerService(self::$pdo, $clock ?? self::clock());
     }
 
-    protected function productContentService(?ClockInterface $clock = null): ProductContentServiceInterface
+    protected function optionValueManagementService(?ClockInterface $clock = null): OptionValueManagementServiceInterface
     {
-        return ProductFactory::createProductContentService(self::$pdo, $clock ?? self::clock());
+        return ProductFactory::createOptionValueManagementService(self::$pdo, $clock ?? self::clock());
     }
 
-    protected function optionContentService(?ClockInterface $clock = null): OptionContentServiceInterface
+    protected function optionValueConsumerService(?ClockInterface $clock = null): OptionValueConsumerServiceInterface
     {
-        return ProductFactory::createOptionContentService(self::$pdo, $clock ?? self::clock());
+        return ProductFactory::createOptionValueConsumerService(self::$pdo, $clock ?? self::clock());
     }
 
-    protected function optionValueContentService(?ClockInterface $clock = null): OptionValueContentServiceInterface
+    protected function imageRoleManagementService(?ClockInterface $clock = null): ImageRoleManagementServiceInterface
     {
-        return ProductFactory::createOptionValueContentService(self::$pdo, $clock ?? self::clock());
+        return ProductFactory::createImageRoleManagementService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function imageAssignmentManagementService(?ClockInterface $clock = null): ImageAssignmentManagementServiceInterface
+    {
+        return ProductFactory::createImageAssignmentManagementService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function imageAssignmentConsumerService(?ClockInterface $clock = null): ImageAssignmentConsumerServiceInterface
+    {
+        return ProductFactory::createImageAssignmentConsumerService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function productContentManagementService(?ClockInterface $clock = null): ProductContentManagementServiceInterface
+    {
+        return ProductFactory::createProductContentManagementService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function productContentConsumerService(?ClockInterface $clock = null): ProductContentConsumerServiceInterface
+    {
+        return ProductFactory::createProductContentConsumerService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function optionContentManagementService(?ClockInterface $clock = null): OptionContentManagementServiceInterface
+    {
+        return ProductFactory::createOptionContentManagementService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function optionContentConsumerService(?ClockInterface $clock = null): OptionContentConsumerServiceInterface
+    {
+        return ProductFactory::createOptionContentConsumerService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function optionValueContentManagementService(?ClockInterface $clock = null): OptionValueContentManagementServiceInterface
+    {
+        return ProductFactory::createOptionValueContentManagementService(self::$pdo, $clock ?? self::clock());
+    }
+
+    protected function optionValueContentConsumerService(?ClockInterface $clock = null): OptionValueContentConsumerServiceInterface
+    {
+        return ProductFactory::createOptionValueContentConsumerService(self::$pdo, $clock ?? self::clock());
     }
 
     protected static function rowCount(string $table, string $where = '1 = 1'): int
@@ -164,7 +212,7 @@ abstract class RuntimeTestCase extends DatabaseTestCase
      */
     protected function namedProduct(string $code): CreatedProductDTO
     {
-        $created = $this->productService()->create(new CreateProductCommand($code));
+        $created = $this->productManagementService()->create(new CreateProductCommand($code));
         $this->nameProduct($created->productId, 'Name of ' . $code);
 
         return $created;
@@ -183,7 +231,7 @@ abstract class RuntimeTestCase extends DatabaseTestCase
      */
     protected function preparedOption(int $productId, string $code, ?string $label = null): int
     {
-        $optionId = $this->optionService()->create(new CreateOptionCommand($productId, $code))->optionId;
+        $optionId = $this->optionManagementService()->create(new CreateOptionCommand($productId, $code))->optionId;
         if ($label !== null) {
             $this->labelOption($optionId, $label);
         }
@@ -204,7 +252,7 @@ abstract class RuntimeTestCase extends DatabaseTestCase
      */
     protected function preparedValue(int $optionId, string $code, ?string $label = null): int
     {
-        $valueId = $this->optionValueService()->create(new CreateOptionValueCommand($optionId, $code))->optionValueId;
+        $valueId = $this->optionValueManagementService()->create(new CreateOptionValueCommand($optionId, $code))->optionValueId;
         if ($label !== null) {
             $this->labelValue($valueId, $label);
         }
@@ -245,7 +293,7 @@ abstract class RuntimeTestCase extends DatabaseTestCase
 
     protected function activateProduct(int $productId): void
     {
-        $this->productService()->updateStatus($productId, ProductStatusEnum::ACTIVE);
+        $this->productManagementService()->updateStatus($productId, ProductStatusEnum::ACTIVE);
     }
 
     /**

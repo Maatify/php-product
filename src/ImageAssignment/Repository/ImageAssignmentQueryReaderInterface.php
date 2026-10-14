@@ -6,9 +6,9 @@ namespace Maatify\Product\ImageAssignment\Repository;
 
 use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Pagination\PageResult;
+use Maatify\Product\ImageAssignment\Consumer\Criteria\ImageAssignmentExactScopeCriteriaDTO;
 use Maatify\Product\ImageAssignment\DTO\ImageAssignmentDTO;
-use Maatify\Product\ImageAssignment\DTO\ImageAssignmentExactScopeCriteriaDTO;
-use Maatify\Product\ImageAssignment\DTO\ImageAssignmentListCriteriaDTO;
+use Maatify\Product\ImageAssignment\Management\Criteria\ImageAssignmentListCriteriaDTO;
 
 /**
  * Read port for stored Image Assignments. It performs no write and holds no lock.

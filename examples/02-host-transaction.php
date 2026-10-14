@@ -7,7 +7,7 @@ declare(strict_types=1);
  *
  * Input -> Public Call -> Result -> Boundary:
  *  - Input:    the Host opens its own transaction on the PDO connection it gave the factory.
- *  - Calls:    ProductServiceInterface::create() inside that transaction.
+ *  - Calls:    ProductManagementServiceInterface::create() inside that transaction.
  *  - Result:   a successful create is committed or rolled back by the Host; a failed create
  *              leaves none of its writes in the Host transaction.
  *  - Boundary: the package never commits or rolls back a transaction it did not start.
@@ -17,8 +17,8 @@ declare(strict_types=1);
  */
 
 use Maatify\Product\Factory\ProductFactory;
-use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
 
 $autoload = getenv('PRODUCT_EXAMPLE_AUTOLOAD');
@@ -40,7 +40,7 @@ $pdo = new PDO(
     $setting('PRODUCT_EXAMPLE_PASSWORD'),
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false],
 );
-$products = ProductFactory::createProductService($pdo, new SystemClock(new DateTimeZone('UTC')));
+$products = ProductFactory::createProductManagementService($pdo, new SystemClock(new DateTimeZone('UTC')));
 
 $first = 'HOST-TX-' . bin2hex(random_bytes(4));
 $second = 'HOST-TX-' . bin2hex(random_bytes(4));

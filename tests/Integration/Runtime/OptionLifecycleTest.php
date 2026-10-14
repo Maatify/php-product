@@ -7,14 +7,14 @@ namespace Maatify\Product\Tests\Integration\Runtime;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\Option\Command\CreateOptionCommand;
 use Maatify\Product\Option\Enum\OptionStatusEnum;
 use Maatify\Product\Option\Exception\OptionCodeAlreadyExistsException;
 use Maatify\Product\Option\Exception\OptionNotFoundException;
-use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
+use Maatify\Product\Option\Management\Command\CreateOptionCommand;
 use Maatify\Product\OptionValue\Enum\OptionValueStatusEnum;
 use Maatify\Product\OptionValue\Exception\OptionValueCodeAlreadyExistsException;
 use Maatify\Product\OptionValue\Exception\OptionValueNotFoundException;
+use Maatify\Product\OptionValue\Management\Command\CreateOptionValueCommand;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
 
 /**
@@ -27,8 +27,8 @@ final class OptionLifecycleTest extends RuntimeTestCase
     public function testCreateIsInactiveOrderedWithinItsOwnerAndUniqueAcrossHistory(): void
     {
         $created = $this->namedProduct('P');
-        $options = $this->optionService();
-        $values = $this->optionValueService();
+        $options = $this->optionManagementService();
+        $values = $this->optionValueManagementService();
 
         $color = $options->create(new CreateOptionCommand($created->productId, 'color'))->optionId;
         $size = $options->create(new CreateOptionCommand($created->productId, 'size'))->optionId;
@@ -65,18 +65,18 @@ final class OptionLifecycleTest extends RuntimeTestCase
         $color = $this->preparedOption($created->productId, 'color', 'Color');
         $material = $this->preparedOption($created->productId, 'material', 'Material');
 
-        $this->optionService()->softDelete($material);
-        $this->assertThrows(ProductBusinessRuleException::class, fn() => $this->optionValueService()->create(new CreateOptionValueCommand($material, 'wood')), 'Value under a deleted Option.');
+        $this->optionManagementService()->softDelete($material);
+        $this->assertThrows(ProductBusinessRuleException::class, fn() => $this->optionValueManagementService()->create(new CreateOptionValueCommand($material, 'wood')), 'Value under a deleted Option.');
 
-        $this->productService()->softDelete($created->productId);
-        $this->assertThrows(ProductBusinessRuleException::class, fn() => $this->optionService()->create(new CreateOptionCommand($created->productId, 'size')), 'Option under a deleted Product.');
-        $this->assertThrows(ProductBusinessRuleException::class, fn() => $this->optionValueService()->create(new CreateOptionValueCommand($color, 'red')), 'Value under a live Option of a deleted Product.');
-        $this->assertThrows(ProductBusinessRuleException::class, fn() => $this->optionService()->restore($material), 'Restore needs the owner chain restored first.');
+        $this->productManagementService()->softDelete($created->productId);
+        $this->assertThrows(ProductBusinessRuleException::class, fn() => $this->optionManagementService()->create(new CreateOptionCommand($created->productId, 'size')), 'Option under a deleted Product.');
+        $this->assertThrows(ProductBusinessRuleException::class, fn() => $this->optionValueManagementService()->create(new CreateOptionValueCommand($color, 'red')), 'Value under a live Option of a deleted Product.');
+        $this->assertThrows(ProductBusinessRuleException::class, fn() => $this->optionManagementService()->restore($material), 'Restore needs the owner chain restored first.');
 
-        $this->productService()->restore($created->productId);
-        $this->optionService()->restore($material);
-        $wood = $this->optionValueService()->create(new CreateOptionValueCommand($material, 'wood'))->optionValueId;
-        self::assertSame($material, $this->optionValueService()->getByIdForManagement($wood)->optionId, 'After restoring the owner chain, creation succeeds.');
+        $this->productManagementService()->restore($created->productId);
+        $this->optionManagementService()->restore($material);
+        $wood = $this->optionValueManagementService()->create(new CreateOptionValueCommand($material, 'wood'))->optionValueId;
+        self::assertSame($material, $this->optionValueManagementService()->getByIdForManagement($wood)->optionId, 'After restoring the owner chain, creation succeeds.');
     }
 
     public function testActiveMembersOfTheConfigurationLeaveOnlyThroughReconfiguration(): void
@@ -88,13 +88,13 @@ final class OptionLifecycleTest extends RuntimeTestCase
         $blue = $this->preparedValue($color, 'blue', 'Blue');
         $m = $this->preparedValue($size, 'm', 'M');
         $green = $this->preparedValue($color, 'green', 'Green');
-        $this->productService()->reconfigure(self::reconfiguration(
+        $this->productManagementService()->reconfigure(self::reconfiguration(
             $created->productId,
             [$color => [$red, $blue], $size => [$m]],
             [[[[$color, $red], [$size, $m]]], [[[$color, $blue], [$size, $m]]]],
         ));
-        $options = $this->optionService();
-        $values = $this->optionValueService();
+        $options = $this->optionManagementService();
+        $values = $this->optionValueManagementService();
 
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $options->softDelete($color), 'An active Option is part of every active Variant.');
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $values->softDelete($red), 'red is needed by an active Variant.');
@@ -109,7 +109,7 @@ final class OptionLifecycleTest extends RuntimeTestCase
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $values->restore($green), 'Restoring a live row is rejected.');
 
         // Reconfiguration retires size; then size and its Value can be deleted and restored freely.
-        $this->productService()->reconfigure(self::reconfiguration($created->productId, [$color => [$red, $blue]], [[[[$color, $red]]], [[[$color, $blue]]]]));
+        $this->productManagementService()->reconfigure(self::reconfiguration($created->productId, [$color => [$red, $blue]], [[[[$color, $red]]], [[[$color, $blue]]]]));
         self::assertSame(OptionStatusEnum::INACTIVE, $options->getByIdForManagement($size)->status);
         $options->softDelete($size);
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $values->softDelete($m), 'A Value under a deleted Option cannot be changed.');
@@ -126,15 +126,15 @@ final class OptionLifecycleTest extends RuntimeTestCase
         $size = $this->preparedOption($created->productId, 'size', 'Size');
         $red = $this->preparedValue($color, 'red', 'Red');
         $m = $this->preparedValue($size, 'm', 'M');
-        $this->productService()->reconfigure(self::reconfiguration($created->productId, [$color => [$red], $size => [$m]], [[[[$color, $red], [$size, $m]]]]));
+        $this->productManagementService()->reconfigure(self::reconfiguration($created->productId, [$color => [$red], $size => [$m]], [[[[$color, $red], [$size, $m]]]]));
 
         // size leaves through direct SQL while saved active, then the configuration is rebuilt without it.
         $this->execute('UPDATE maa_product_options SET deleted_at = :t WHERE id = :i', ['t' => self::SEED_TS, 'i' => $size]);
-        $this->productService()->reconfigure(self::reconfiguration($created->productId, [$color => [$red]], [[[[$color, $red]]]]));
+        $this->productManagementService()->reconfigure(self::reconfiguration($created->productId, [$color => [$red]], [[[[$color, $red]]]]));
 
-        $failure = $this->assertThrows(ProductBusinessRuleException::class, fn() => $this->optionService()->restore($size), 'Restoring an active Option that no active Variant covers breaks INV-02.');
+        $failure = $this->assertThrows(ProductBusinessRuleException::class, fn() => $this->optionManagementService()->restore($size), 'Restoring an active Option that no active Variant covers breaks INV-02.');
         self::assertStringContainsString('[' . $size . ']', $failure->getMessage());
-        self::assertNotNull($this->optionService()->getByIdForManagement($size, ProductDeletedStateEnum::DELETED_ONLY)->deletedAt);
+        self::assertNotNull($this->optionManagementService()->getByIdForManagement($size, ProductDeletedStateEnum::DELETED_ONLY)->deletedAt);
     }
 
     public function testManagementReadsAndUnknownIdentities(): void
@@ -142,8 +142,8 @@ final class OptionLifecycleTest extends RuntimeTestCase
         $created = $this->namedProduct('P');
         $color = $this->preparedOption($created->productId, 'color');
         $red = $this->preparedValue($color, 'red');
-        $options = $this->optionService();
-        $values = $this->optionValueService();
+        $options = $this->optionManagementService();
+        $values = $this->optionValueManagementService();
 
         $values->softDelete($red);
         $this->assertThrows(OptionValueNotFoundException::class, fn() => $values->getByIdForManagement($red));

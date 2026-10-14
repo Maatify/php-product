@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Maatify\Product\Tests\Unit;
 
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\ImageAssignment\Command\UpdateImageAssignmentDisplayOrderCommand;
-use Maatify\Product\Option\Command\UpdateOptionDisplayOrderCommand;
-use Maatify\Product\OptionValue\Command\UpdateOptionValueDisplayOrderCommand;
-use Maatify\Product\Variant\Command\UpdateVariantDisplayOrderCommand;
+use Maatify\Product\ImageAssignment\Management\Command\UpdateImageAssignmentDisplayOrderCommand;
+use Maatify\Product\Option\Management\Command\UpdateOptionDisplayOrderCommand;
+use Maatify\Product\OptionValue\Management\Command\UpdateOptionValueDisplayOrderCommand;
+use Maatify\Product\Variant\Management\Command\UpdateVariantDisplayOrderCommand;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

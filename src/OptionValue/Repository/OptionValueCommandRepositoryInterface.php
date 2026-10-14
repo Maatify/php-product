@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Maatify\Product\OptionValue\Repository;
 
 use DateTimeImmutable;
-use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
 use Maatify\Product\OptionValue\Exception\OptionValueCodeAlreadyExistsException;
+use Maatify\Product\OptionValue\Management\Command\CreateOptionValueCommand;
 
 /**
  * Write port for Option Value persistence. The calling Service owns the transaction and holds the Product lock.

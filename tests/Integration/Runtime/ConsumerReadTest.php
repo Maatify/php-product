@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Maatify\Product\Tests\Integration\Runtime;
 
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
-use Maatify\Product\ImageAssignment\Command\UpdateImageAssignmentDisplayOrderCommand;
-use Maatify\Product\ImageAssignment\DTO\ImageAssignmentExactScopeCriteriaDTO;
-use Maatify\Product\ImageRole\Command\CreateImageRoleCommand;
+use Maatify\Product\ImageAssignment\Consumer\Criteria\ImageAssignmentExactScopeCriteriaDTO;
+use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\Management\Command\UpdateImageAssignmentDisplayOrderCommand;
 use Maatify\Product\ImageRole\Enum\ImageRoleStatusEnum;
-use Maatify\Product\Option\Command\UpdateOptionDisplayOrderCommand;
-use Maatify\Product\Option\DTO\OptionVisibleListCriteriaDTO;
-use Maatify\Product\OptionValue\Command\UpdateOptionValueDisplayOrderCommand;
-use Maatify\Product\OptionValue\DTO\OptionValueVisibleListCriteriaDTO;
+use Maatify\Product\ImageRole\Management\Command\CreateImageRoleCommand;
+use Maatify\Product\Option\Consumer\Criteria\OptionVisibleListCriteriaDTO;
+use Maatify\Product\Option\Management\Command\UpdateOptionDisplayOrderCommand;
+use Maatify\Product\OptionValue\Consumer\Criteria\OptionValueVisibleListCriteriaDTO;
+use Maatify\Product\OptionValue\Management\Command\UpdateOptionValueDisplayOrderCommand;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 
 /**
@@ -35,12 +35,12 @@ final class ConsumerReadTest extends RuntimeTestCase
         $green = $this->preparedValue($color, 'green', 'Green');
         $medium = $this->preparedValue($size, 'm', 'Medium');
         $this->preparedValue($material, 'cotton', 'Cotton');
-        $this->productService()->reconfigure(self::reconfiguration($p->productId, [$color => [$red, $blue], $size => [$medium]], [
+        $this->productManagementService()->reconfigure(self::reconfiguration($p->productId, [$color => [$red, $blue], $size => [$medium]], [
             [[[$color, $red], [$size, $medium]]],
             [[[$color, $blue], [$size, $medium]]],
         ]));
-        $options = $this->optionService();
-        $values = $this->optionValueService();
+        $options = $this->optionConsumerService();
+        $values = $this->optionValueConsumerService();
         $visibleOptions = fn(int $productId = 0, int $max = 100): array => array_map(static fn($o): int => $o->id, $options->listVisibleByProductId($productId > 0 ? $productId : $p->productId, new OptionVisibleListCriteriaDTO($max))->items());
         $visibleValues = fn(int $optionId, int $max = 100): array => array_map(static fn($v): int => $v->id, $values->listVisibleByOptionId($optionId, new OptionValueVisibleListCriteriaDTO($max))->items());
 
@@ -52,8 +52,8 @@ final class ConsumerReadTest extends RuntimeTestCase
         self::assertSame([$red, $blue], $visibleValues($color), 'Represented Values by display order; the inactive one is excluded.');
         self::assertSame([$medium], $visibleValues($size));
         self::assertSame([], $visibleValues($material), 'A Value under an inactive Option is excluded.');
-        $this->optionService()->updateDisplayOrder(new UpdateOptionDisplayOrderCommand($size, 1));
-        $this->optionValueService()->updateDisplayOrder(new UpdateOptionValueDisplayOrderCommand($blue, 1));
+        $this->optionManagementService()->updateDisplayOrder(new UpdateOptionDisplayOrderCommand($size, 1));
+        $this->optionValueManagementService()->updateDisplayOrder(new UpdateOptionValueDisplayOrderCommand($blue, 1));
         self::assertSame([$size, $color], $visibleOptions());
         self::assertSame([$blue, $red], $visibleValues($color));
         self::assertSame([$size], $visibleOptions(0, 1), 'maxResults bounds the list.');
@@ -80,9 +80,9 @@ final class ConsumerReadTest extends RuntimeTestCase
         self::assertSame([], $visibleValues(999999));
         self::assertSame([], $visibleValues($material), 'Still nothing under the inactive Option.');
 
-        $this->productService()->updateStatus($p->productId, ProductStatusEnum::INACTIVE);
+        $this->productManagementService()->updateStatus($p->productId, ProductStatusEnum::INACTIVE);
         self::assertSame([], $visibleOptions());
-        $this->productService()->softDelete($p->productId);
+        $this->productManagementService()->softDelete($p->productId);
         self::assertSame([], $visibleValues($color), 'A deleted Product shows nothing.');
         $this->assertThrows(ProductInvalidArgumentException::class, fn() => $options->listVisibleByProductId(0));
         $this->assertThrows(ProductInvalidArgumentException::class, fn() => $values->listVisibleByOptionId(-1));
@@ -94,16 +94,17 @@ final class ConsumerReadTest extends RuntimeTestCase
         $color = $this->preparedOption($p->productId, 'color', 'Color');
         $red = $this->preparedValue($color, 'red', 'Red');
         $blue = $this->preparedValue($color, 'blue', 'Blue');
-        $this->productService()->reconfigure(self::reconfiguration($p->productId, [$color => [$red, $blue]], [[[[$color, $red]]], [[[$color, $blue]]]]));
+        $this->productManagementService()->reconfigure(self::reconfiguration($p->productId, [$color => [$red, $blue]], [[[[$color, $red]]], [[[$color, $blue]]]]));
         $this->activateProduct($p->productId);
-        $variants = array_map(static fn($v): int => $v->id, $this->variantService()->listByProductIdForManagement($p->productId)->items());
+        $variants = array_map(static fn($v): int => $v->id, $this->variantManagementService()->listByProductIdForManagement($p->productId)->items());
         [$original, $vr, $vb] = $variants;
         $q = $this->namedProduct('Q');
-        $roles = $this->imageRoleService();
+        $roles = $this->imageRoleManagementService();
         $hero = $roles->create(new CreateImageRoleCommand('hero'))->roleId;
         $old = $roles->create(new CreateImageRoleCommand('old'))->roleId;
         $gone = $roles->create(new CreateImageRoleCommand('gone'))->roleId;
-        $service = $this->imageAssignmentService();
+        $service = $this->imageAssignmentManagementService();
+        $consumer = $this->imageAssignmentConsumerService();
         $create = fn(?int $variant, int $media, ?int $role = null, ?string $language = null, ?string $platform = null): int => $service->create(new CreateImageAssignmentCommand($p->productId, $variant, $media, $role, $language, $platform))->assignmentId;
         $a1 = $create(null, 1);
         $a2 = $create(null, 2);
@@ -121,7 +122,7 @@ final class ConsumerReadTest extends RuntimeTestCase
 
         $read = fn(?int $variant, ?int $role = null, ?string $language = null, ?string $platform = null, int $max = 100, int $productId = 0): array => array_map(
             static fn($a): int => $a->id,
-            $service->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($productId > 0 ? $productId : $p->productId, $variant, $role, $language, $platform, $max))->items(),
+            $consumer->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($productId > 0 ? $productId : $p->productId, $variant, $role, $language, $platform, $max))->items(),
         );
 
         self::assertSame([$a2, $a1], $read(null), 'The all-NULL Product-level scope, by position; NULL never matches a value and a deleted row is hidden.');
@@ -135,12 +136,12 @@ final class ConsumerReadTest extends RuntimeTestCase
         self::assertSame([], $read(null, $old), 'An inactive Role hides its assignments.');
         self::assertSame([], $read(null, $gone), 'A deleted Role hides its assignments.');
         self::assertSame([], $read($original), 'An inactive target Variant hides its assignments.');
-        $this->variantService()->softDelete($original);
+        $this->variantManagementService()->softDelete($original);
         self::assertSame([], $read($original), 'A deleted target Variant hides its assignments.');
         self::assertSame([], $read($vr, productId: $q->productId), 'A Variant of another Product matches nothing.');
-        self::assertFalse($service->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($p->productId, null, null, null, null))->items()[0]->isDefault, 'The read selects no default.');
+        self::assertFalse($consumer->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($p->productId, null, null, null, null))->items()[0]->isDefault, 'The read selects no default.');
 
-        $this->productService()->updateStatus($p->productId, ProductStatusEnum::INACTIVE);
+        $this->productManagementService()->updateStatus($p->productId, ProductStatusEnum::INACTIVE);
         self::assertSame([], $read(null), 'An inactive Product hides its assignments.');
         self::assertSame([], $read($vr));
     }

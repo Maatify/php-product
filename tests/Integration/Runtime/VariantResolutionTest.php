@@ -8,7 +8,7 @@ use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Common\Exception\ProductPersistenceException;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
-use Maatify\Product\Variant\DTO\VariantCompositionCriteriaDTO;
+use Maatify\Product\Variant\Consumer\Criteria\VariantCompositionCriteriaDTO;
 use Maatify\Product\Variant\Exception\VariantNotFoundException;
 use Maatify\Product\Variant\ValueObject\OptionValueSelection;
 
@@ -55,7 +55,7 @@ final class VariantResolutionTest extends RuntimeTestCase
             [[[$this->color, $this->blue], [$this->size, $this->l]]],
             [[[$this->color, $this->red], [$this->size, $this->l]]],
         ];
-        $result = $this->productService()->reconfigure(self::reconfiguration(
+        $result = $this->productManagementService()->reconfigure(self::reconfiguration(
             $this->product,
             [$this->color => [$this->red, $this->blue], $this->size => [$this->m, $this->l]],
             $offered,
@@ -78,7 +78,7 @@ final class VariantResolutionTest extends RuntimeTestCase
     public function testResolvesAnyPairOrderToTheSameVisibleVariant(): void
     {
         $this->configurable();
-        $service = $this->variantService();
+        $service = $this->variantConsumerService();
 
         self::assertSame($this->redM, $service->resolveByComposition($this->product, self::selection([[$this->size, $this->m], [$this->color, $this->red]]))->id);
         self::assertSame($this->redM, $service->resolveByComposition($this->product, self::selection([[$this->color, $this->red], [$this->size, $this->m]]))->id);
@@ -92,7 +92,7 @@ final class VariantResolutionTest extends RuntimeTestCase
     {
         $created = $this->namedProduct('SIMPLE');
         $this->activateProduct($created->productId);
-        $service = $this->variantService();
+        $service = $this->variantConsumerService();
 
         self::assertSame($created->variantId, $service->resolveByComposition($created->productId, new VariantCompositionCriteriaDTO())->id);
 
@@ -108,12 +108,12 @@ final class VariantResolutionTest extends RuntimeTestCase
     public function testStructurallyInvalidSelectionsAreValidationFailures(): void
     {
         $this->configurable();
-        $service = $this->variantService();
+        $service = $this->variantConsumerService();
         $other = $this->namedProduct('OTHER');
         $otherOption = $this->preparedOption($other->productId, 'color', 'Color');
         $otherValue = $this->preparedValue($otherOption, 'red', 'Red');
-        $this->optionValueService()->softDelete($this->green);
-        $this->optionService()->softDelete($this->material);
+        $this->optionValueManagementService()->softDelete($this->green);
+        $this->optionManagementService()->softDelete($this->material);
 
         $cases = [
             'repeated Option' => fn() => self::selection([[$this->color, $this->red], [$this->color, $this->blue], [$this->size, $this->m]]),
@@ -136,25 +136,25 @@ final class VariantResolutionTest extends RuntimeTestCase
     public function testAnInvisibleProductIsNotFoundBeforeTheSelectionIsJudged(): void
     {
         $this->configurable();
-        $service = $this->variantService();
+        $service = $this->variantConsumerService();
         $complete = self::selection([[$this->color, $this->red], [$this->size, $this->m]]);
         $partial = self::selection([[$this->color, $this->red]]);
 
         $this->assertThrows(ProductNotFoundException::class, fn() => $service->resolveByComposition(999999, $complete));
 
-        $this->productService()->updateStatus($this->product, ProductStatusEnum::INACTIVE);
+        $this->productManagementService()->updateStatus($this->product, ProductStatusEnum::INACTIVE);
         $this->assertThrows(ProductNotFoundException::class, fn() => $service->resolveByComposition($this->product, $complete), 'An inactive Product is not visible.');
         $this->assertThrows(ProductNotFoundException::class, fn() => $service->resolveByComposition($this->product, $partial), 'Product visibility is judged before the selection.');
 
-        $this->productService()->updateStatus($this->product, ProductStatusEnum::ACTIVE);
-        $this->productService()->softDelete($this->product);
+        $this->productManagementService()->updateStatus($this->product, ProductStatusEnum::ACTIVE);
+        $this->productManagementService()->softDelete($this->product);
         $this->assertThrows(ProductNotFoundException::class, fn() => $service->resolveByComposition($this->product, $complete), 'A soft-deleted Product is not visible.');
     }
 
     public function testAValidCompositionWithNoVisibleVariantIsAVariantNotFound(): void
     {
         $this->configurable();
-        $service = $this->variantService();
+        $service = $this->variantConsumerService();
 
         $this->assertThrows(
             VariantNotFoundException::class,
@@ -167,7 +167,7 @@ final class VariantResolutionTest extends RuntimeTestCase
             [[[$this->color, $this->red], [$this->size, $this->m]], $this->redM],
             [[[$this->color, $this->blue], [$this->size, $this->l]], $this->blueL],
         ];
-        $result = $this->productService()->reconfigure(self::reconfiguration(
+        $result = $this->productManagementService()->reconfigure(self::reconfiguration(
             $this->product,
             [$this->color => [$this->red, $this->blue], $this->size => [$this->m, $this->l]],
             $kept,
@@ -186,7 +186,7 @@ final class VariantResolutionTest extends RuntimeTestCase
     public function testAMatchHiddenByTheProductWideRuleIsAVariantNotFound(): void
     {
         $this->configurable();
-        $service = $this->variantService();
+        $service = $this->variantConsumerService();
         $complete = self::selection([[$this->color, $this->red], [$this->size, $this->m]]);
         self::assertSame($this->redM, $service->resolveByComposition($this->product, $complete)->id);
 
@@ -200,7 +200,7 @@ final class VariantResolutionTest extends RuntimeTestCase
     public function testAStoredFingerprintThatDoesNotMatchItsPairsIsAPersistenceFailure(): void
     {
         $this->configurable();
-        $service = $this->variantService();
+        $service = $this->variantConsumerService();
 
         // Corrupt storage: red-M keeps its fingerprint but its size pair now says L.
         $this->execute(
@@ -216,7 +216,7 @@ final class VariantResolutionTest extends RuntimeTestCase
 
     public function testNonPositiveIdentitiesAreRejectedBeforeAnyRead(): void
     {
-        $this->assertThrows(ProductInvalidArgumentException::class, fn() => $this->variantService()->resolveByComposition(0, new VariantCompositionCriteriaDTO()));
+        $this->assertThrows(ProductInvalidArgumentException::class, fn() => $this->variantConsumerService()->resolveByComposition(0, new VariantCompositionCriteriaDTO()));
         $this->assertThrows(ProductInvalidArgumentException::class, fn() => new OptionValueSelection(1, 0));
         $this->assertThrows(ProductInvalidArgumentException::class, fn() => new OptionValueSelection(0, 1));
     }

@@ -7,9 +7,9 @@ declare(strict_types=1);
  *
  * Input -> Public Call -> Result -> Boundary:
  *  - Input:    an active, configured Product with labels, a name per language, and exact-scope images.
- *  - Calls:    OptionServiceInterface::listVisibleByProductId(), OptionValueServiceInterface::listVisibleByOptionId(),
- *              ProductContentServiceInterface::listVisible(), OptionContentServiceInterface::listVisible(),
- *              ImageAssignmentServiceInterface::listVisibleByExactScope().
+ *  - Calls:    OptionConsumerServiceInterface::listVisibleByProductId(), OptionValueConsumerServiceInterface::listVisibleByOptionId(),
+ *              ProductContentConsumerServiceInterface::listVisible(), OptionContentConsumerServiceInterface::listVisible(),
+ *              ImageAssignmentConsumerServiceInterface::listVisibleByExactScope().
  *  - Result:   the selectable Options and Values, the exact-language Content, and the images of one exact scope.
  *  - Boundary: consumer reads apply the visibility rules and never fall back: no language fallback, no
  *              Product-level images for a Variant, and no default chosen by the read. The Host owns fallback.
@@ -17,21 +17,21 @@ declare(strict_types=1);
  * Environment: see example 01.
  */
 
-use Maatify\Product\Content\Command\CreateOptionContentCommand;
-use Maatify\Product\Content\Command\CreateOptionValueContentCommand;
-use Maatify\Product\Content\Command\CreateProductContentCommand;
+use Maatify\Product\Content\Management\Command\CreateOptionContentCommand;
+use Maatify\Product\Content\Management\Command\CreateOptionValueContentCommand;
+use Maatify\Product\Content\Management\Command\CreateProductContentCommand;
 use Maatify\Product\Content\ValueObject\ExactContentLanguage;
 use Maatify\Product\Factory\ProductFactory;
-use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
-use Maatify\Product\ImageAssignment\DTO\ImageAssignmentExactScopeCriteriaDTO;
-use Maatify\Product\ImageRole\Command\CreateImageRoleCommand;
-use Maatify\Product\Option\Command\CreateOptionCommand;
-use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
-use Maatify\Product\Product\Command\CreateProductCommand;
-use Maatify\Product\Product\Command\ReconfigureOptionTarget;
-use Maatify\Product\Product\Command\ReconfigureProductCommand;
-use Maatify\Product\Product\Command\ReconfigureVariantTarget;
+use Maatify\Product\ImageAssignment\Consumer\Criteria\ImageAssignmentExactScopeCriteriaDTO;
+use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageRole\Management\Command\CreateImageRoleCommand;
+use Maatify\Product\Option\Management\Command\CreateOptionCommand;
+use Maatify\Product\OptionValue\Management\Command\CreateOptionValueCommand;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
+use Maatify\Product\Product\Management\Command\ReconfigureOptionTarget;
+use Maatify\Product\Product\Management\Command\ReconfigureProductCommand;
+use Maatify\Product\Product\Management\Command\ReconfigureVariantTarget;
 use Maatify\Product\Variant\ValueObject\OptionValueSelection;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
 
@@ -55,14 +55,20 @@ $pdo = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false],
 );
 $clock = new SystemClock(new DateTimeZone('UTC'));
-$products = ProductFactory::createProductService($pdo, $clock);
-$options = ProductFactory::createOptionService($pdo, $clock);
-$values = ProductFactory::createOptionValueService($pdo, $clock);
-$productContent = ProductFactory::createProductContentService($pdo, $clock);
-$optionContent = ProductFactory::createOptionContentService($pdo, $clock);
-$valueContent = ProductFactory::createOptionValueContentService($pdo, $clock);
-$roles = ProductFactory::createImageRoleService($pdo, $clock);
-$images = ProductFactory::createImageAssignmentService($pdo, $clock);
+$products = ProductFactory::createProductManagementService($pdo, $clock);
+$options = ProductFactory::createOptionManagementService($pdo, $clock);
+$consumerOptions = ProductFactory::createOptionConsumerService($pdo, $clock);
+$values = ProductFactory::createOptionValueManagementService($pdo, $clock);
+$consumerValues = ProductFactory::createOptionValueConsumerService($pdo, $clock);
+$productContent = ProductFactory::createProductContentManagementService($pdo, $clock);
+$consumerProductContent = ProductFactory::createProductContentConsumerService($pdo, $clock);
+$optionContent = ProductFactory::createOptionContentManagementService($pdo, $clock);
+$consumerOptionContent = ProductFactory::createOptionContentConsumerService($pdo, $clock);
+$valueContent = ProductFactory::createOptionValueContentManagementService($pdo, $clock);
+$consumerValueContent = ProductFactory::createOptionValueContentConsumerService($pdo, $clock);
+$roles = ProductFactory::createImageRoleManagementService($pdo, $clock);
+$images = ProductFactory::createImageAssignmentManagementService($pdo, $clock);
+$consumerImages = ProductFactory::createImageAssignmentConsumerService($pdo, $clock);
 
 // Catalog setup (management side): a colour-configurable Product with labels, names, and images.
 $suffix = bin2hex(random_bytes(4));
@@ -86,26 +92,26 @@ $images->create(new CreateImageAssignmentCommand($productId, null, 1001, $hero))
 $images->create(new CreateImageAssignmentCommand($productId, $whiteVariant, 1002, $hero));
 
 // Presentation (consumer side): selectable Options and Values with their exact labels.
-foreach ($options->listVisibleByProductId($productId) as $option) {
-    $label = $optionContent->listVisible($option->id, ExactContentLanguage::unlocalizedOnly())->items()[0]->name ?? $option->code;
+foreach ($consumerOptions->listVisibleByProductId($productId) as $option) {
+    $label = $consumerOptionContent->listVisible($option->id, ExactContentLanguage::unlocalizedOnly())->items()[0]->name ?? $option->code;
     $choices = [];
-    foreach ($values->listVisibleByOptionId($option->id) as $value) {
-        $choices[] = $valueContent->listVisible($value->id, ExactContentLanguage::unlocalizedOnly())->items()[0]->name ?? $value->code;
+    foreach ($consumerValues->listVisibleByOptionId($option->id) as $value) {
+        $choices[] = $consumerValueContent->listVisible($value->id, ExactContentLanguage::unlocalizedOnly())->items()[0]->name ?? $value->code;
     }
     echo $label . ': ' . implode(', ', $choices) . "\n";
 }
 
 // Exact Content: Arabic exists; French does not, and the Host decides whether to fall back.
-$arabic = $productContent->listVisible($productId, ExactContentLanguage::exactLanguage('ar'));
-$french = $productContent->listVisible($productId, ExactContentLanguage::exactLanguage('fr'));
+$arabic = $consumerProductContent->listVisible($productId, ExactContentLanguage::exactLanguage('ar'));
+$french = $consumerProductContent->listVisible($productId, ExactContentLanguage::exactLanguage('fr'));
 if (count($arabic) !== 1 || !$french->isEmpty()) {
     throw new RuntimeException('Content reads must be exact.');
 }
 
 // Exact-scope images: the white Variant has its own hero image; the black Variant has none and gets no Product-level fallback.
-$productHero = $images->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($productId, null, $hero, null, null));
-$whiteHero = $images->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($productId, $whiteVariant, $hero, null, null));
-$blackHero = $images->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($productId, $result->createdVariantIds[1], $hero, null, null));
+$productHero = $consumerImages->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($productId, null, $hero, null, null));
+$whiteHero = $consumerImages->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($productId, $whiteVariant, $hero, null, null));
+$blackHero = $consumerImages->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($productId, $result->createdVariantIds[1], $hero, null, null));
 if (count($productHero) !== 1 || count($whiteHero) !== 1 || !$blackHero->isEmpty()) {
     throw new RuntimeException('Image reads must be exact.');
 }

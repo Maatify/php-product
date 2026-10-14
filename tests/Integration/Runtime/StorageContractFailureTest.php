@@ -9,7 +9,7 @@ use Maatify\Exceptions\Exception\System\SystemMaatifyException;
 use Maatify\Product\Common\Exception\ProductPersistenceException;
 use Maatify\Product\Exception\ProductExceptionInterface;
 use Maatify\Product\Factory\ProductFactory;
-use Maatify\Product\Product\Command\CreateProductCommand;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
 use PDO;
 use Throwable;
@@ -25,7 +25,7 @@ final class StorageContractFailureTest extends RuntimeTestCase
 
     public function testAnUnknownStoredStatusRaisesThePublicPersistenceException(): void
     {
-        $service = $this->productService();
+        $service = $this->productManagementService();
         $created = $service->create(new CreateProductCommand('P-CORRUPT'));
 
         self::$pdo->exec('ALTER TABLE maa_product_products DROP CHECK `' . self::STATUS_CHECK . '`');
@@ -52,7 +52,7 @@ final class StorageContractFailureTest extends RuntimeTestCase
 
     public function testAnInvalidAutoIncrementIdentityRollsTheOwnedTransactionBack(): void
     {
-        $service = ProductFactory::createProductService($this->pdoWithBrokenIdentity(), new SystemClock(new DateTimeZone('UTC')));
+        $service = ProductFactory::createProductManagementService($this->pdoWithBrokenIdentity(), new SystemClock(new DateTimeZone('UTC')));
 
         try {
             $service->create(new CreateProductCommand('P-NO-ID'));
@@ -68,7 +68,7 @@ final class StorageContractFailureTest extends RuntimeTestCase
     public function testAnInvalidAutoIncrementIdentityInsideAHostTransactionLeavesNoWrite(): void
     {
         $pdo = $this->pdoWithBrokenIdentity();
-        $service = ProductFactory::createProductService($pdo, new SystemClock(new DateTimeZone('UTC')));
+        $service = ProductFactory::createProductManagementService($pdo, new SystemClock(new DateTimeZone('UTC')));
 
         $pdo->beginTransaction();
         try {

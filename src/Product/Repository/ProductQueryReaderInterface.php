@@ -7,7 +7,7 @@ namespace Maatify\Product\Product\Repository;
 use Maatify\Persistence\Pdo\Pagination\PageRequest;
 use Maatify\Persistence\Pdo\Pagination\PageResult;
 use Maatify\Product\Product\DTO\ProductDTO;
-use Maatify\Product\Product\DTO\ProductListCriteriaDTO;
+use Maatify\Product\Product\Management\Criteria\ProductListCriteriaDTO;
 
 /**
  * Read port for stored Products.

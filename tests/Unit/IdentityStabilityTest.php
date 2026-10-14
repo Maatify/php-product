@@ -5,15 +5,23 @@ declare(strict_types=1);
 namespace Maatify\Product\Tests\Unit;
 
 use FilesystemIterator;
-use Maatify\Product\Content\Service\OptionContentServiceInterface;
-use Maatify\Product\Content\Service\OptionValueContentServiceInterface;
-use Maatify\Product\Content\Service\ProductContentServiceInterface;
-use Maatify\Product\ImageAssignment\Service\ImageAssignmentServiceInterface;
-use Maatify\Product\ImageRole\Service\ImageRoleServiceInterface;
-use Maatify\Product\Option\Service\OptionServiceInterface;
-use Maatify\Product\OptionValue\Service\OptionValueServiceInterface;
-use Maatify\Product\Product\Service\ProductServiceInterface;
-use Maatify\Product\Variant\Service\VariantServiceInterface;
+use Maatify\Product\Content\Consumer\Service\OptionContentConsumerServiceInterface;
+use Maatify\Product\Content\Consumer\Service\OptionValueContentConsumerServiceInterface;
+use Maatify\Product\Content\Consumer\Service\ProductContentConsumerServiceInterface;
+use Maatify\Product\Content\Management\Service\OptionContentManagementServiceInterface;
+use Maatify\Product\Content\Management\Service\OptionValueContentManagementServiceInterface;
+use Maatify\Product\Content\Management\Service\ProductContentManagementServiceInterface;
+use Maatify\Product\ImageAssignment\Consumer\Service\ImageAssignmentConsumerServiceInterface;
+use Maatify\Product\ImageAssignment\Management\Service\ImageAssignmentManagementServiceInterface;
+use Maatify\Product\ImageRole\Management\Service\ImageRoleManagementServiceInterface;
+use Maatify\Product\Option\Consumer\Service\OptionConsumerServiceInterface;
+use Maatify\Product\Option\Management\Service\OptionManagementServiceInterface;
+use Maatify\Product\OptionValue\Consumer\Service\OptionValueConsumerServiceInterface;
+use Maatify\Product\OptionValue\Management\Service\OptionValueManagementServiceInterface;
+use Maatify\Product\Product\Consumer\Service\ProductConsumerServiceInterface;
+use Maatify\Product\Product\Management\Service\ProductManagementServiceInterface;
+use Maatify\Product\Variant\Consumer\Service\VariantConsumerServiceInterface;
+use Maatify\Product\Variant\Management\Service\VariantManagementServiceInterface;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -103,15 +111,23 @@ final class IdentityStabilityTest extends TestCase
     {
         $methods = [];
         foreach ([
-            ProductServiceInterface::class,
-            VariantServiceInterface::class,
-            OptionServiceInterface::class,
-            OptionValueServiceInterface::class,
-            ImageRoleServiceInterface::class,
-            ImageAssignmentServiceInterface::class,
-            ProductContentServiceInterface::class,
-            OptionContentServiceInterface::class,
-            OptionValueContentServiceInterface::class,
+            ProductManagementServiceInterface::class,
+            ProductConsumerServiceInterface::class,
+            VariantManagementServiceInterface::class,
+            VariantConsumerServiceInterface::class,
+            OptionManagementServiceInterface::class,
+            OptionConsumerServiceInterface::class,
+            OptionValueManagementServiceInterface::class,
+            OptionValueConsumerServiceInterface::class,
+            ImageRoleManagementServiceInterface::class,
+            ImageAssignmentManagementServiceInterface::class,
+            ImageAssignmentConsumerServiceInterface::class,
+            ProductContentManagementServiceInterface::class,
+            ProductContentConsumerServiceInterface::class,
+            OptionContentManagementServiceInterface::class,
+            OptionContentConsumerServiceInterface::class,
+            OptionValueContentManagementServiceInterface::class,
+            OptionValueContentConsumerServiceInterface::class,
         ] as $interface) {
             foreach ((new ReflectionClass($interface))->getMethods() as $method) {
                 $methods[] = $interface . '::' . $method->getName();

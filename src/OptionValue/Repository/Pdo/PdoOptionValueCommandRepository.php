@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Maatify\Product\OptionValue\Repository\Pdo;
 
-use Maatify\Product\Common\Pdo\DuplicateKey;
 use DateTimeImmutable;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingConfig;
 use Maatify\Persistence\Pdo\Ordering\ScopedOrderingManager;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
-use Maatify\Product\Common\Pdo\RowHydrator;
-use Maatify\Product\OptionValue\Command\CreateOptionValueCommand;
+use Maatify\Product\Common\Repository\Pdo\DuplicateKey;
+use Maatify\Product\Common\Repository\Pdo\RowHydrator;
 use Maatify\Product\OptionValue\Exception\OptionValueCodeAlreadyExistsException;
+use Maatify\Product\OptionValue\Management\Command\CreateOptionValueCommand;
 use Maatify\Product\OptionValue\Repository\OptionValueCommandRepositoryInterface;
 use PDO;
 use PDOException;

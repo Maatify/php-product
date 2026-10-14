@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Product\Repository\Pdo;
 
-use Maatify\Product\Common\Pdo\DuplicateKey;
 use DateTimeImmutable;
 use Maatify\Product\Common\Exception\ProductStorageFailureFactory;
-use Maatify\Product\Common\Pdo\RowHydrator;
-use Maatify\Product\Product\Command\CreateProductCommand;
+use Maatify\Product\Common\Repository\Pdo\DuplicateKey;
+use Maatify\Product\Common\Repository\Pdo\RowHydrator;
 use Maatify\Product\Product\DTO\ProductLifecycleStateDTO;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
 use Maatify\Product\Product\Repository\ProductCommandRepositoryInterface;
 use PDO;
 use PDOException;

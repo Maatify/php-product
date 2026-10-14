@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Tests\Integration\Runtime;
 
-use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 
 /**
  * Real concurrent default replacements within one exact scope: separate processes and connections
@@ -19,7 +19,7 @@ final class ConcurrentDefaultReplacementTest extends RuntimeTestCase
     public function testConcurrentSetDefaultWithinOneScopeLeavesExactlyOneDefault(): void
     {
         $created = $this->namedProduct('DEFAULTS');
-        $service = $this->imageAssignmentService();
+        $service = $this->imageAssignmentManagementService();
         $commands = [];
         for ($i = 1; $i <= self::WORKERS; ++$i) {
             $assignmentId = $service->create(new CreateImageAssignmentCommand($created->productId, null, $i))->assignmentId;

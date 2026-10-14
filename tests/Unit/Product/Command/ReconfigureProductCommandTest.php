@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Maatify\Product\Tests\Unit\Product\Command;
 
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\Product\Command\ReconfigureOptionTarget;
-use Maatify\Product\Product\Command\ReconfigureProductCommand;
-use Maatify\Product\Product\Command\ReconfigureVariantTarget;
+use Maatify\Product\Product\Management\Command\ReconfigureOptionTarget;
+use Maatify\Product\Product\Management\Command\ReconfigureProductCommand;
+use Maatify\Product\Product\Management\Command\ReconfigureVariantTarget;
 use Maatify\Product\Variant\ValueObject\OptionValueSelection;
 use PHPUnit\Framework\TestCase;
 

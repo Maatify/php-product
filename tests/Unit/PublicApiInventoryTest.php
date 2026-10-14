@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Maatify\Product\Tests\Unit;
 
 use FilesystemIterator;
+use Maatify\Product\Factory\ProductFactory;
 use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -122,6 +123,54 @@ final class PublicApiInventoryTest extends TestCase
 
         self::assertGreaterThan(0, $checked, 'The inventory must name implemented methods.');
         self::assertSame([], $missing);
+    }
+
+    /**
+     * `DEC-013` replaced the single service of each capability by separate Management and Consumer
+     * contracts before the first release, with no compatibility layer: none of the former types or
+     * factory methods may remain.
+     */
+    public function testTheFormerSingleServiceContractsNoLongerExist(): void
+    {
+        $former = [
+            'Product\\Service\\ProductServiceInterface',
+            'Product\\Service\\ProductService',
+            'Variant\\Service\\VariantServiceInterface',
+            'Variant\\Service\\VariantService',
+            'Option\\Service\\OptionServiceInterface',
+            'Option\\Service\\OptionService',
+            'OptionValue\\Service\\OptionValueServiceInterface',
+            'OptionValue\\Service\\OptionValueService',
+            'ImageRole\\Service\\ImageRoleServiceInterface',
+            'ImageRole\\Service\\ImageRoleService',
+            'ImageAssignment\\Service\\ImageAssignmentServiceInterface',
+            'ImageAssignment\\Service\\ImageAssignmentService',
+            'Content\\Service\\ProductContentServiceInterface',
+            'Content\\Service\\ProductContentService',
+            'Content\\Service\\OptionContentServiceInterface',
+            'Content\\Service\\OptionContentService',
+            'Content\\Service\\OptionValueContentServiceInterface',
+            'Content\\Service\\OptionValueContentService',
+        ];
+        $remaining = array_values(array_intersect(
+            array_map(static fn(string $type): string => self::ROOT_NAMESPACE . $type, $former),
+            $this->packageTypes(),
+        ));
+
+        $factoryMethods = array_map(
+            static fn(ReflectionMethod $method): string => $method->getName(),
+            (new ReflectionClass(ProductFactory::class))->getMethods(ReflectionMethod::IS_PUBLIC),
+        );
+        foreach (['Product', 'Variant', 'Option', 'OptionValue', 'ImageRole', 'ImageAssignment', 'ProductContent', 'OptionContent', 'OptionValueContent'] as $capability) {
+            if (in_array('create' . $capability . 'Service', $factoryMethods, true)) {
+                $remaining[] = 'ProductFactory::create' . $capability . 'Service';
+            }
+        }
+        if (in_array('createImageRoleConsumerService', $factoryMethods, true)) {
+            $remaining[] = 'ProductFactory::createImageRoleConsumerService';
+        }
+
+        self::assertSame([], $remaining);
     }
 
     private function isInternal(string $type): bool

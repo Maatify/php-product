@@ -11,14 +11,14 @@ use Maatify\Persistence\Pdo\Transaction\PdoSavepointTransactionRunner;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
 use Maatify\Product\Factory\ProductFactory;
-use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
+use Maatify\Product\Product\Management\Service\ProductManagementService;
 use Maatify\Product\Product\Repository\Pdo\PdoProductCommandRepository;
 use Maatify\Product\Product\Repository\Pdo\PdoProductConfigurationRepository;
 use Maatify\Product\Product\Repository\Pdo\PdoProductQueryReader;
-use Maatify\Product\Product\Service\ProductService;
 use Maatify\Product\Tests\Support\UnusedVariantLifecycleWrites;
 use Maatify\Product\Variant\Repository\VariantCommandRepositoryInterface;
 use Maatify\Product\Variant\ValueObject\CompositionFingerprint;
@@ -30,7 +30,7 @@ final class ProductCreationTest extends RuntimeTestCase
 {
     public function testCreatesAnInactiveProductWithItsSingleActiveEmptyVariant(): void
     {
-        $service = $this->productService();
+        $service = $this->productManagementService();
 
         $created = $service->create(new CreateProductCommand('SIMPLE-1'));
 
@@ -62,7 +62,7 @@ final class ProductCreationTest extends RuntimeTestCase
 
     public function testEachProductGetsItsOwnVariantIdentity(): void
     {
-        $service = $this->productService();
+        $service = $this->productManagementService();
 
         $first = $service->create(new CreateProductCommand('A'));
         $second = $service->create(new CreateProductCommand('B'));
@@ -74,7 +74,7 @@ final class ProductCreationTest extends RuntimeTestCase
 
     public function testDuplicateCodeConflictsCaseInsensitivelyAndLeavesNothingBehind(): void
     {
-        $service = $this->productService();
+        $service = $this->productManagementService();
         $service->create(new CreateProductCommand('P-1'));
 
         foreach (['P-1', 'p-1'] as $code) {
@@ -92,7 +92,7 @@ final class ProductCreationTest extends RuntimeTestCase
 
     public function testASoftDeletedProductKeepsItsCodeReservedAndIsNeverRestoredByCreate(): void
     {
-        $service = $this->productService();
+        $service = $this->productManagementService();
         $created = $service->create(new CreateProductCommand('P-DEL'));
         $this->execute('UPDATE maa_product_products SET deleted_at = :t WHERE id = :i', ['t' => '2026-01-01 00:00:00', 'i' => $created->productId]);
 
@@ -113,7 +113,7 @@ final class ProductCreationTest extends RuntimeTestCase
 
     public function testManagementReadReturnsSoftDeletedProductsOnlyWhenAskedToAndHydratesInTheHostTimezone(): void
     {
-        $service = $this->productService();
+        $service = $this->productManagementService();
         $created = $service->create(new CreateProductCommand('P-DEL'));
         $this->execute('UPDATE maa_product_products SET deleted_at = :t WHERE id = :i', ['t' => '2026-02-03 04:05:06', 'i' => $created->productId]);
 
@@ -130,7 +130,7 @@ final class ProductCreationTest extends RuntimeTestCase
 
     public function testManagementReadExcludesDeletedOnlyWhenNotDeleted(): void
     {
-        $service = $this->productService();
+        $service = $this->productManagementService();
         $created = $service->create(new CreateProductCommand('P-LIVE'));
 
         self::assertSame($created->productId, $service->getByIdForManagement($created->productId)->id);
@@ -142,28 +142,30 @@ final class ProductCreationTest extends RuntimeTestCase
 
     public function testConsumerReadRequiresAnActiveNonDeletedProduct(): void
     {
-        $service = $this->productService();
+        $service = $this->productManagementService();
+        $consumer = $this->productConsumerService();
         $created = $service->create(new CreateProductCommand('P-VIS'));
 
         try {
-            $service->getById($created->productId);
+            $consumer->getById($created->productId);
             self::fail('A new inactive Product is not consumer-visible.');
         } catch (ProductNotFoundException) {
         }
 
         $this->execute("UPDATE maa_product_products SET status = 'active' WHERE id = :i", ['i' => $created->productId]);
-        self::assertSame($created->productId, $service->getById($created->productId)->id);
+        self::assertSame($created->productId, $consumer->getById($created->productId)->id);
 
         $this->execute('UPDATE maa_product_products SET deleted_at = :t WHERE id = :i', ['t' => '2026-02-03 04:05:06', 'i' => $created->productId]);
         $this->expectException(ProductNotFoundException::class);
-        $service->getById($created->productId);
+        $consumer->getById($created->productId);
     }
 
     public function testReadsThrowNotFoundForAnUnknownIdentity(): void
     {
-        $service = $this->productService();
+        $service = $this->productManagementService();
+        $consumer = $this->productConsumerService();
 
-        foreach ([static fn() => $service->getById(999999), static fn() => $service->getByIdForManagement(999999, ProductDeletedStateEnum::INCLUDE_DELETED)] as $read) {
+        foreach ([static fn() => $consumer->getById(999999), static fn() => $service->getByIdForManagement(999999, ProductDeletedStateEnum::INCLUDE_DELETED)] as $read) {
             try {
                 $read();
                 self::fail('An unknown identity must not be found.');
@@ -186,7 +188,7 @@ final class ProductCreationTest extends RuntimeTestCase
                 throw $this->failure;
             }
         };
-        $service = new ProductService(
+        $service = new ProductManagementService(
             new PdoProductCommandRepository(self::$pdo),
             $failingVariants,
             new PdoProductQueryReader(self::$pdo, new SystemClock(new DateTimeZone('UTC'))),
@@ -208,7 +210,7 @@ final class ProductCreationTest extends RuntimeTestCase
 
     public function testJoinsACallerOwnedTransactionAndLeavesCommitToTheCaller(): void
     {
-        $service = $this->productService();
+        $service = $this->productManagementService();
 
         self::$pdo->beginTransaction();
         $service->create(new CreateProductCommand('P-OUTER-ROLLBACK'));
@@ -226,7 +228,7 @@ final class ProductCreationTest extends RuntimeTestCase
 
     public function testVariantOrderIsAllocatedThroughTheSharedOrderingApi(): void
     {
-        $service = $this->productService();
+        $service = $this->productManagementService();
         $created = $service->create(new CreateProductCommand('P-ORDER'));
         $this->execute(
             'INSERT INTO maa_product_variants (product_id, composition_fingerprint, status, display_order, created_at, updated_at) VALUES (:p, :f, :s, 7, :t, :t2)',
@@ -248,6 +250,6 @@ final class ProductCreationTest extends RuntimeTestCase
         $silent->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
 
         $this->expectException(ProductInvalidArgumentException::class);
-        ProductFactory::createProductService($silent, new SystemClock(new DateTimeZone('UTC')));
+        ProductFactory::createProductManagementService($silent, new SystemClock(new DateTimeZone('UTC')));
     }
 }

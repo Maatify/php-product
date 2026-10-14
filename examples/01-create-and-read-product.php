@@ -7,8 +7,9 @@ declare(strict_types=1);
  *
  * Input -> Public Call -> Result -> Boundary:
  *  - Input:    a Product code supplied by the Host.
- *  - Calls:    ProductFactory::createProductService(), ProductServiceInterface::create(),
- *              getByIdForManagement(), getById().
+ *  - Calls:    ProductFactory::createProductManagementService(), ProductFactory::createProductConsumerService(),
+ *              ProductManagementServiceInterface::create(), getByIdForManagement(),
+ *              ProductConsumerServiceInterface::getById().
  *  - Result:   a CreatedProductDTO (Product and Variant identities) and a ProductDTO.
  *  - Boundary: the Host owns the PDO connection, the Clock, and the installed schema;
  *              the package owns Product and Variant data only.
@@ -20,10 +21,10 @@ declare(strict_types=1);
 
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Factory\ProductFactory;
-use Maatify\Product\Product\Command\CreateProductCommand;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductCodeAlreadyExistsException;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
+use Maatify\Product\Product\Management\Command\CreateProductCommand;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
 
 $autoload = getenv('PRODUCT_EXAMPLE_AUTOLOAD');
@@ -46,7 +47,9 @@ $pdo = new PDO(
     $setting('PRODUCT_EXAMPLE_PASSWORD'),
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false],
 );
-$products = ProductFactory::createProductService($pdo, new SystemClock(new DateTimeZone('UTC')));
+$clock = new SystemClock(new DateTimeZone('UTC'));
+$products = ProductFactory::createProductManagementService($pdo, $clock);
+$consumerProducts = ProductFactory::createProductConsumerService($pdo, $clock);
 
 // Input -> Public Call -> Result.
 $code = 'EXAMPLE-' . bin2hex(random_bytes(4));
@@ -61,7 +64,7 @@ if ($product->status !== ProductStatusEnum::INACTIVE) {
 }
 
 try {
-    $products->getById($created->productId);
+    $consumerProducts->getById($created->productId);
     throw new RuntimeException('An inactive Product must not be consumer-visible.');
 } catch (ProductNotFoundException) {
     echo "consumer read: not visible while inactive\n";

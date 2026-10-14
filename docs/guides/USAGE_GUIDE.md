@@ -43,15 +43,17 @@ Option and Option Value status changes only through `reconfigure()` (section 7);
 use Maatify\Product\Factory\ProductFactory;
 use Maatify\SharedCommon\Infrastructure\SystemClock;
 
-$products = ProductFactory::createProductService($pdo, new SystemClock(new DateTimeZone('UTC')));
+$clock = new SystemClock(new DateTimeZone('UTC'));
+$products = ProductFactory::createProductManagementService($pdo, $clock);
+$catalog = ProductFactory::createProductConsumerService($pdo, $clock);
 ```
 
-`ProductFactory` is the only construction entry point; it builds one service per capability (`createProductService()`, `createVariantService()`, `createOptionService()`, `createOptionValueService()`, `createImageRoleService()`, `createImageAssignmentService()`, `createProductContentService()`, `createOptionContentService()`, `createOptionValueContentService()`) on the connection and Clock you pass. All writes of one operation use that connection, so a transaction you already hold on it is joined, never committed by the package.
+`ProductFactory` is the only construction entry point. Every capability has a Management service, built by `create{X}ManagementService()`, for creation, lifecycle, and management reads, and a Consumer service, built by `create{X}ConsumerService()`, that returns only consumer-visible records and writes nothing (`X` is `Product`, `Variant`, `Option`, `OptionValue`, `ImageAssignment`, `ProductContent`, `OptionContent`, or `OptionValueContent`). Image Roles have no consumer read, so only `createImageRoleManagementService()` exists. Each builder takes the connection and Clock you pass. All writes of one operation use that connection, so a transaction you already hold on it is joined, never committed by the package.
 
 ## 1. Create a Product
 
 - **Input:** a Product `code`: valid UTF-8, at most 100 characters, not empty or whitespace only. It is stored exactly as supplied and is never trimmed.
-- **Public call:** `ProductServiceInterface::create(new CreateProductCommand($code))`.
+- **Public call:** `ProductManagementServiceInterface::create(new CreateProductCommand($code))`.
 - **Result:** a `CreatedProductDTO` with `productId` and `variantId`. The Product is **inactive**; its single Variant is **active** and has no SKU or barcode.
 - **Boundary:** the call is not idempotent (repeating a code conflicts), performs no Pricing or Inventory work, and either writes both rows or neither.
 
@@ -63,25 +65,27 @@ $created = $products->create(new CreateProductCommand('SIMPLE-1'));
 ## 2. Read a Product
 
 - **Input:** a Product identity.
-- **Public call:** `getById(int $productId)` for consumers, or `getByIdForManagement(int $productId, ProductDeletedStateEnum $deletedState = NON_DELETED)` for management.
+- **Public call:** `ProductConsumerServiceInterface::getById(int $productId)` for consumers, or `ProductManagementServiceInterface::getByIdForManagement(int $productId, ProductDeletedStateEnum $deletedState = NON_DELETED)` for management.
 - **Result:** a `ProductDTO` (`id`, `code`, `status`, `createdAt`, `updatedAt`, `deletedAt`). Timestamps are `DateTimeImmutable` values in the Host Clock's timezone.
 - **Boundary:** `getById()` returns only an active, non-deleted Product; any other identity raises `ProductNotFoundException`. A newly created Product is inactive, so it is visible to `getByIdForManagement()` only. `getByIdForManagement()` ignores status and filters by soft-deletion state: `NON_DELETED` (default), `INCLUDE_DELETED`, or `DELETED_ONLY`.
 
 ```php
 $product = $products->getByIdForManagement($created->productId);
+$visible = $catalog->getById($created->productId); // ProductNotFoundException until the Product is active
 ```
 
 ## 3. Read Variants
 
 - **Input:** a Product or Variant identity.
-- **Public call:** `VariantServiceInterface` from `ProductFactory::createVariantService($pdo, $clock)`: `getById()` and `listByProductId()` for consumers, `getByIdForManagement()` and `listByProductIdForManagement()` for management.
+- **Public call:** `VariantConsumerServiceInterface` from `ProductFactory::createVariantConsumerService($pdo, $clock)`: `getById()` and `listByProductId()` for consumers; `VariantManagementServiceInterface` from `ProductFactory::createVariantManagementService($pdo, $clock)`: `getByIdForManagement()` and `listByProductIdForManagement()` for management.
 - **Result:** a `VariantDTO` (`id`, `productId`, `sku`, `barcode`, `status`, `displayOrder`, `composition`, timestamps) or a `VariantCollectionDTO`, ordered by `display_order` then `id`, at most 100.
 - **Boundary:** consumer reads return only visible Variants: the Product and the Variant are active and not deleted, the composition is valid (every selected Option and Value active, not deleted, and labelled, covering exactly the Product's active Options), and the Product's configuration is valid as a whole (every active Value of an active Option is represented by an active valid Variant; otherwise every Variant of the Product is hidden). A single get of a missing or not-visible Variant raises `VariantNotFoundException`; a list never fails for a missing Product and returns an empty collection. Management reads ignore visibility and filter by status (`null` means any) and `ProductDeletedStateEnum`.
 
 ```php
-$variants = ProductFactory::createVariantService($pdo, $clock);
+$variants = ProductFactory::createVariantManagementService($pdo, $clock);
+$shopVariants = ProductFactory::createVariantConsumerService($pdo, $clock);
 $managed = $variants->getByIdForManagement($created->variantId);
-$visible = $variants->listByProductId($created->productId); // empty until the Product is active
+$visible = $shopVariants->listByProductId($created->productId); // empty until the Product is active
 ```
 
 ## 4. Handle failures
@@ -124,8 +128,8 @@ $products->restore($created->productId);                                  // sta
 
 ## 7. Reconfigure a Product
 
-- **Input:** a `ReconfigureProductCommand`: the Product, the complete set of Options that must be active (`ReconfigureOptionTarget`, each with the complete set of its active Values), and the complete set of Variant compositions that must be active (`ReconfigureVariantTarget`, each a list of `OptionValueSelection` pairs and, when that composition already exists in the Product's history, its `reuseVariantId`). Options and Values are created inactive beforehand with `OptionServiceInterface::create()` and `OptionValueServiceInterface::create()` and need a label (an Option or Option Value Content record, see [10. Content](#10-content)); the command never creates them and carries no SKU or barcode.
-- **Public call:** `ProductServiceInterface::reconfigure($command)`.
+- **Input:** a `ReconfigureProductCommand`: the Product, the complete set of Options that must be active (`ReconfigureOptionTarget`, each with the complete set of its active Values), and the complete set of Variant compositions that must be active (`ReconfigureVariantTarget`, each a list of `OptionValueSelection` pairs and, when that composition already exists in the Product's history, its `reuseVariantId`). Options and Values are created inactive beforehand with `OptionManagementServiceInterface::create()` and `OptionValueManagementServiceInterface::create()` and need a label (an Option or Option Value Content record, see [10. Content](#10-content)); the command never creates them and carries no SKU or barcode.
+- **Public call:** `ProductManagementServiceInterface::reconfigure($command)`.
 - **Result:** a `ProductReconfigurationResultDTO` with the Variant identities created (in request order), reactivated, restored, and deactivated, and the Option and Value identities whose status changed.
 - **Boundary:** one atomic Product-local operation: the Product row is locked before anything is read, and any failure rejects the whole operation. An active Variant absent from the target becomes inactive and keeps its history. A composition that already exists (active, inactive, or soft-deleted) is a `VariantCompositionConflictException` unless `reuseVariantId` names that Variant; the named Variant is then reactivated or restored inside the operation. The empty composition is the simple Product: going back to simple means naming the original empty-composition Variant, never creating a second one (a missing original is a `ProductPersistenceException`). A target that would violate an invariant (an Option of another Product, a deleted or unlabelled Option or Value, incomplete or extra coverage, an unrepresented Value, no Variant) is a `ProductBusinessRuleException`; a repeated element in the command is a `ProductInvalidArgumentException`.
 
@@ -144,12 +148,12 @@ $result = $products->reconfigure(new ReconfigureProductCommand(
 ## 8. Resolve a composition
 
 - **Input:** the Product identity and a `VariantCompositionCriteriaDTO` holding the shopper's `OptionValueSelection` pairs, in any order; an empty selection is valid and names a simple Product's Variant.
-- **Public call:** `VariantServiceInterface::resolveByComposition($productId, $criteria)`.
+- **Public call:** `VariantConsumerServiceInterface::resolveByComposition($productId, $criteria)`.
 - **Result:** the `VariantDTO` of the one consumer-visible Variant with exactly that composition.
 - **Boundary:** read-only: it never creates or reactivates a Variant and never invents a default. A Product that does not exist or is not consumer-visible is a `ProductNotFoundException`. A structurally invalid selection (a repeated Option, an Option or Value that is not an active member of the Product, a Value paired with the wrong Option, an active Option left unselected) is a `ProductInvalidArgumentException`. A valid, complete selection that matches no visible Variant, including a historical inactive composition, is a `VariantNotFoundException`.
 
 ```php
-$variant = $variants->resolveByComposition($productId, new VariantCompositionCriteriaDTO([
+$variant = $shopVariants->resolveByComposition($productId, new VariantCompositionCriteriaDTO([
     new OptionValueSelection($size, $medium),
     new OptionValueSelection($color, $blue),
 ]));
@@ -158,22 +162,23 @@ $variant = $variants->resolveByComposition($productId, new VariantCompositionCri
 ## 9. Image Roles and Assignments
 
 - **Input:** a `CreateImageRoleCommand` (the role key), and a `CreateImageAssignmentCommand`: the Product, an optional Variant of that Product, the Host-owned `mediaAssetId` (`int`, or a string of digits), and the exact `roleId`, `languageCode`, and `platform` scope where `null` means exactly `null`.
-- **Public call:** `ImageRoleServiceInterface::create()`, `updateStatus()`, `softDelete()`, `restore()`; `ImageAssignmentServiceInterface::create()`, `setDefault()`, `clearDefault()`, `softDelete()`, `restore()`; `getByIdForManagement()` on both.
+- **Public call:** `ImageRoleManagementServiceInterface::create()`, `updateStatus()`, `softDelete()`, `restore()`; `ImageAssignmentManagementServiceInterface::create()`, `setDefault()`, `clearDefault()`, `softDelete()`, `restore()`; `getByIdForManagement()` on both.
 - **Result:** `CreatedImageRoleDTO` and `CreatedImageAssignmentDTO` identities; `ImageRoleDTO` and `ImageAssignmentDTO` snapshots.
 - **Boundary:** the package never resolves or verifies the Media Asset. A new assignment is not the default and gets its position within its exact scope from the shared Ordering API. `setDefault()` makes a non-deleted assignment the single default of its exact `(target, role, language, platform)` scope, clearing the previous one in the same operation; it needs a non-deleted target Product and Variant and a non-deleted Role, while an inactive Product, Variant, or Role does not block it. `clearDefault()` works even under a deleted target or Role and promotes nothing. Soft-deleting a default clears the marker and promotes nothing; `restore()` leaves the row non-default. An identity that exists in soft-deleted history is an `ImageAssignmentAlreadyExistsException`: restore it instead.
 
 ## 10. Content
 
 - **Input:** for Product Content, a `CreateProductContentCommand` (`productId`, `languageCode`, `name`, optional `shortDescription` and `description`); for Option and Option Value labels, a `CreateOptionContentCommand` or `CreateOptionValueContentCommand` (owner identity, `languageCode`, `name`). `languageCode` `null` is the single unlocalized record; any other value is one exact language (not empty or whitespace only, at most 16 characters). `name` is required, at most 255 characters, not empty or whitespace only; `shortDescription` is at most 500 characters and `description` at most 65535 bytes. Nothing is trimmed. Updates take the Content identity and the complete replacement fields.
-- **Public call:** `ProductFactory::createProductContentService()`, `createOptionContentService()`, or `createOptionValueContentService()`, then `create()`, `update()`, `softDelete()`, `restore()`, `getByIdForManagement()`, `listForManagement()`, and `paginateForManagement()` for management, and `listVisible()` for consumers.
+- **Public call:** `ProductFactory::createProductContentManagementService()`, `createOptionContentManagementService()`, or `createOptionValueContentManagementService()`, then `create()`, `update()`, `softDelete()`, `restore()`, `getByIdForManagement()`, `listForManagement()`, and `paginateForManagement()` for management; and `createProductContentConsumerService()`, `createOptionContentConsumerService()`, or `createOptionValueContentConsumerService()`, then `listVisible()` for consumers.
 - **Result:** a `Created*ContentDTO` identity; `*ContentDTO` snapshots in a `*ContentCollectionDTO` (ordered by language, the unlocalized record first, then identity) or in a `maatify/persistence` `PageResult` (20 per page by default, at most 100).
 - **Boundary:** the identity `(owner, language)` is unique across soft-deleted history under the collation (`EN` and `en` are one identity): a second record, or re-adding a deleted one, is the owner's `*ContentAlreadyExistsException`, and `restore()` brings the original back. An update equal to the stored fields writes nothing. Soft-deleting the last name of an active Product, or the last label of an active Option or of an active Value of an active Option, is a `ProductBusinessRuleException`; an inactive owner may lose its last label. Records of a soft-deleted owner chain cannot be created or changed. Management reads take a `ContentLanguageFilter` (`exactLanguage()`, `unlocalizedOnly()`, or `allLanguages()`) and a deleted-state filter. The consumer read takes an `ExactContentLanguage` (`exactLanguage()` or `unlocalizedOnly()`, never all languages) and returns zero or one record only while the owner chain is active and not deleted. No read falls back: a request for `ar` never returns the unlocalized record or another language; the Host owns any fallback policy.
 
 ```php
-$content = ProductFactory::createProductContentService($pdo, $clock);
+$content = ProductFactory::createProductContentManagementService($pdo, $clock);
+$shopContent = ProductFactory::createProductContentConsumerService($pdo, $clock);
 $content->create(new CreateProductContentCommand($productId, null, 'Shirt'));
 $content->create(new CreateProductContentCommand($productId, 'ar', 'قميص', 'قميص قطني'));
-$arabic = $content->listVisible($productId, ExactContentLanguage::exactLanguage('ar')); // empty until the Product is active
+$arabic = $shopContent->listVisible($productId, ExactContentLanguage::exactLanguage('ar')); // empty until the Product is active
 $all = $content->listForManagement(new ProductContentListCriteriaDTO($productId, ContentLanguageFilter::allLanguages()));
 $page = $content->paginateForManagement(new ProductContentListCriteriaDTO($productId, ContentLanguageFilter::allLanguages()), new PageRequest(1, 20));
 ```
@@ -181,7 +186,7 @@ $page = $content->paginateForManagement(new ProductContentListCriteriaDTO($produ
 ## 11. Variant SKU and barcode
 
 - **Input:** an `UpdateVariantIdentifiersCommand` with the Variant identity and one `VariantIdentifierChange` each for the SKU and the barcode: `unchanged()`, `set($value)`, or `clear()`. A set value is not empty or whitespace only, at most 128 characters, and stored exactly as supplied (a barcode keeps its leading zeroes).
-- **Public call:** `VariantServiceInterface::updateIdentifiers($command)`.
+- **Public call:** `VariantManagementServiceInterface::updateIdentifiers($command)`.
 - **Result:** `void`; read the values back through `getByIdForManagement()`.
 - **Boundary:** the Variant identity never changes. A soft-deleted Variant or Product is a `ProductBusinessRuleException`; an inactive one is not. Each value is unique across all Variants under the collation (`SKU-1` and `sku-1` collide), and a soft-deleted Variant keeps its values reserved: a taken value is a `VariantSkuAlreadyExistsException` or `VariantBarcodeAlreadyExistsException`. Replacing or clearing a value releases it. A request that changes nothing writes nothing.
 
@@ -197,7 +202,7 @@ $variants->updateIdentifiers(new UpdateVariantIdentifiersCommand($variantId, Var
 ## 12. Ordering
 
 - **Input:** an `UpdateVariantDisplayOrderCommand`, `UpdateOptionDisplayOrderCommand`, `UpdateOptionValueDisplayOrderCommand`, or `UpdateImageAssignmentDisplayOrderCommand`: the row identity and a position of at least 1.
-- **Public call:** `updateDisplayOrder($command)` on the Variant, Option, Option Value, or Image Assignment service.
+- **Public call:** `updateDisplayOrder($command)` on the Variant, Option, Option Value, or Image Assignment Management service.
 - **Result:** `void`; the row is at the requested position within its scope and the other rows of that scope shifted to keep the positions contiguous. Read the positions back through the management reads (`displayOrder`).
 - **Boundary:** a Variant or an Option moves within its Product, a Value within its Option, an assignment within its exact `(target, role, language, platform)` scope; nothing outside that scope changes. A position above the maximum is clamped to it, and the current position writes nothing. The move goes through the shared `maatify/persistence` Ordering API and joins a Host transaction you hold on the connection. A soft-deleted row or owner is a `ProductBusinessRuleException`; a missing identity is the family's not-found exception. A restored row always goes to the end of its scope, because a newer row may hold its old position.
 
@@ -209,7 +214,7 @@ $variants->updateDisplayOrder(new UpdateVariantDisplayOrderCommand($variantId, 9
 ## 13. Management lists
 
 - **Input:** the family's list criteria: `ProductListCriteriaDTO` (status, deleted state, `maxResults`, optional `search`), `VariantListCriteriaDTO`, `OptionListCriteriaDTO`, `OptionValueListCriteriaDTO`, `ImageRoleListCriteriaDTO` (status, deleted state, `maxResults`), or `ImageAssignmentListCriteriaDTO` (the Product and exact target, role, language, and platform selectors); for a page, also a `maatify/persistence` `PageRequest` (page, per page, sort key, direction).
-- **Public call:** `listForManagement()`/`paginateForManagement()` on the Product, Image Role, and Image Assignment services; `listByProductIdForManagement()`/`paginateByProductIdForManagement()` on the Variant and Option services; `listByOptionIdForManagement()`/`paginateByOptionIdForManagement()` on the Option Value service; `getByCodeForManagement()` (Product) and `getByKeyForManagement()` (Image Role) for one record by business key.
+- **Public call:** `listForManagement()`/`paginateForManagement()` on the Product, Image Role, and Image Assignment Management services; `listByProductIdForManagement()`/`paginateByProductIdForManagement()` on the Variant and Option Management services; `listByOptionIdForManagement()`/`paginateByOptionIdForManagement()` on the Option Value Management service; `getByCodeForManagement()` (Product) and `getByKeyForManagement()` (Image Role) for one record by business key.
 - **Result:** a `*CollectionDTO` of at most `maxResults` (1 to 100, default 100, silently truncated), or a `PageResult` of the family's DTO with `total`, `filtered`, page metadata, and the applied sort.
 - **Boundary:** pages hold 20 records by default and at most 100; an unknown sort key falls back to the list's default order (Products by `id`, Variants, Options, and Values by `display_order`, Image Roles by the binary role key, Image Assignments by exact scope then position). `null` status means any status; the deleted state is non-deleted by default; nothing is hidden because of an owner's state, and a missing owner gives an empty result. Only Products can be searched: a literal, case-insensitive substring of `code` (`%`, `_`, `\`, and `!` are plain characters, whatever the connection's `sql_mode`); `total` then counts the Products without the search and `filtered` with it. For Image Assignments, an omitted selector applies no condition, `exactNull()` matches only `NULL`, and a value never matches `NULL`. There is no lookup by SKU, barcode, or Option or Value code.
 
@@ -228,15 +233,18 @@ $heroImages = $assignments->listForManagement(new ImageAssignmentListCriteriaDTO
 ## 14. Consumer reads
 
 - **Input:** a Product identity (Options), an Option identity (Values), or an `ImageAssignmentExactScopeCriteriaDTO` (Product, `variantId` or `null` for the Product level, `roleId`, `languageCode`, `platform`, each `null` meaning exactly `NULL`); optional `OptionVisibleListCriteriaDTO` / `OptionValueVisibleListCriteriaDTO` for `maxResults`.
-- **Public call:** `OptionServiceInterface::listVisibleByProductId()`, `OptionValueServiceInterface::listVisibleByOptionId()`, `ImageAssignmentServiceInterface::listVisibleByExactScope()`.
+- **Public call:** `OptionConsumerServiceInterface::listVisibleByProductId()`, `OptionValueConsumerServiceInterface::listVisibleByOptionId()`, `ImageAssignmentConsumerServiceInterface::listVisibleByExactScope()`, from `ProductFactory::createOptionConsumerService()`, `createOptionValueConsumerService()`, and `createImageAssignmentConsumerService()`.
 - **Result:** an `OptionCollectionDTO`, `OptionValueCollectionDTO`, or `ImageAssignmentCollectionDTO`, ordered by `display_order` then `id`, at most `maxResults` (default 100). Labels come from the exact Content reads (section 10).
 - **Boundary:** Options and Values appear only while the Product has a consumer-visible Variant, under the same rule as the Variant reads: an inactive, deleted, simple, or invalidly configured Product shows none. A Value appears only when it is represented by a visible Variant. Images are read in one exact scope only: there is no fallback from a Variant to the Product level or back, no "any" value, and no default selection (`isDefault` is returned as stored); an inactive or deleted Product, Variant, or Role hides them. Empty results are normal; only invalid input raises `ProductInvalidArgumentException`. Fallback chains belong to the Host.
 
 ```php
-foreach ($options->listVisibleByProductId($productId) as $option) {
-    $choices = $values->listVisibleByOptionId($option->id);
+$shopOptions = ProductFactory::createOptionConsumerService($pdo, $clock);
+$shopValues = ProductFactory::createOptionValueConsumerService($pdo, $clock);
+$shopImages = ProductFactory::createImageAssignmentConsumerService($pdo, $clock);
+foreach ($shopOptions->listVisibleByProductId($productId) as $option) {
+    $choices = $shopValues->listVisibleByOptionId($option->id);
 }
-$hero = $images->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($productId, $variantId, $heroRoleId, 'en', null));
+$hero = $shopImages->listVisibleByExactScope(new ImageAssignmentExactScopeCriteriaDTO($productId, $variantId, $heroRoleId, 'en', null));
 ```
 
 ## Running the examples

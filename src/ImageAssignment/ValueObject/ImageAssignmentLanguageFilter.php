@@ -7,7 +7,7 @@ namespace Maatify\Product\ImageAssignment\ValueObject;
 use JsonSerializable;
 use Maatify\Product\Common\Command\CommandTextRules;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 
 /**
  * Language selector of the management Image Assignment list, in exactly one of three states: omitted

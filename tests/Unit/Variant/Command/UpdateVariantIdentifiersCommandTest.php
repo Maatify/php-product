@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Maatify\Product\Tests\Unit\Variant\Command;
 
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\Variant\Command\UpdateVariantIdentifiersCommand;
+use Maatify\Product\Variant\Management\Command\UpdateVariantIdentifiersCommand;
 use Maatify\Product\Variant\ValueObject\VariantIdentifierChange;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;

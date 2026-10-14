@@ -6,7 +6,7 @@ namespace Maatify\Product\ImageAssignment\Exception;
 
 use Maatify\Exceptions\Exception\Conflict\GenericConflictMaatifyException;
 use Maatify\Product\Exception\ProductExceptionInterface;
-use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 use Throwable;
 
 /**

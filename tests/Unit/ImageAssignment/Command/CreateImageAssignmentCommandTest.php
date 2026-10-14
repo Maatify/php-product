@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Maatify\Product\Tests\Unit\ImageAssignment\Command;
 
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
+use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentScope;
 use PHPUnit\Framework\TestCase;
 

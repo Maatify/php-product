@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Maatify\Product\Tests\Unit;
 
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\ImageAssignment\DTO\ImageAssignmentExactScopeCriteriaDTO;
-use Maatify\Product\Option\DTO\OptionVisibleListCriteriaDTO;
-use Maatify\Product\OptionValue\DTO\OptionValueVisibleListCriteriaDTO;
+use Maatify\Product\ImageAssignment\Consumer\Criteria\ImageAssignmentExactScopeCriteriaDTO;
+use Maatify\Product\Option\Consumer\Criteria\OptionVisibleListCriteriaDTO;
+use Maatify\Product\OptionValue\Consumer\Criteria\OptionValueVisibleListCriteriaDTO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

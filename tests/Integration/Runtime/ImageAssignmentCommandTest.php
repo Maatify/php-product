@@ -7,14 +7,14 @@ namespace Maatify\Product\Tests\Integration\Runtime;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
 use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Exception\ProductInvalidArgumentException;
-use Maatify\Product\ImageAssignment\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentAlreadyExistsException;
 use Maatify\Product\ImageAssignment\Exception\ImageAssignmentNotFoundException;
+use Maatify\Product\ImageAssignment\Management\Command\CreateImageAssignmentCommand;
 use Maatify\Product\ImageAssignment\ValueObject\ImageAssignmentScope;
-use Maatify\Product\ImageRole\Command\CreateImageRoleCommand;
 use Maatify\Product\ImageRole\Enum\ImageRoleStatusEnum;
 use Maatify\Product\ImageRole\Exception\ImageRoleKeyAlreadyExistsException;
 use Maatify\Product\ImageRole\Exception\ImageRoleNotFoundException;
+use Maatify\Product\ImageRole\Management\Command\CreateImageRoleCommand;
 use Maatify\Product\Product\Enum\ProductStatusEnum;
 use Maatify\Product\Product\Exception\ProductNotFoundException;
 use Maatify\Product\Variant\Exception\VariantNotFoundException;
@@ -29,7 +29,7 @@ final class ImageAssignmentCommandTest extends RuntimeTestCase
 {
     public function testRoleLifecycle(): void
     {
-        $roles = $this->imageRoleService();
+        $roles = $this->imageRoleManagementService();
         $hero = $roles->create(new CreateImageRoleCommand('hero'))->roleId;
         self::assertSame(ImageRoleStatusEnum::ACTIVE, $roles->getByIdForManagement($hero)->status);
         self::assertSame('hero', $roles->getByIdForManagement($hero)->roleKey);
@@ -40,7 +40,7 @@ final class ImageAssignmentCommandTest extends RuntimeTestCase
         self::assertSame(ImageRoleStatusEnum::INACTIVE, $roles->getByIdForManagement($hero)->status);
         $this->assertNoWrite(
             'maa_product_image_roles',
-            fn() => $this->imageRoleService(self::laterClock())->updateStatus($hero, ImageRoleStatusEnum::INACTIVE),
+            fn() => $this->imageRoleManagementService(self::laterClock())->updateStatus($hero, ImageRoleStatusEnum::INACTIVE),
             'A same-status request writes nothing.',
         );
 
@@ -59,13 +59,13 @@ final class ImageAssignmentCommandTest extends RuntimeTestCase
     {
         $p = $this->namedProduct('P');
         $q = $this->namedProduct('Q');
-        $roles = $this->imageRoleService();
+        $roles = $this->imageRoleManagementService();
         $hero = $roles->create(new CreateImageRoleCommand('hero'))->roleId;
         $retired = $roles->create(new CreateImageRoleCommand('retired'))->roleId;
         $roles->updateStatus($retired, ImageRoleStatusEnum::INACTIVE);
         $gone = $roles->create(new CreateImageRoleCommand('gone'))->roleId;
         $roles->softDelete($gone);
-        $service = $this->imageAssignmentService();
+        $service = $this->imageAssignmentManagementService();
 
         $a1 = $service->create(new CreateImageAssignmentCommand($p->productId, null, 10))->assignmentId;
         $a2 = $service->create(new CreateImageAssignmentCommand($p->productId, null, '11'))->assignmentId;
@@ -96,7 +96,7 @@ final class ImageAssignmentCommandTest extends RuntimeTestCase
         $this->assertThrows(ImageRoleNotFoundException::class, fn() => $service->create(new CreateImageAssignmentCommand($p->productId, null, 12, 999999)));
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $service->create(new CreateImageAssignmentCommand($p->productId, null, 12, $retired)), 'An inactive Role cannot take new assignments.');
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $service->create(new CreateImageAssignmentCommand($p->productId, null, 12, $gone)));
-        $this->productService()->softDelete($q->productId);
+        $this->productManagementService()->softDelete($q->productId);
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $service->create(new CreateImageAssignmentCommand($q->productId, null, 10)), 'A deleted Product takes no new assignment.');
         $this->assertThrows(ProductInvalidArgumentException::class, fn() => new CreateImageAssignmentCommand($p->productId, null, '042'));
         $this->assertThrows(ProductInvalidArgumentException::class, fn() => new CreateImageAssignmentCommand($p->productId, null, 0));
@@ -107,7 +107,7 @@ final class ImageAssignmentCommandTest extends RuntimeTestCase
     public function testDefaultReplacementIsAtomicWithinTheExactScopeAndNeverPromotes(): void
     {
         $p = $this->namedProduct('P');
-        $service = $this->imageAssignmentService();
+        $service = $this->imageAssignmentManagementService();
         $a1 = $service->create(new CreateImageAssignmentCommand($p->productId, null, 1))->assignmentId;
         $a2 = $service->create(new CreateImageAssignmentCommand($p->productId, null, 2))->assignmentId;
         $en = $service->create(new CreateImageAssignmentCommand($p->productId, null, 1, null, 'en'))->assignmentId;
@@ -118,7 +118,7 @@ final class ImageAssignmentCommandTest extends RuntimeTestCase
         self::assertSame([$a2], $this->defaults(), 'The previous default of the scope is cleared in the same operation.');
         $service->setDefault($en);
         self::assertSame([$a2, $en], $this->defaults(), 'Another exact scope keeps its own default.');
-        $later = $this->imageAssignmentService(self::laterClock());
+        $later = $this->imageAssignmentManagementService(self::laterClock());
         $this->assertNoWrite('maa_product_image_assignments', fn() => $later->setDefault($a2), 'Setting the current default writes nothing.');
 
         $later->clearDefault($a2);
@@ -149,22 +149,22 @@ final class ImageAssignmentCommandTest extends RuntimeTestCase
         $red = $this->preparedValue($color, 'red', 'Red');
         $blue = $this->preparedValue($color, 'blue', 'Blue');
         $m = $this->preparedValue($this->preparedOption($p->productId, 'size', 'Size'), 'm', 'M');
-        $size = $this->optionValueService()->getByIdForManagement($m)->optionId;
+        $size = $this->optionValueManagementService()->getByIdForManagement($m)->optionId;
         $l = $this->preparedValue($size, 'l', 'L');
-        [$redM, $redL, $blueM, $blueL] = $this->productService()->reconfigure(self::reconfiguration(
+        [$redM, $redL, $blueM, $blueL] = $this->productManagementService()->reconfigure(self::reconfiguration(
             $p->productId,
             [$color => [$red, $blue], $size => [$m, $l]],
             [[[[$color, $red], [$size, $m]]], [[[$color, $red], [$size, $l]]], [[[$color, $blue], [$size, $m]]], [[[$color, $blue], [$size, $l]]]],
         ))->createdVariantIds;
-        $roles = $this->imageRoleService();
+        $roles = $this->imageRoleManagementService();
         $hero = $roles->create(new CreateImageRoleCommand('hero'))->roleId;
-        $service = $this->imageAssignmentService();
+        $service = $this->imageAssignmentManagementService();
         $onProduct = $service->create(new CreateImageAssignmentCommand($p->productId, null, 1, $hero))->assignmentId;
         $onVariant = $service->create(new CreateImageAssignmentCommand($p->productId, $redL, 1, $hero))->assignmentId;
         $plain = $service->create(new CreateImageAssignmentCommand($p->productId, null, 2))->assignmentId;
 
         // Inactivity alone blocks nothing.
-        $this->productService()->updateStatus($p->productId, ProductStatusEnum::INACTIVE);
+        $this->productManagementService()->updateStatus($p->productId, ProductStatusEnum::INACTIVE);
         $roles->updateStatus($hero, ImageRoleStatusEnum::INACTIVE);
         $service->setDefault($onProduct);
         $service->setDefault($onVariant);
@@ -179,27 +179,27 @@ final class ImageAssignmentCommandTest extends RuntimeTestCase
         $service->setDefault($onProduct);
 
         // A soft-deleted target Variant blocks set-default, soft delete, and restore, but not clear-default.
-        $this->variantService()->softDelete($redL);
+        $this->variantManagementService()->softDelete($redL);
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $service->softDelete($onVariant));
         $service->clearDefault($onVariant);
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $service->setDefault($onVariant));
         self::assertSame([$onProduct], $this->defaults());
-        $this->variantService()->restore($redL);
+        $this->variantManagementService()->restore($redL);
         $service->setDefault($onVariant);
 
         // A soft-deleted Product blocks everything but clear-default and reads.
         $service->softDelete($plain);
-        $this->productService()->softDelete($p->productId);
+        $this->productManagementService()->softDelete($p->productId);
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $service->setDefault($plain));
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $service->restore($plain));
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $service->softDelete($onProduct));
         $service->clearDefault($onProduct);
         self::assertSame([$onVariant], $this->defaults(), 'Clearing under a deleted Product promotes nothing.');
         self::assertSame($plain, $service->getByIdForManagement($plain, ProductDeletedStateEnum::DELETED_ONLY)->id);
-        $this->productService()->restore($p->productId);
+        $this->productManagementService()->restore($p->productId);
         $service->restore($plain);
         foreach ([$redM, $blueM, $blueL] as $untouched) {
-            self::assertNull($this->variantService()->getByIdForManagement($untouched)->deletedAt, 'The other Variants were never touched.');
+            self::assertNull($this->variantManagementService()->getByIdForManagement($untouched)->deletedAt, 'The other Variants were never touched.');
         }
     }
 

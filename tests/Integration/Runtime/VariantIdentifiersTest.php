@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Maatify\Product\Tests\Integration\Runtime;
 
-use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Common\Enum\ProductDeletedStateEnum;
-use Maatify\Product\Variant\Command\UpdateVariantIdentifiersCommand;
+use Maatify\Product\Common\Exception\ProductBusinessRuleException;
 use Maatify\Product\Variant\Exception\VariantBarcodeAlreadyExistsException;
 use Maatify\Product\Variant\Exception\VariantNotFoundException;
 use Maatify\Product\Variant\Exception\VariantSkuAlreadyExistsException;
+use Maatify\Product\Variant\Management\Command\UpdateVariantIdentifiersCommand;
 use Maatify\Product\Variant\ValueObject\VariantIdentifierChange;
 use PDOException;
 
@@ -25,7 +25,7 @@ final class VariantIdentifiersTest extends RuntimeTestCase
     {
         $a = $this->namedProduct('A');
         $b = $this->namedProduct('B');
-        $service = $this->variantService();
+        $service = $this->variantManagementService();
 
         $service->updateIdentifiers(self::change($a->variantId, VariantIdentifierChange::set(' SKU-1 '), VariantIdentifierChange::set('000123')));
         $variant = $service->getByIdForManagement($a->variantId);
@@ -46,7 +46,7 @@ final class VariantIdentifiersTest extends RuntimeTestCase
     {
         $a = $this->namedProduct('A');
         $b = $this->namedProduct('B');
-        $service = $this->variantService();
+        $service = $this->variantManagementService();
         $service->updateIdentifiers(self::change($a->variantId, VariantIdentifierChange::set('SKU-A'), VariantIdentifierChange::set('111')));
 
         $sku = $this->assertThrows(VariantSkuAlreadyExistsException::class, fn() => $service->updateIdentifiers(self::change($b->variantId, VariantIdentifierChange::set('sku-a'), VariantIdentifierChange::unchanged())), 'Case variants conflict.');
@@ -59,7 +59,7 @@ final class VariantIdentifiersTest extends RuntimeTestCase
         // The original empty-composition Variant becomes inactive after reconfiguration, so it can be soft deleted.
         $color = $this->preparedOption($a->productId, 'color', 'Color');
         $red = $this->preparedValue($color, 'red', 'Red');
-        $this->productService()->reconfigure(self::reconfiguration($a->productId, [$color => [$red]], [[[[$color, $red]]]]));
+        $this->productManagementService()->reconfigure(self::reconfiguration($a->productId, [$color => [$red]], [[[[$color, $red]]]]));
         $service->softDelete($a->variantId);
         $this->assertThrows(VariantSkuAlreadyExistsException::class, fn() => $service->updateIdentifiers(self::change($b->variantId, VariantIdentifierChange::set('SKU-A'), VariantIdentifierChange::unchanged())), 'A soft-deleted Variant keeps its SKU reserved.');
         $this->assertThrows(VariantBarcodeAlreadyExistsException::class, fn() => $service->updateIdentifiers(self::change($b->variantId, VariantIdentifierChange::unchanged(), VariantIdentifierChange::set('111'))));
@@ -71,7 +71,7 @@ final class VariantIdentifiersTest extends RuntimeTestCase
     {
         $a = $this->namedProduct('A');
         $b = $this->namedProduct('B');
-        $service = $this->variantService();
+        $service = $this->variantManagementService();
         $service->updateIdentifiers(self::change($a->variantId, VariantIdentifierChange::unchanged(), VariantIdentifierChange::set('uq_maa_product_variants_sku-1')));
 
         $conflict = $this->assertThrows(
@@ -86,8 +86,8 @@ final class VariantIdentifiersTest extends RuntimeTestCase
     public function testAnUnchangedRequestWritesNothingAndOwnersAreChecked(): void
     {
         $a = $this->namedProduct('A');
-        $this->variantService()->updateIdentifiers(self::change($a->variantId, VariantIdentifierChange::set('SKU-A'), VariantIdentifierChange::unchanged()));
-        $later = $this->variantService(self::laterClock());
+        $this->variantManagementService()->updateIdentifiers(self::change($a->variantId, VariantIdentifierChange::set('SKU-A'), VariantIdentifierChange::unchanged()));
+        $later = $this->variantManagementService(self::laterClock());
 
         $this->assertNoWrite('maa_product_variants', fn() => $later->updateIdentifiers(self::change($a->variantId, VariantIdentifierChange::unchanged(), VariantIdentifierChange::unchanged())), 'Unchanged fields write nothing.');
         $this->assertNoWrite('maa_product_variants', fn() => $later->updateIdentifiers(self::change($a->variantId, VariantIdentifierChange::set('SKU-A'), VariantIdentifierChange::clear())), 'The same value and clearing a NULL write nothing.');
@@ -95,7 +95,7 @@ final class VariantIdentifiersTest extends RuntimeTestCase
         self::assertSame(self::LATER_TS, self::scalar('SELECT updated_at FROM maa_product_variants WHERE id = :i', ['i' => $a->variantId]), 'A case change is a real change.');
 
         $this->assertThrows(VariantNotFoundException::class, fn() => $later->updateIdentifiers(self::change(999999, VariantIdentifierChange::clear(), VariantIdentifierChange::clear())));
-        $this->productService()->softDelete($a->productId);
+        $this->productManagementService()->softDelete($a->productId);
         $this->assertThrows(ProductBusinessRuleException::class, fn() => $later->updateIdentifiers(self::change($a->variantId, VariantIdentifierChange::clear(), VariantIdentifierChange::unchanged())), 'A soft-deleted Product blocks the change.');
         self::assertSame(['sku-a', null], $this->identifiersOf($a->variantId));
     }
