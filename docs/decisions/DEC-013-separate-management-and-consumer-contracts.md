@@ -34,7 +34,7 @@ The Owner chose on 2026-10-14, in the Lead conversation; the choice is also reco
 6. Nothing has been released, so no compatibility layer is kept.
 7. The implementation belongs to WU-8.
 
-## Rationale
+## Rationale (Lead; the Owner chose among options presented with these trade-offs)
 
 The Host's administrative surface and its storefront surface have different visibility rules. Separate contracts make the consumer side unable to reach deleted or invisible records by construction, and doing it before the first release avoids a breaking change later.
 

@@ -323,7 +323,7 @@ The Product package does not create orders or decide how an order snapshot is re
 
 ## 9. Image Roles and Assignments
 
-Product owns Product/Variant image-role metadata and image-assignment relations, but never owns Media Asset storage, upload, processing, URL resolution, or Media Asset lifecycle. This capability is Product-owned and independent of `maatify/category`'s Category Image Role registry and Category Image Assignments. Their role IDs are separate namespaces; Product must not consume or persist Category `role_id` values.
+Product owns Product/Variant image-role metadata and image-assignment relations, but never owns Media Asset storage, upload, processing, URL resolution, or Media Asset lifecycle. This capability is Product-owned and independent of `maatify/php-category`'s Category Image Role registry and Category Image Assignments. Their role IDs are separate namespaces; Product must not consume or persist Category `role_id` values.
 
 ### 9.1 Media Asset ID interoperability
 

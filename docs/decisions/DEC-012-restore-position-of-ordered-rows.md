@@ -30,7 +30,7 @@ The Owner chose on 2026-10-14, in the Lead conversation; the choice is also reco
 2. Soft deletion does not compact positions.
 3. This deliberately differs from `maatify/php-category`, which keeps the original position, to prevent duplicate live positions.
 
-## Rationale
+## Rationale (Lead; the Owner chose among options presented with these trade-offs)
 
 Keeping the old position could duplicate a live position and break the shifting of `moveWithinScope()`. The end of the live scope is always free and deterministic.
 

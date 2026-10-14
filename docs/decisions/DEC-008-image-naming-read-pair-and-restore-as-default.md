@@ -36,7 +36,7 @@ The Owner chose on 2026-10-14, in the Lead conversation; the choice is also reco
 
 ## Rationale
 
-The naming and read-pair changes keep Product consistent with `maatify/php-category` for the same concepts. The Owner did not accept dropping restore-as-default: a Host that soft-deletes a default by mistake needs one explicit operation to bring it back as the default, and the conflict rule keeps that operation from silently displacing a default chosen after the deletion.
+The Owner gave no separate rationale; the Owner chose the option. The choice keeps the implemented naming and read pair, and restores, for the restore-as-default command, the behavior of the approved text at `cdbefe7` (§9.4, §11.4).
 
 ## Consequences
 

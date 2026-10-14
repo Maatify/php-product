@@ -32,7 +32,7 @@ The Owner chose on 2026-10-14, in the Lead conversation; the choice is also reco
 4. This applies to every family that keeps identity across soft-deleted history: Product code, Option and Option Value codes, the Image Role key, Content identity, Variant composition, Variant SKU and barcode, and Image Assignment identity.
 5. The conflict between A§6.1/A§9.3 ("restores/reuses") and A§6.4/A§17 is resolved in favor of A§6.4/A§17.
 
-## Rationale
+## Rationale (Lead; the Owner chose among options presented with these trade-offs)
 
 An implicit restore would hide a lifecycle transition inside a create, skip the revalidation a restore performs, and make the caller unable to tell a new identity from a revived one. A typed conflict keeps both operations explicit and matches `maatify/php-category`.
 

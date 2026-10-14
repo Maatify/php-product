@@ -33,7 +33,7 @@ The Owner chose on 2026-10-14, in the Lead conversation; the choice is also reco
 5. `reconfigure()` remains the way to change the active set atomically.
 6. This replaces the earlier Lead decision recorded in the Package Reference ("superseded by `CFG-01`").
 
-## Rationale
+## Rationale (Lead; the Owner chose among options presented with these trade-offs)
 
 A standalone status command lets the Host prepare and retire Options and Values whose status change keeps the configuration valid, without building a full reconfiguration target. Validating the whole graph under the Product lock keeps every committed state valid, so the command cannot become a path around the invariants.
 

@@ -33,7 +33,7 @@ The Owner chose on 2026-10-14, in the Lead conversation; the choice is also reco
 3. Identity stability is an application contract: no package write path updates an identity column, and no service method replaces one. It is proven by `tests/Unit/IdentityStabilityTest.php`, which scans every `UPDATE` statement in `src/`, and by a schema test that asserts that no trigger or routine exists (`tests/Integration/Schema/SchemaInstallTest.php`).
 4. This closes the Owner blocker recorded as item 2 in comment `6133230631`.
 
-## Rationale
+## Rationale (Lead; the Owner chose among options presented with these trade-offs)
 
 The `CHECK` is a declarative constraint with no runtime cost to the package and protects the default invariant against any writer. Triggers would add hidden database behavior to a reusable package, complicate installation and migration for the Host, and still not express the whole identity contract. Writes outside the package remain the Host's responsibility.
 
